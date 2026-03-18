@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateBookingDto, UpdateBookingStatusDto } from './dto/booking.dto';
-import { BookingStatus } from '@prisma/client';
+type BookingStatus = 'pending' | 'confirmed' | 'playing' | 'completed' | 'cancelled'
 import { EmailService } from '../email/email.service'
 
 @Injectable()
@@ -88,7 +88,7 @@ export class BookingsService {
           customerPhone: dto.customerPhone,
           customerEmail: dto.customerEmail,
           userId:        dto.userId,
-          status:        BookingStatus.pending,
+          status:       'pending',
         },
       });
 
@@ -256,7 +256,7 @@ export class BookingsService {
         ...(filters.branchId && { branchId: filters.branchId }),
         ...(filters.courtId  && { courtId: filters.courtId }),
         ...(filters.date     && { bookingDate: new Date(filters.date) }),
-        ...(filters.status   && { status: filters.status as BookingStatus }),
+        ...(filters.status   && { status: filters.status as any }),
         ...(filters.phone    && { customerPhone: { contains: filters.phone } }),
       },
       include: {

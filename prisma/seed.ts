@@ -3,7 +3,7 @@
 
 import { PrismaClient } from '@prisma/client'
 import * as bcrypt from 'bcrypt'
-import { Gender } from '@prisma/client'
+type Gender = 'nam' | 'nu'
 
 const prisma = new PrismaClient()
 
