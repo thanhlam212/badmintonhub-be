@@ -2,7 +2,7 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common'
 import { PrismaService } from '../prisma/prisma.service'
 import { CreateOrderDto } from './dto/order.dto'
-import { OrderStatus } from '@prisma/client'
+type OrderStatus = 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled'
 
 @Injectable()
 export class OrderService {
@@ -73,7 +73,7 @@ export class OrderService {
   // ─── Tất cả đơn hàng (admin) ──────────────────────────────
   async findAll(filters?: { status?: string }) {
     const orders = await this.prisma.order.findMany({
-      where: filters ?.status ? { status: filters.status as OrderStatus } : {},
+      where: filters?.status ? { status: filters.status as any } : {},
       include: { items: true, user: { select: { fullName: true } } },
       orderBy: { createdAt: 'desc' },
     })
@@ -99,7 +99,7 @@ export class OrderService {
     }
     const updated = await this.prisma.order.update({
       where:   { id },
-      data: { status: status as OrderStatus },
+      data: { status: status as any },
       include: { items: true },
     })
     return { success: true, order: this.transform(updated) }
