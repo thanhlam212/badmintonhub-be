@@ -10,7 +10,7 @@ export class TransfersService {
       ? `WHERE (tr.from_warehouse_id = ${user.warehouseId} OR tr.to_warehouse_id = ${user.warehouseId})`
       : ''
 
-    const rows = await this.prisma.$queryRawUnsafe<any[]>(`
+    const rows = await this.prisma.$queryRawUnsafe(`
       SELECT tr.*,
         fw.name AS from_warehouse_name,
         tw.name AS to_warehouse_name,
@@ -31,7 +31,7 @@ export class TransfersService {
       ${where}
       GROUP BY tr.id, fw.name, tw.name, u.full_name, au.full_name
       ORDER BY tr.created_at DESC
-    `)
+    `) as any[]
     return rows
   }
 
@@ -44,23 +44,23 @@ export class TransfersService {
     const { from_warehouse_id, to_warehouse_id, note, items } = dto
 
     // Tạo transfer request
-    const result = await this.prisma.$queryRawUnsafe<any[]>(`
+    const result = await this.prisma.$queryRawUnsafe(`
       INSERT INTO transfer_requests (date, from_warehouse_id, to_warehouse_id, reason, note, status, pickup_method, created_by)
       VALUES (NOW(), ${from_warehouse_id}, ${to_warehouse_id},
               '${(note || 'Điều chuyển kho').replace(/'/g, "''")}',
               '${(note || '').replace(/'/g, "''")}',
               'pending', 'employee', '${user.id}')
       RETURNING id
-    `)
+    `) as any[]
     const transferId = result[0].id
 
     // Thêm items
     for (const item of items) {
       // Lấy tên sản phẩm + available
-      const inv = await this.prisma.$queryRawUnsafe<any[]>(`
+      const inv = await this.prisma.$queryRawUnsafe(`
         SELECT name, available FROM inventory
         WHERE warehouse_id = ${from_warehouse_id} AND sku = '${item.sku}'
-      `)
+      `) as any[]
       const name = inv[0]?.name || item.sku
       const available = inv[0]?.available || 0
 

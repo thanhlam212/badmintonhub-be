@@ -11,13 +11,13 @@ export class InventoryService {
       ? `WHERE i.warehouse_id = ${user.warehouseId}`
       : ''
 
-    const rows = await this.prisma.$queryRawUnsafe<any[]>(`
+    const rows = await this.prisma.$queryRawUnsafe(`
       SELECT i.*, w.name AS warehouse_name, w.id AS warehouse_id
       FROM inventory i
       JOIN warehouses w ON w.id = i.warehouse_id
       ${where}
       ORDER BY i.category, i.name
-    `)
+    `) as any[]
     return rows
   }
 
@@ -27,13 +27,13 @@ export class InventoryService {
       ? `AND i.warehouse_id = ${user.warehouseId}`
       : ''
 
-    const rows = await this.prisma.$queryRawUnsafe<any[]>(`
+    const rows = await this.prisma.$queryRawUnsafe(`
       SELECT i.*, w.name AS warehouse_name
       FROM inventory i
       JOIN warehouses w ON w.id = i.warehouse_id
       WHERE i.available <= i.reorder_point ${where}
       ORDER BY i.available ASC
-    `)
+    `) as any[]
     return rows
   }
 
@@ -43,14 +43,14 @@ export class InventoryService {
       ? `WHERE t.warehouse_id = ${user.warehouseId}`
       : ''
 
-    const rows = await this.prisma.$queryRawUnsafe<any[]>(`
+    const rows = await this.prisma.$queryRawUnsafe(`
       SELECT t.*, w.name AS warehouse_name
       FROM inventory_transactions t
       JOIN warehouses w ON w.id = t.warehouse_id
       ${where}
       ORDER BY t.date DESC
       LIMIT 200
-    `)
+    `) as any[]
     return rows
   }
 
@@ -87,9 +87,9 @@ export class InventoryService {
     const { warehouse_id, sku, quantity, note } = dto
 
     // Kiểm tra tồn kho
-    const inv = await this.prisma.$queryRawUnsafe<any[]>(`
+    const inv = await this.prisma.$queryRawUnsafe(`
       SELECT available FROM inventory WHERE warehouse_id = ${warehouse_id} AND sku = '${sku}'
-    `)
+    `) as any[]
     if (!inv.length) throw new BadRequestException(`SKU ${sku} không tồn tại trong kho`)
     if (inv[0].available < quantity) throw new BadRequestException(`Không đủ hàng: còn ${inv[0].available}, cần ${quantity}`)
 

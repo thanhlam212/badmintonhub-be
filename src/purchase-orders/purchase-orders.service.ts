@@ -10,7 +10,7 @@ export class PurchaseOrdersService {
       ? `WHERE po.warehouse_id = ${user.warehouseId}`
       : ''
 
-    const rows = await this.prisma.$queryRawUnsafe<any[]>(`
+    const rows = await this.prisma.$queryRawUnsafe(`
       SELECT po.*,
         s.name AS supplier_name,
         w.name AS warehouse_name,
@@ -30,7 +30,7 @@ export class PurchaseOrdersService {
       ${where}
       GROUP BY po.id, s.name, w.name, u.full_name
       ORDER BY po.created_at DESC
-    `)
+    `) as any[]
     return rows
   }
 
@@ -42,13 +42,13 @@ export class PurchaseOrdersService {
   }
 
   async create(dto: { supplierId: number; warehouseId: number; note?: string; items: { sku: string; qty: number; unitCost: number }[] }, user: any) {
-  const result = await this.prisma.$queryRawUnsafe<any[]>(`
+  const result = await this.prisma.$queryRawUnsafe(`
   INSERT INTO purchase_orders (id, supplier_id, warehouse_id, status, total_value, note, created_by)
   VALUES (gen_random_uuid(), ${dto.supplierId}, ${dto.warehouseId}, 'draft',
           ${dto.items.reduce((s: number, i: any) => s + i.qty * i.unitCost, 0)},
           '${(dto.note || '').replace(/'/g, "''")}', '${user.id}')
   RETURNING id
-`)
+`) as any[]
   const poId = result[0].id
   for (const item of dto.items) {
     await this.prisma.$executeRawUnsafe(`
