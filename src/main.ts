@@ -15,7 +15,7 @@ async function bootstrap() {
 
   // ← Sửa lại phần CORS này
   app.enableCors({
-    origin: ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3002'],
+    origin: ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3002', 'https://badmintonhub-fe.vercel.app',],
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true,
