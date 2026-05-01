@@ -183,6 +183,7 @@ model Booking {
   timeEnd       String?       @map("time_end") @db.VarChar(5)
   people        Int           @default(2)
   amount        Decimal       @db.Decimal(12, 0)
+  pricePerHour  Decimal       @default(0) @map("price_per_hour") @db.Decimal(12, 0)
   status        BookingStatus @default(pending)
   paymentMethod String        @map("payment_method") @db.VarChar(30)
   customerName  String        @map("customer_name") @db.VarChar(100)
@@ -487,20 +488,22 @@ enum CourtType {
 }
 
 enum BookingStatus {
-  pending
-  confirmed
-  playing
-  completed
-  cancelled
+  pending       // Chờ xác nhận / thanh toán
+  deposited     // Đã đặt cọc
+  confirmed     // Đã xác nhận thanh toán đủ
+  playing       // Đang chơi (đã check-in)
+  completed     // Đã hoàn thành
+  cancelled     // Đã hủy
 }
 
 enum OrderStatus {
-  pending
-  confirmed
-  processing
-  shipping
-  delivered
-  cancelled
+  pending       // Chờ xác nhận
+  confirmed     // Đã xác nhận
+  processing    // Đang xử lý / đóng gói
+  shipping      // Đang vận chuyển
+  delivered     // Đã giao hàng
+  cancelled     // Đã hủy
+  refunded      // Đã hoàn tiền
 }
 
 enum OrderType {

@@ -2,7 +2,7 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common'
 import { PrismaService } from '../prisma/prisma.service'
 import { CreateOrderDto } from './dto/order.dto'
-type OrderStatus = 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled'
+const valid = ['pending', 'confirmed', 'processing', 'shipping', 'delivered', 'cancelled', 'refunded']
 
 @Injectable()
 export class OrderService {

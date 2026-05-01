@@ -74,21 +74,22 @@ export class BookingsService {
 
       // 6. Tạo booking
       const booking = await tx.booking.create({
-        data: {
-          courtId,
-          branchId:      court.branchId,
-          bookingDate:   dateObj,
-          dayLabel,
-          timeStart,
-          timeEnd,
-          amount,
-          people:        dto.people || 2,
-          paymentMethod: dto.paymentMethod,
-          customerName:  dto.customerName,
-          customerPhone: dto.customerPhone,
-          customerEmail: dto.customerEmail,
-          userId:        dto.userId,
-          status:       'pending',
+      data: {
+        courtId,
+        branchId:      court.branchId,
+        bookingDate:   dateObj,
+        dayLabel,
+        timeStart,
+        timeEnd,
+        amount,
+        pricePerHour:  court.price,   
+        people:        dto.people || 2,
+        paymentMethod: dto.paymentMethod,
+        customerName:  dto.customerName,
+        customerPhone: dto.customerPhone,
+        customerEmail: dto.customerEmail,
+        userId:        dto.userId,
+        status:       'pending',
         },
       });
 
