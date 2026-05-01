@@ -1,7 +1,8 @@
 import {
   IsString, IsNumber, IsOptional,
-  IsDateString, IsUUID, IsEnum, Matches, Min,
+  IsDateString, IsUUID, IsEnum, Matches, Min, IsArray, ValidateNested, IsBoolean,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 
 // ─────────────────────────────────────────────
 // Tạo booking mới
@@ -48,8 +49,8 @@ export class CreateBookingDto {
 // Cập nhật trạng thái booking (Admin/Employee)
 // ─────────────────────────────────────────────
 export class UpdateBookingStatusDto {
-  @IsEnum(['confirmed', 'playing', 'completed', 'cancelled'], {
-    message: 'Status phải là: confirmed | playing | completed | cancelled',
+  @IsEnum(['deposited', 'confirmed', 'playing', 'completed', 'cancelled'], {
+    message: 'Status phai la: deposited | confirmed | playing | completed | cancelled',
   })
   status: string;
 }
@@ -72,4 +73,101 @@ export class QueryBookingDto {
 
   @IsOptional()
   phone?: string;
+}
+
+export class FixedSchedulePreviewDto {
+  @IsNumber()
+  courtId: number;
+
+  @IsEnum(['weekly', 'monthly'])
+  cycle: 'weekly' | 'monthly';
+
+  @IsDateString()
+  startDate: string;
+
+  @IsDateString()
+  endDate: string;
+
+  @IsString()
+  @Matches(/^([01]\d|2[0-3]):00$/, { message: 'timeStart phai la HH:00' })
+  timeStart: string;
+
+  @IsString()
+  @Matches(/^([01]\d|2[0-3]):00$/, { message: 'timeEnd phai la HH:00' })
+  timeEnd: string;
+}
+
+export class FixedScheduleOccurrenceSelectionDto {
+  @IsDateString()
+  date: string;
+
+  @IsNumber()
+  courtId: number;
+
+  @IsString()
+  @Matches(/^([01]\d|2[0-3]):00$/)
+  timeStart: string;
+
+  @IsString()
+  @Matches(/^([01]\d|2[0-3]):00$/)
+  timeEnd: string;
+
+  @IsBoolean()
+  skip: boolean;
+}
+
+export class FixedScheduleConfirmDto extends FixedSchedulePreviewDto {
+  @IsString()
+  paymentMethod: string;
+
+  @IsString()
+  customerName: string;
+
+  @IsString()
+  customerPhone: string;
+
+  @IsString()
+  @IsOptional()
+  customerEmail?: string;
+
+  @IsUUID()
+  @IsOptional()
+  userId?: string;
+
+  @IsNumber()
+  @Min(0)
+  @IsOptional()
+  adjustmentLimit?: number;
+
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => FixedScheduleOccurrenceSelectionDto)
+  occurrences: FixedScheduleOccurrenceSelectionDto[];
+}
+
+export class FixedScheduleAdjustDto {
+  @IsEnum(['skip', 'reschedule', 'change_court'])
+  type: 'skip' | 'reschedule' | 'change_court';
+
+  @IsNumber()
+  @IsOptional()
+  newCourtId?: number;
+
+  @IsDateString()
+  @IsOptional()
+  newDate?: string;
+
+  @IsString()
+  @Matches(/^([01]\d|2[0-3]):00$/)
+  @IsOptional()
+  newTimeStart?: string;
+
+  @IsString()
+  @Matches(/^([01]\d|2[0-3]):00$/)
+  @IsOptional()
+  newTimeEnd?: string;
+
+  @IsString()
+  @IsOptional()
+  note?: string;
 }
