@@ -3,7 +3,13 @@ import {
   Body, Param, Query,
 } from '@nestjs/common';
 import { BookingsService } from './bookings.service';
-import { CreateBookingDto, UpdateBookingStatusDto } from './dto/booking.dto';
+import {
+  CreateBookingDto,
+  FixedScheduleAdjustDto,
+  FixedScheduleConfirmDto,
+  FixedSchedulePreviewDto,
+  UpdateBookingStatusDto,
+} from './dto/booking.dto';
 import { Public, Roles, CurrentUser } from '../auth/decorators/index';
 
 @Controller('bookings')
@@ -18,6 +24,18 @@ export class BookingsController {
   @Post()
   create(@Body() dto: CreateBookingDto) {
     return this.bookingsService.create(dto);
+  }
+
+  @Public()
+  @Post('fixed/preview')
+  previewFixed(@Body() dto: FixedSchedulePreviewDto) {
+    return this.bookingsService.previewFixedSchedule(dto);
+  }
+
+  @Public()
+  @Post('fixed/confirm')
+  confirmFixed(@Body() dto: FixedScheduleConfirmDto) {
+    return this.bookingsService.confirmFixedSchedule(dto);
   }
 
   // ─────────────────────────────────────────────────────
@@ -74,8 +92,8 @@ export class BookingsController {
   // GET /api/bookings/:id — Chi tiết booking
   // ─────────────────────────────────────────────────────
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.bookingsService.findOne(id);
+  findOne(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.bookingsService.findOneForUser(id, user);
   }
 
   // ─────────────────────────────────────────────────────
@@ -92,8 +110,8 @@ export class BookingsController {
   // User tự hủy hoặc Admin hủy
   // ─────────────────────────────────────────────────────
   @Patch(':id/cancel')
-  cancel(@Param('id') id: string) {
-    return this.bookingsService.cancel(id);
+  cancel(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.bookingsService.cancelForUser(id, user);
   }
 
   // ─────────────────────────────────────────────────────
@@ -115,5 +133,15 @@ export class BookingsController {
   @Roles('admin', 'employee')
   checkin(@Body('bookingId') bookingId: string) {
     return this.bookingsService.checkin(bookingId);
+  }
+
+  @Patch('fixed/:scheduleId/occurrences/:occurrenceId/adjust')
+  adjustFixed(
+    @Param('scheduleId') scheduleId: string,
+    @Param('occurrenceId') occurrenceId: string,
+    @Body() dto: FixedScheduleAdjustDto,
+    @CurrentUser() user: any,
+  ) {
+    return this.bookingsService.adjustFixedOccurrence(scheduleId, occurrenceId, dto, user);
   }
 }
