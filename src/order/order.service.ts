@@ -1,8 +1,8 @@
 // src/orders/orders.service.ts
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common'
+import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common'
 import { PrismaService } from '../prisma/prisma.service'
 import { CreateOrderDto } from './dto/order.dto'
-type OrderStatus = 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled'
+const valid = ['pending', 'confirmed', 'processing', 'shipping', 'delivered', 'cancelled', 'refunded']
 
 @Injectable()
 export class OrderService {
@@ -90,6 +90,17 @@ export class OrderService {
     return this.transform(order)
   }
 
+  async findOneForUser(id: string, user: any) {
+    const order = await this.prisma.order.findUnique({
+      where: { id },
+      include: { items: true },
+    })
+    if (!order) throw new NotFoundException('Khong tim thay don hang')
+    if (user.role === 'admin' || user.role === 'employee') return this.transform(order)
+    if (order.userId && order.userId === user.id) return this.transform(order)
+    throw new ForbiddenException('Ban khong co quyen xem don hang nay')
+  }
+
   // ─── Cập nhật trạng thái (admin) ──────────────────────────
   async updateStatus(id: string, status: string) {
     const order = await this.findOne(id)
@@ -121,7 +132,7 @@ export class OrderService {
         productId:   i.productId,
         productName: i.productName,
         sku:         i.sku,
-        quantity:    i.quantity,
+        quantity:    i.qty,
         price:       parseFloat(String(i.price)),
       })),
     }

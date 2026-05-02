@@ -65,6 +65,7 @@ model User {
   slipsCreated        AdminWarehouseSlip[] @relation("SlipCreatedBy")
   slipsProcessed      AdminWarehouseSlip[] @relation("SlipProcessedBy")
   bookings            Booking[]
+  fixedSchedules      FixedSchedule[]
   ordersApproved      Order[]              @relation("OrderApprovedBy")
   orders              Order[]
   purchaseOrders      PurchaseOrder[]
@@ -94,6 +95,8 @@ model Court {
   createdAt    DateTime       @default(now()) @map("created_at")
   updatedAt    DateTime       @default(now()) @updatedAt @map("updated_at")
   bookings     Booking[]
+  fixedSchedules FixedSchedule[]
+  fixedOccurrences FixedScheduleOccurrence[]
   amenities    CourtAmenity[]
   slots        CourtSlot[]
   branch       Branch         @relation(fields: [branchId], references: [id])
@@ -183,7 +186,10 @@ model Booking {
   timeEnd       String?       @map("time_end") @db.VarChar(5)
   people        Int           @default(2)
   amount        Decimal       @db.Decimal(12, 0)
+  pricePerHour  Decimal       @default(0) @map("price_per_hour") @db.Decimal(12, 0)
   status        BookingStatus @default(pending)
+  fixedScheduleId String?     @map("fixed_schedule_id") @db.Uuid
+  fixedOccurrenceId String?   @unique @map("fixed_occurrence_id") @db.Uuid
   paymentMethod String        @map("payment_method") @db.VarChar(30)
   customerName  String        @map("customer_name") @db.VarChar(100)
   customerPhone String        @map("customer_phone") @db.VarChar(15)
@@ -192,13 +198,126 @@ model Booking {
   updatedAt     DateTime      @default(now()) @updatedAt @map("updated_at")
   branch        Branch        @relation(fields: [branchId], references: [id])
   court         Court         @relation(fields: [courtId], references: [id])
+  fixedSchedule FixedSchedule? @relation(fields: [fixedScheduleId], references: [id])
+  fixedOccurrence FixedScheduleOccurrence? @relation(fields: [fixedOccurrenceId], references: [id])
   user          User?         @relation(fields: [userId], references: [id])
   slots         CourtSlot[]
+  invoices      Invoice[]
 
   @@index([courtId, bookingDate], map: "idx_bookings_court_date")
   @@index([status], map: "idx_bookings_status")
   @@index([customerPhone], map: "idx_bookings_phone")
   @@map("bookings")
+}
+
+model FixedSchedule {
+  id                    String                    @id @default(uuid()) @db.Uuid
+  userId                String?                   @map("user_id") @db.Uuid
+  courtId               Int                       @map("court_id")
+  cycle                 FixedScheduleCycle
+  startDate             DateTime                  @map("start_date") @db.Date
+  endDate               DateTime                  @map("end_date") @db.Date
+  timeStart             String                    @map("time_start") @db.VarChar(5)
+  timeEnd               String                    @map("time_end") @db.VarChar(5)
+  customerName          String                    @map("customer_name") @db.VarChar(100)
+  customerPhone         String                    @map("customer_phone") @db.VarChar(15)
+  customerEmail         String?                   @map("customer_email") @db.VarChar(100)
+  paymentMethod         String                    @map("payment_method") @db.VarChar(30)
+  pricePerHourSnapshot  Decimal                   @map("price_per_hour_snapshot") @db.Decimal(12, 0)
+  totalAmountSnapshot   Decimal                   @map("total_amount_snapshot") @db.Decimal(12, 0)
+  occurrenceCount       Int                       @default(0) @map("occurrence_count")
+  adjustmentLimit       Int                       @default(2) @map("adjustment_limit")
+  adjustmentUsed        Int                       @default(0) @map("adjustment_used")
+  status                FixedScheduleStatus       @default(pending)
+  createdAt             DateTime                  @default(now()) @map("created_at")
+  updatedAt             DateTime                  @default(now()) @updatedAt @map("updated_at")
+  bookings              Booking[]
+  court                 Court                     @relation(fields: [courtId], references: [id])
+  user                  User?                     @relation(fields: [userId], references: [id])
+  occurrences           FixedScheduleOccurrence[]
+  adjustments           FixedScheduleAdjustment[]
+  invoices              Invoice[]
+
+  @@index([userId], map: "idx_fixed_schedules_user")
+  @@index([status], map: "idx_fixed_schedules_status")
+  @@map("fixed_schedules")
+}
+
+model FixedScheduleOccurrence {
+  id                    String                    @id @default(uuid()) @db.Uuid
+  fixedScheduleId       String                    @map("fixed_schedule_id") @db.Uuid
+  courtId               Int                       @map("court_id")
+  occurrenceDate        DateTime                  @map("occurrence_date") @db.Date
+  timeStart             String                    @map("time_start") @db.VarChar(5)
+  timeEnd               String                    @map("time_end") @db.VarChar(5)
+  pricePerHourSnapshot  Decimal                   @map("price_per_hour_snapshot") @db.Decimal(12, 0)
+  amountSnapshot        Decimal                   @map("amount_snapshot") @db.Decimal(12, 0)
+  status                FixedOccurrenceStatus     @default(scheduled)
+  booking               Booking?
+  court                 Court                     @relation(fields: [courtId], references: [id])
+  fixedSchedule         FixedSchedule             @relation(fields: [fixedScheduleId], references: [id], onDelete: Cascade)
+  adjustments           FixedScheduleAdjustment[]
+
+  @@index([courtId, occurrenceDate], map: "idx_fixed_occurrence_court_date")
+  @@map("fixed_schedule_occurrences")
+}
+
+model FixedScheduleAdjustment {
+  id                    String                    @id @default(uuid()) @db.Uuid
+  fixedScheduleId       String                    @map("fixed_schedule_id") @db.Uuid
+  occurrenceId          String?                   @map("occurrence_id") @db.Uuid
+  type                  FixedAdjustmentType
+  oldCourtId            Int?                      @map("old_court_id")
+  oldDate               DateTime?                 @map("old_date") @db.Date
+  oldTimeStart          String?                   @map("old_time_start") @db.VarChar(5)
+  oldTimeEnd            String?                   @map("old_time_end") @db.VarChar(5)
+  newCourtId            Int?                      @map("new_court_id")
+  newDate               DateTime?                 @map("new_date") @db.Date
+  newTimeStart          String?                   @map("new_time_start") @db.VarChar(5)
+  newTimeEnd            String?                   @map("new_time_end") @db.VarChar(5)
+  note                  String?
+  createdAt             DateTime                  @default(now()) @map("created_at")
+  fixedSchedule         FixedSchedule             @relation(fields: [fixedScheduleId], references: [id], onDelete: Cascade)
+  occurrence            FixedScheduleOccurrence?  @relation(fields: [occurrenceId], references: [id])
+
+  @@index([fixedScheduleId], map: "idx_fixed_adjustments_schedule")
+  @@map("fixed_schedule_adjustments")
+}
+
+model Invoice {
+  id                    String                    @id @default(uuid()) @db.Uuid
+  code                  String                    @unique @db.VarChar(30)
+  bookingId             String?                   @map("booking_id") @db.Uuid
+  orderId               String?                   @map("order_id") @db.Uuid
+  fixedScheduleId       String?                   @map("fixed_schedule_id") @db.Uuid
+  customerName          String                    @map("customer_name") @db.VarChar(100)
+  customerPhone         String                    @map("customer_phone") @db.VarChar(15)
+  customerEmail         String?                   @map("customer_email") @db.VarChar(100)
+  subtotalSnapshot      Decimal                   @map("subtotal_snapshot") @db.Decimal(12, 0)
+  totalSnapshot         Decimal                   @map("total_snapshot") @db.Decimal(12, 0)
+  paymentMethod         String                    @map("payment_method") @db.VarChar(30)
+  status                InvoiceStatus             @default(unpaid)
+  createdAt             DateTime                  @default(now()) @map("created_at")
+  booking               Booking?                  @relation(fields: [bookingId], references: [id])
+  fixedSchedule         FixedSchedule?            @relation(fields: [fixedScheduleId], references: [id])
+  order                 Order?                    @relation(fields: [orderId], references: [id])
+  items                 InvoiceItem[]
+
+  @@index([bookingId], map: "idx_invoices_booking")
+  @@index([fixedScheduleId], map: "idx_invoices_fixed_schedule")
+  @@map("invoices")
+}
+
+model InvoiceItem {
+  id                    Int                       @id @default(autoincrement())
+  invoiceId             String                    @map("invoice_id") @db.Uuid
+  description           String                    @db.VarChar(255)
+  quantity              Int
+  unitPriceSnapshot     Decimal                   @map("unit_price_snapshot") @db.Decimal(12, 0)
+  lineTotalSnapshot     Decimal                   @map("line_total_snapshot") @db.Decimal(12, 0)
+  invoice               Invoice                   @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@map("invoice_items")
 }
 
 model CourtSlot {
@@ -242,6 +361,7 @@ model Order {
   createdAt             DateTime       @default(now()) @map("created_at")
   updatedAt             DateTime       @default(now()) @updatedAt @map("updated_at")
   items                 OrderItem[]
+  invoices             Invoice[]
   approver              User?          @relation("OrderApprovedBy", fields: [approvedBy], references: [id])
   pickupBranch          Branch?        @relation(fields: [pickupBranchId], references: [id])
   user                  User?          @relation(fields: [userId], references: [id])
@@ -487,20 +607,57 @@ enum CourtType {
 }
 
 enum BookingStatus {
+  pending       // Chờ xác nhận / thanh toán
+  deposited     // Đã đặt cọc
+  confirmed     // Đã xác nhận thanh toán đủ
+  playing       // Đang chơi (đã check-in)
+  completed     // Đã hoàn thành
+  cancelled     // Đã hủy
+}
+
+enum FixedScheduleCycle {
+  weekly
+  monthly
+}
+
+enum FixedScheduleStatus {
   pending
+  deposited
   confirmed
-  playing
   completed
   cancelled
 }
 
-enum OrderStatus {
-  pending
-  confirmed
-  processing
-  shipping
-  delivered
+enum FixedOccurrenceStatus {
+  scheduled
+  rescheduled
+  skipped
   cancelled
+  completed
+}
+
+enum FixedAdjustmentType {
+  skip
+  reschedule
+  change_court
+}
+
+enum InvoiceStatus {
+  unpaid
+  deposited
+  paid
+  cancelled
+  refunded
+}
+
+enum OrderStatus {
+  pending       // Chờ xác nhận
+  confirmed     // Đã xác nhận
+  processing    // Đang xử lý / đóng gói
+  shipping      // Đang vận chuyển
+  delivered     // Đã giao hàng
+  cancelled     // Đã hủy
+  refunded      // Đã hoàn tiền
 }
 
 enum OrderType {

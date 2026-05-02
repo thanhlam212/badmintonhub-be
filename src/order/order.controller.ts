@@ -33,8 +33,8 @@ export class OrderController {
 
   // GET /api/orders/:id — Chi tiết đơn hàng
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.ordersService.findOne(id)
+  findOne(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.ordersService.findOneForUser(id, user)
   }
 
   // PATCH /api/orders/:id/status — Cập nhật trạng thái (admin)
