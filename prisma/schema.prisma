@@ -248,6 +248,7 @@ model FixedScheduleOccurrence {
   fixedScheduleId       String                    @map("fixed_schedule_id") @db.Uuid
   courtId               Int                       @map("court_id")
   occurrenceDate        DateTime                  @map("occurrence_date") @db.Date
+  dayLabel              String                    @map("day_label") @db.VarChar(10)  // ✨ THÊM DÒNG NÀY
   timeStart             String                    @map("time_start") @db.VarChar(5)
   timeEnd               String                    @map("time_end") @db.VarChar(5)
   pricePerHourSnapshot  Decimal                   @map("price_per_hour_snapshot") @db.Decimal(12, 0)
@@ -258,7 +259,6 @@ model FixedScheduleOccurrence {
   fixedSchedule         FixedSchedule             @relation(fields: [fixedScheduleId], references: [id], onDelete: Cascade)
   adjustments           FixedScheduleAdjustment[]
 
-  @@index([courtId, occurrenceDate], map: "idx_fixed_occurrence_court_date")
   @@map("fixed_schedule_occurrences")
 }
 
