@@ -22,6 +22,83 @@ export class BookingsService {
     private emailService: EmailService,
   ) {}
 
+  private validateFixedSchedule(dto: FixedSchedulePreviewDto | FixedScheduleConfirmDto) {
+  const start = this.normalizeDate(dto.startDate);
+  const end = this.normalizeDate(dto.endDate);
+  const today = this.normalizeDate(new Date());
+
+  // Ngày bắt đầu phải >= hôm nay
+  if (start < today) {
+    throw new BadRequestException('Ngày bắt đầu phải từ hôm nay trở đi');
+  }
+
+  // Ngày kết thúc phải sau ngày bắt đầu
+  if (end <= start) {
+    throw new BadRequestException('Ngày kết thúc phải sau ngày bắt đầu');
+  }
+
+  // Khoảng thời gian tối thiểu
+  const daysDiff = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+  
+  if (dto.cycle === 'weekly') {
+    // Gói tuần tối thiểu 4 tuần (28 ngày)
+    if (daysDiff < 28) {
+      throw new BadRequestException('Gói theo tuần tối thiểu 4 tuần (28 ngày)');
+    }
+  } else if (dto.cycle === 'monthly') {
+    // Gói tháng tối thiểu 2 tháng (60 ngày)
+    if (daysDiff < 60) {
+      throw new BadRequestException('Gói theo tháng tối thiểu 2 tháng (60 ngày)');
+    }
+  }
+
+  // Khoảng thời gian tối đa: 1 năm
+  if (daysDiff > 365) {
+    throw new BadRequestException('Gói cố định tối đa 1 năm (365 ngày)');
+  }
+
+  // Kiểm tra giờ hợp lệ
+  const startHour = parseInt(dto.timeStart.split(':')[0]);
+  const endHour = parseInt(dto.timeEnd.split(':')[0]);
+  
+  if (endHour <= startHour) {
+    throw new BadRequestException('Giờ kết thúc phải sau giờ bắt đầu');
+  }
+
+  if (endHour - startHour > 4) {
+    throw new BadRequestException('Mỗi buổi tối đa 4 giờ liên tiếp');
+  }
+}
+
+/**
+ * ✨ MỚI: Tính giá cho Fixed Schedule (có thể áp dụng discount)
+ */
+private calculateFixedSchedulePrice(
+  basePrice: number,
+  hoursPerSession: number,
+  totalSessions: number,
+  discountRate: number = 0,
+): { 
+  pricePerHour: number;
+  pricePerSession: number;
+  totalAmount: number;
+  discountAmount: number;
+  finalAmount: number;
+} {
+  const pricePerSession = Number(basePrice) * hoursPerSession;
+  const totalAmount = pricePerSession * totalSessions;
+  const discountAmount = Math.floor(totalAmount * discountRate);
+  const finalAmount = totalAmount - discountAmount;
+
+  return {
+    pricePerHour: Number(basePrice),
+    pricePerSession,
+    totalAmount,
+    discountAmount,
+    finalAmount,
+  };
+}
+
   private normalizeDate(value: string | Date) {
     const date = value instanceof Date ? new Date(value) : new Date(value);
     date.setHours(0, 0, 0, 0);
@@ -157,20 +234,40 @@ export class BookingsService {
     });
   }
 
-  async previewFixedSchedule(dto: FixedSchedulePreviewDto) {
-    const hours = this.buildHourSlots(dto.timeStart, dto.timeEnd);
-    const dates = this.generateFixedDates(dto);
-    if (dates.length === 0) throw new BadRequestException('Khong co buoi nao trong khoang ngay da chon');
+async previewFixedSchedule(dto: FixedSchedulePreviewDto) {
+  this.validateFixedSchedule(dto);
 
-    const court = await this.prisma.court.findUnique({
-      where: { id: dto.courtId },
-      select: { id: true, name: true, price: true, available: true, branchId: true },
-    });
-    if (!court) throw new NotFoundException('San khong ton tai');
-    if (!court.available) throw new BadRequestException('San hien dang dong cua');
+  const hours = this.buildHourSlots(dto.timeStart, dto.timeEnd);
+  const dates = this.generateFixedDates(dto);
+  
+  if (dates.length === 0) {
+    throw new BadRequestException('Không có buổi nào trong khoảng ngày đã chọn');
+  }
 
-    const occurrences = await Promise.all(dates.map(async (date) => {
-      const conflicts = await this.checkSlotConflict(this.prisma, dto.courtId, date, hours);
+  const court = await this.prisma.court.findUnique({
+    where: { id: dto.courtId },
+    select: { 
+      id: true, 
+      name: true, 
+      price: true, 
+      available: true, 
+      branchId: true,
+      type: true,
+    },
+  });
+
+  if (!court) throw new NotFoundException('Sân không tồn tại');
+  if (!court.available) throw new BadRequestException('Sân hiện đang đóng cửa');
+
+  const occurrences = await Promise.all(
+    dates.map(async (date) => {
+      const conflicts = await this.checkSlotConflict(
+        this.prisma,
+        dto.courtId,
+        date,
+        hours,
+      );
+      
       return {
         date: this.formatDate(date),
         dayLabel: this.dayLabel(date),
@@ -180,102 +277,188 @@ export class BookingsService {
         timeEnd: dto.timeEnd,
         slots: hours,
         available: conflicts.length === 0,
-        conflicts,
+        conflicts: conflicts.map(c => ({ // ✨ Format conflicts
+          time: c.time,
+          status: c.status,
+          bookedBy: c.bookedBy,
+        })),
         pricePerHour: Number(court.price),
         amount: Number(court.price) * hours.length,
         skip: false,
       };
-    }));
+    }),
+  );
 
-    const availableOccurrences = occurrences.filter((o) => o.available);
-    return {
-      court,
-      cycle: dto.cycle,
-      startDate: this.formatDate(this.normalizeDate(dto.startDate)),
-      endDate: this.formatDate(this.normalizeDate(dto.endDate)),
-      occurrences,
-      totalOccurrences: occurrences.length,
-      availableOccurrences: availableOccurrences.length,
-      conflictOccurrences: occurrences.length - availableOccurrences.length,
-      totalAmount: availableOccurrences.reduce((sum, o) => sum + o.amount, 0),
-    };
+  const availableOccurrences = occurrences.filter((o) => o.available);
+  const conflictOccurrences = occurrences.filter((o) => !o.available);
+
+  // ✨ Tính toán pricing (giảm giá mặc định cho gói dài hạn)
+  let suggestedDiscount = 0;
+  if (dto.cycle === 'weekly' && dates.length >= 12) {
+    suggestedDiscount = 0.05; // Giảm 5% cho gói >= 12 tuần
+  } else if (dto.cycle === 'monthly' && dates.length >= 6) {
+    suggestedDiscount = 0.10; // Giảm 10% cho gói >= 6 tháng
   }
 
+  const pricing = this.calculateFixedSchedulePrice(
+    Number(court.price),
+    hours.length,
+    availableOccurrences.length,
+    suggestedDiscount,
+  );
+
+  return {
+    court: {
+      id: court.id,
+      name: court.name,
+      type: court.type,
+      price: Number(court.price),
+    },
+    cycle: dto.cycle,
+    startDate: this.formatDate(this.normalizeDate(dto.startDate)),
+    endDate: this.formatDate(this.normalizeDate(dto.endDate)),
+    hoursPerSession: hours.length,
+    
+    // ✨ Thống kê
+    occurrences,
+    totalOccurrences: occurrences.length,
+    availableOccurrences: availableOccurrences.length,
+    conflictOccurrences: conflictOccurrences.length,
+    
+    // ✨ Pricing chi tiết
+    pricing: {
+      pricePerHour: pricing.pricePerHour,
+      pricePerSession: pricing.pricePerSession,
+      totalSessions: availableOccurrences.length,
+      subtotal: pricing.totalAmount,
+      suggestedDiscount: suggestedDiscount,
+      discountAmount: pricing.discountAmount,
+      finalAmount: pricing.finalAmount,
+    },
+    
+    // ✨ Gợi ý điều chỉnh
+    suggestions: {
+      hasConflicts: conflictOccurrences.length > 0,
+      message: conflictOccurrences.length > 0
+        ? `Có ${conflictOccurrences.length} buổi bị trùng lịch. Vui lòng điều chỉnh hoặc bỏ qua các buổi này.`
+        : 'Tất cả các buổi đều khả dụng!',
+    },
+  };
+}
+
   async confirmFixedSchedule(dto: FixedScheduleConfirmDto) {
-    const selected = (dto.occurrences || []).filter((o) => !o.skip);
-    if (!selected.length) throw new BadRequestException('Can chon it nhat 1 buoi hop le');
+  // ✨ Validation
+  this.validateFixedSchedule(dto);
 
-    return this.prisma.$transaction(async (tx) => {
-      const baseCourt = await tx.court.findUnique({
-        where: { id: dto.courtId },
-        select: { id: true, name: true, price: true, branchId: true, available: true },
-      });
-      if (!baseCourt) throw new NotFoundException('San khong ton tai');
+  const selected = (dto.occurrences || []).filter((o) => !o.skip);
+  if (!selected.length) {
+    throw new BadRequestException('Cần chọn ít nhất 1 buổi hợp lệ');
+  }
 
-      const checked: any[] = [];
-      let totalAmount = 0;
-      for (const item of selected) {
-        const date = this.normalizeDate(item.date);
-        const hours = this.buildHourSlots(item.timeStart, item.timeEnd);
-        const court = await tx.court.findUnique({
-          where: { id: item.courtId },
-          select: { id: true, name: true, price: true, branchId: true, available: true },
-        });
-        if (!court || !court.available) throw new BadRequestException(`San #${item.courtId} khong kha dung`);
-        const conflicts = await this.checkSlotConflict(tx, item.courtId, date, hours);
+  return this.prisma.$transaction(async (tx) => {
+    const court = await tx.court.findUnique({
+      where: { id: dto.courtId },
+      select: { id: true, name: true, price: true, branchId: true, available: true },
+    });
+
+    if (!court) throw new NotFoundException('Sân không tồn tại');
+    if (!court.available) throw new BadRequestException('Sân hiện đang đóng cửa');
+
+    const hours = this.buildHourSlots(dto.timeStart, dto.timeEnd);
+    
+    // ✨ Tính toán giá với discount
+    const discountRate = dto.discountRate || 0;
+    const pricing = this.calculateFixedSchedulePrice(
+      Number(court.price),
+      hours.length,
+      selected.length,
+      discountRate,
+    );
+
+    // ✨ Tạo Fixed Schedule với adjustmentLimit tùy chỉnh
+    const adjustmentLimit = dto.adjustmentLimit !== undefined 
+      ? dto.adjustmentLimit 
+      : (dto.cycle === 'monthly' ? 2 : 1); // Default: 2 lần/tháng, 1 lần/tuần
+
+    const fixedSchedule = await tx.fixedSchedule.create({
+      data: {
+        userId: dto.userId || null,
+        courtId: dto.courtId,
+        cycle: dto.cycle,
+        startDate: this.normalizeDate(dto.startDate),
+        endDate: this.normalizeDate(dto.endDate),
+        timeStart: dto.timeStart,
+        timeEnd: dto.timeEnd,
+        customerName: dto.customerName,
+        customerPhone: dto.customerPhone,
+        customerEmail: dto.customerEmail || null,
+        paymentMethod: dto.paymentMethod,
+        pricePerHourSnapshot: pricing.pricePerHour,
+        totalAmountSnapshot: pricing.finalAmount,
+        occurrenceCount: selected.length,
+        adjustmentLimit, // ✨ Sử dụng giá trị tùy chỉnh
+        adjustmentUsed: 0,
+        status: dto.paymentMethod === 'cash' ? 'pending' : 'deposited',
+      },
+    });
+
+    // Tạo occurrences và bookings
+    const occurrenceResults = await Promise.all(
+      selected.map(async (occ) => {
+        const occDate = this.normalizeDate(occ.date);
+        
+        // Sử dụng adjustedCourtId, adjustedTimeStart nếu có
+        const finalCourtId = occ.adjustedCourtId || occ.courtId;
+        const finalTimeStart = occ.adjustedTimeStart || occ.timeStart;
+        const finalTimeEnd = occ.adjustedTimeEnd || occ.timeEnd;
+        const finalHours = this.buildHourSlots(finalTimeStart, finalTimeEnd);
+
+        // Kiểm tra conflict lần cuối
+        const conflicts = await this.checkSlotConflict(tx, finalCourtId, occDate, finalHours);
         if (conflicts.length > 0) {
-          throw new ConflictException(`Ngay ${item.date} van con trung slot: ${conflicts.map((c) => c.time).join(', ')}`);
+          throw new ConflictException(
+            `Buổi ${occ.dayLabel} bị trùng lịch: ${conflicts.map(c => c.time).join(', ')}`,
+          );
         }
-        const amount = Number(court.price) * hours.length;
-        totalAmount += amount;
-        checked.push({ ...item, date, hours, court, amount });
-      }
 
-      const schedule = await tx.fixedSchedule.create({
-        data: {
-          userId: dto.userId || null,
-          courtId: dto.courtId,
-          cycle: dto.cycle,
-          startDate: this.normalizeDate(dto.startDate),
-          endDate: this.normalizeDate(dto.endDate),
-          timeStart: dto.timeStart,
-          timeEnd: dto.timeEnd,
-          customerName: dto.customerName,
-          customerPhone: dto.customerPhone,
-          customerEmail: dto.customerEmail || null,
-          paymentMethod: dto.paymentMethod,
-          pricePerHourSnapshot: baseCourt.price,
-          totalAmountSnapshot: totalAmount,
-          occurrenceCount: checked.length,
-          adjustmentLimit: dto.adjustmentLimit ?? 2,
-          status: dto.paymentMethod === 'cash' ? 'pending' : 'confirmed',
-        },
-      });
+        // Lấy thông tin sân (có thể khác sân gốc nếu đã adjust)
+        const occCourt = finalCourtId === dto.courtId 
+          ? court 
+          : await tx.court.findUnique({
+              where: { id: finalCourtId },
+              select: { id: true, name: true, price: true, branchId: true },
+            });
 
-      const bookings: any[] = [];
-      for (const item of checked) {
+        if (!occCourt) throw new NotFoundException(`Sân ID ${finalCourtId} không tồn tại`);
+
+        const amount = Number(occCourt.price) * finalHours.length;
+
+        // Tạo occurrence
         const occurrence = await tx.fixedScheduleOccurrence.create({
           data: {
-            fixedScheduleId: schedule.id,
-            courtId: item.court.id,
-            occurrenceDate: item.date,
-            timeStart: item.timeStart,
-            timeEnd: item.timeEnd,
-            pricePerHourSnapshot: item.court.price,
-            amountSnapshot: item.amount,
+            fixedScheduleId: fixedSchedule.id,
+            courtId: finalCourtId,
+            occurrenceDate: occDate,
+            dayLabel: this.dayLabel(occDate),
+            timeStart: finalTimeStart,
+            timeEnd: finalTimeEnd,
+            pricePerHourSnapshot: occCourt.price,
+            amountSnapshot: amount,
             status: 'scheduled',
           },
         });
+
+        // Tạo booking
         const booking = await tx.booking.create({
           data: {
-            courtId: item.court.id,
-            branchId: item.court.branchId,
-            bookingDate: item.date,
-            dayLabel: this.dayLabel(item.date),
-            timeStart: item.timeStart,
-            timeEnd: item.timeEnd,
-            amount: item.amount,
-            pricePerHour: item.court.price,
+            courtId: finalCourtId,
+            branchId: occCourt.branchId,
+            bookingDate: occDate,
+            dayLabel: this.dayLabel(occDate),
+            timeStart: finalTimeStart,
+            timeEnd: finalTimeEnd,
+            amount,
+            pricePerHour: occCourt.price,
             people: 2,
             paymentMethod: dto.paymentMethod,
             customerName: dto.customerName,
@@ -283,15 +466,17 @@ export class BookingsService {
             customerEmail: dto.customerEmail || null,
             userId: dto.userId || null,
             status: dto.paymentMethod === 'cash' ? 'pending' : 'confirmed',
-            fixedScheduleId: schedule.id,
+            fixedScheduleId: fixedSchedule.id,
             fixedOccurrenceId: occurrence.id,
           },
         });
+
+        // Tạo slots
         await tx.courtSlot.createMany({
-          data: item.hours.map((time) => ({
-            courtId: item.court.id,
-            slotDate: item.date,
-            dateLabel: this.dayLabel(item.date),
+          data: finalHours.map((time) => ({
+            courtId: finalCourtId,
+            slotDate: occDate,
+            dateLabel: this.dayLabel(occDate),
             time,
             status: dto.paymentMethod === 'cash' ? 'hold' : 'booked',
             bookedBy: dto.customerName,
@@ -299,34 +484,53 @@ export class BookingsService {
             bookingId: booking.id,
           })),
         });
-        bookings.push(booking);
-      }
 
-      const invoice = await tx.invoice.create({
-        data: {
-          code: this.invoiceCode('FIX'),
-          fixedScheduleId: schedule.id,
-          customerName: dto.customerName,
-          customerPhone: dto.customerPhone,
-          customerEmail: dto.customerEmail || null,
-          subtotalSnapshot: totalAmount,
-          totalSnapshot: totalAmount,
-          paymentMethod: dto.paymentMethod,
-          status: dto.paymentMethod === 'cash' ? 'unpaid' : 'paid',
-          items: {
-            create: checked.map((item) => ({
-              description: `Lich co dinh ${item.court.name} ${this.formatDate(item.date)} ${item.timeStart}-${item.timeEnd}`,
-              quantity: item.hours.length,
-              unitPriceSnapshot: item.court.price,
-              lineTotalSnapshot: item.amount,
-            })),
-          },
+        return { occurrence, booking };
+      }),
+    );
+
+    // ✨ Tạo invoice tổng hợp
+    await tx.invoice.create({
+      data: {
+        code: this.invoiceCode('FS'), // FS = Fixed Schedule
+        customerName: dto.customerName,
+        customerPhone: dto.customerPhone,
+        customerEmail: dto.customerEmail || null,
+        subtotalSnapshot: pricing.totalAmount,
+        totalSnapshot: pricing.finalAmount,
+        paymentMethod: dto.paymentMethod,
+        status: dto.paymentMethod === 'cash' ? 'unpaid' : 'deposited',
+        items: {
+          create: [{
+            description: `Gói đặt sân cố định ${dto.cycle === 'weekly' ? 'hàng tuần' : 'hàng tháng'} - ${court.name} (${selected.length} buổi)`,
+            quantity: selected.length,
+            unitPriceSnapshot: pricing.pricePerSession,
+            lineTotalSnapshot: pricing.finalAmount,
+          }],
         },
-      });
-
-      return { success: true, fixedSchedule: schedule, invoice, bookings };
+      },
     });
-  }
+
+    return {
+      success: true,
+      fixedSchedule: {
+        id: fixedSchedule.id,
+        courtName: court.name,
+        cycle: dto.cycle,
+        occurrenceCount: selected.length,
+        adjustmentLimit,
+        pricing,
+      },
+      occurrences: occurrenceResults.map(r => ({
+        id: r.occurrence.id,
+        bookingId: r.booking.id,
+        date: this.formatDate(r.occurrence.occurrenceDate),
+        timeStart: r.occurrence.timeStart,
+        timeEnd: r.occurrence.timeEnd,
+      })),
+    };
+  });
+}
 
   async confirm(id: string) {
     const booking = await this.findOne(id);
