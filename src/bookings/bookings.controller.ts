@@ -9,6 +9,7 @@ import {
   FixedScheduleConfirmDto,
   FixedSchedulePreviewDto,
   UpdateBookingStatusDto,
+  CheckSlotDto,
 } from './dto/booking.dto';
 import { Public, Roles, CurrentUser } from '../auth/decorators/index';
 
@@ -17,8 +18,7 @@ export class BookingsController {
   constructor(private readonly bookingsService: BookingsService) {}
 
   // ─────────────────────────────────────────────────────
-  // POST /api/bookings — Đặt sân
-  // Public: khách vãng lai cũng đặt được (không cần login)
+  // POST /api/bookings — Đặt sân thường
   // ─────────────────────────────────────────────────────
   @Public()
   @Post()
@@ -26,6 +26,10 @@ export class BookingsController {
     return this.bookingsService.create(dto);
   }
 
+  // ─────────────────────────────────────────────────────
+  // POST /api/bookings/fixed/preview
+  // POST /api/bookings/fixed/confirm
+  // ─────────────────────────────────────────────────────
   @Public()
   @Post('fixed/preview')
   previewFixed(@Body() dto: FixedSchedulePreviewDto) {
@@ -39,8 +43,36 @@ export class BookingsController {
   }
 
   // ─────────────────────────────────────────────────────
+  // POST /api/bookings/fixed/check-slot
+  // Kiểm tra 1 slot có available không (dùng trong modal đổi giờ)
+  // ─────────────────────────────────────────────────────
+  @Public()
+  @Post('fixed/check-slot')
+  checkSlot(@Body() dto: CheckSlotDto) {
+    return this.bookingsService.checkSlotAvailability(dto);
+  }
+
+  // ─────────────────────────────────────────────────────
+  // GET /api/bookings/fixed/my — Danh sách gói của user
+  // ─────────────────────────────────────────────────────
+  @Get('fixed/my')
+  getMyFixedSchedules(@CurrentUser() user: any) {
+    return this.bookingsService.findMyFixedSchedules(user.id);
+  }
+
+  // ─────────────────────────────────────────────────────
+  // GET /api/bookings/fixed/:scheduleId — Chi tiết gói
+  // ─────────────────────────────────────────────────────
+  @Get('fixed/:scheduleId')
+  getFixedScheduleDetail(
+    @Param('scheduleId') scheduleId: string,
+    @CurrentUser() user: any,
+  ) {
+    return this.bookingsService.findFixedScheduleDetail(scheduleId, user);
+  }
+
+  // ─────────────────────────────────────────────────────
   // GET /api/bookings — Danh sách (Admin/Employee)
-  // ?branchId=1&date=2025-03-10&status=pending&phone=090
   // ─────────────────────────────────────────────────────
   @Roles('admin', 'employee')
   @Get()
@@ -61,7 +93,7 @@ export class BookingsController {
   }
 
   // ─────────────────────────────────────────────────────
-  // GET /api/bookings/today — Booking hôm nay (Dashboard)
+  // GET /api/bookings/today
   // ─────────────────────────────────────────────────────
   @Roles('admin', 'employee')
   @Get('today')
@@ -72,7 +104,7 @@ export class BookingsController {
   }
 
   // ─────────────────────────────────────────────────────
-  // GET /api/bookings/my — Lịch sử đặt sân của user
+  // GET /api/bookings/my — Lịch sử booking thường
   // ─────────────────────────────────────────────────────
   @Get('my')
   getMyBookings(@CurrentUser() user: any) {
@@ -80,7 +112,7 @@ export class BookingsController {
   }
 
   // ─────────────────────────────────────────────────────
-  // GET /api/bookings/user/:userId — Booking của 1 user (Admin)
+  // GET /api/bookings/user/:userId (Admin)
   // ─────────────────────────────────────────────────────
   @Roles('admin')
   @Get('user/:userId')
@@ -89,7 +121,7 @@ export class BookingsController {
   }
 
   // ─────────────────────────────────────────────────────
-  // GET /api/bookings/:id — Chi tiết booking
+  // GET /api/bookings/:id — Chi tiết booking thường
   // ─────────────────────────────────────────────────────
   @Get(':id')
   findOne(@Param('id') id: string, @CurrentUser() user: any) {
@@ -97,7 +129,7 @@ export class BookingsController {
   }
 
   // ─────────────────────────────────────────────────────
-  // PATCH /api/bookings/:id/confirm — Xác nhận (Admin/Employee)
+  // PATCH /api/bookings/:id/confirm
   // ─────────────────────────────────────────────────────
   @Roles('admin', 'employee')
   @Patch(':id/confirm')
@@ -106,8 +138,7 @@ export class BookingsController {
   }
 
   // ─────────────────────────────────────────────────────
-  // PATCH /api/bookings/:id/cancel — Hủy booking
-  // User tự hủy hoặc Admin hủy
+  // PATCH /api/bookings/:id/cancel
   // ─────────────────────────────────────────────────────
   @Patch(':id/cancel')
   cancel(@Param('id') id: string, @CurrentUser() user: any) {
@@ -115,8 +146,7 @@ export class BookingsController {
   }
 
   // ─────────────────────────────────────────────────────
-  // PATCH /api/bookings/:id/status — Cập nhật trạng thái (Admin/Employee)
-  // Body: { status: "confirmed" | "playing" | "completed" | "cancelled" }
+  // PATCH /api/bookings/:id/status
   // ─────────────────────────────────────────────────────
   @Roles('admin', 'employee')
   @Patch(':id/status')
@@ -127,14 +157,18 @@ export class BookingsController {
     return this.bookingsService.updateStatus(id, dto);
   }
 
-  // POST /bookings/checkin — Quét QR check-in
-  // Body: { bookingId: string }
+  // ─────────────────────────────────────────────────────
+  // POST /api/bookings/checkin
+  // ─────────────────────────────────────────────────────
   @Post('checkin')
   @Roles('admin', 'employee')
   checkin(@Body('bookingId') bookingId: string) {
     return this.bookingsService.checkin(bookingId);
   }
 
+  // ─────────────────────────────────────────────────────
+  // PATCH /bookings/fixed/:scheduleId/occurrences/:occurrenceId/adjust
+  // ─────────────────────────────────────────────────────
   @Patch('fixed/:scheduleId/occurrences/:occurrenceId/adjust')
   adjustFixed(
     @Param('scheduleId') scheduleId: string,
