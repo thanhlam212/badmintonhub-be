@@ -25,6 +25,7 @@ import { TransfersModule } from './transfers/transfers.module';
 import { PurchaseOrdersController } from './purchase-orders/purchase-orders.controller';
 import { PurchaseOrdersService } from './purchase-orders/purchase-orders.service';
 import { PurchaseOrdersModule } from './purchase-orders/purchase-orders.module';
+import { PaymentModule } from './payment/payment.module';
 
 
 @Module({
@@ -33,7 +34,7 @@ import { PurchaseOrdersModule } from './purchase-orders/purchase-orders.module';
             PrismaModule, 
             AuthModule, 
             BranchesModule, 
-            CourtsModule, BookingsModule, EmailModule, ProductsModule, OrderModule, StatsModule, InventoryModule, WarehouseModule, TransfersModule, PurchaseOrdersModule,
+            CourtsModule, BookingsModule, EmailModule, ProductsModule, OrderModule, StatsModule, InventoryModule, WarehouseModule, TransfersModule, PurchaseOrdersModule, PaymentModule,
             ],
    providers: [
     {

@@ -290,6 +290,7 @@ model Invoice {
   bookingId             String?                   @map("booking_id") @db.Uuid
   orderId               String?                   @map("order_id") @db.Uuid
   fixedScheduleId       String?                   @map("fixed_schedule_id") @db.Uuid
+  salesOrderId          String?                   @map("sales_order_id") @db.Uuid
   customerName          String                    @map("customer_name") @db.VarChar(100)
   customerPhone         String                    @map("customer_phone") @db.VarChar(15)
   customerEmail         String?                   @map("customer_email") @db.VarChar(100)
@@ -302,6 +303,7 @@ model Invoice {
   fixedSchedule         FixedSchedule?            @relation(fields: [fixedScheduleId], references: [id])
   order                 Order?                    @relation(fields: [orderId], references: [id])
   items                 InvoiceItem[]
+  payments              Payment[]
 
   @@index([bookingId], map: "idx_invoices_booking")
   @@index([fixedScheduleId], map: "idx_invoices_fixed_schedule")
@@ -318,6 +320,22 @@ model InvoiceItem {
   invoice               Invoice                   @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
 
   @@map("invoice_items")
+}
+
+model Payment {
+  id              String        @id @default(uuid()) @db.Uuid
+  invoiceId       String        @map("invoice_id") @db.Uuid
+  method          String        @db.VarChar(30)
+  amount          Decimal       @db.Decimal(12, 0)
+  status          PaymentStatus @default(pending)
+  transactionRef  String?       @unique @map("transaction_ref") @db.VarChar(150)
+  gatewayResponse Json?         @map("gateway_response")
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @default(now()) @updatedAt @map("updated_at")
+  invoice         Invoice       @relation(fields: [invoiceId], references: [id])
+
+  @@index([invoiceId], map: "idx_payments_invoice")
+  @@map("payments")
 }
 
 model CourtSlot {
@@ -720,4 +738,11 @@ enum SlipStatus {
 enum CourtSlotStatus {
   booked
   hold
+}
+
+enum PaymentStatus {
+  pending
+  success
+  failed
+  refunded
 }

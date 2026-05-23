@@ -1,12 +1,32 @@
-// src/orders/orders.service.ts
 import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common'
 import { PrismaService } from '../prisma/prisma.service'
 import { CreateOrderDto } from './dto/order.dto'
-const valid = ['pending', 'confirmed', 'processing', 'shipping', 'delivered', 'cancelled', 'refunded']
+
+// Các chuyển trạng thái hợp lệ cho Order
+const ORDER_TRANSITIONS: Record<string, string[]> = {
+  pending:    ['confirmed', 'cancelled'],
+  confirmed:  ['processing', 'cancelled'],
+  processing: ['shipping', 'cancelled'],
+  shipping:   ['delivered'],
+  delivered:  ['refunded'],
+  cancelled:  [],
+  refunded:   [],
+}
+
+// Khi Order đổi trạng thái → đồng bộ Invoice tương ứng
+const ORDER_STATUS_TO_INVOICE: Record<string, string> = {
+  cancelled: 'cancelled',
+  delivered: 'paid',
+  refunded:  'refunded',
+}
 
 @Injectable()
 export class OrderService {
   constructor(private prisma: PrismaService) {}
+
+  private invoiceCode() {
+    return `ORD-${Date.now()}-${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`
+  }
 
   // ─── Tạo đơn hàng mới ─────────────────────────────────────
   async create(dto: CreateOrderDto, userId?: string) {
@@ -14,7 +34,6 @@ export class OrderService {
       throw new BadRequestException('Đơn hàng phải có ít nhất 1 sản phẩm')
     }
 
-    // Verify products + tính tổng tiền từ DB (không tin giá FE)
     const productIds = dto.items.map(i => i.product_id)
     const products = await this.prisma.product.findMany({
       where: { id: { in: productIds } },
@@ -24,47 +43,76 @@ export class OrderService {
       throw new BadRequestException('Một số sản phẩm không tồn tại')
     }
 
-    const total = dto.items.reduce((sum, item) => {
-      const product = products.find(p => p.id === item.product_id)!
-      return sum + parseFloat(String(product.price)) * item.quantity
-    }, 0)
-
-    const order = await this.prisma.order.create({
-      data: {
-        userId:          userId || null,
-        customerName:    dto.customer_name,
-        customerPhone:   dto.customer_phone,
-        customerEmail:   dto.customer_email || null,
-        customerAddress: dto.shipping_address,
-        paymentMethod:   dto.payment_method || 'cod',
-        shippingFee:    0, 
-        note:            dto.note || null,
-        subtotal:          total,
-        total:          total, 
-        status:          'pending',
-        items: {
-          create: dto.items.map(item => {
+    return this.prisma.$transaction(async (tx) => {
+      const itemsWithPrice = dto.items.map(item => {
         const product = products.find(p => p.id === item.product_id)!
         return {
-                product:  { connect: { id: item.product_id } },  
-                productName: product.name,
-                qty:         item.quantity,      
-                price:       parseFloat(String(product.price)),
-            }
-         }),
-        },
-      },
-      include: { items: true },
-    })
+          product_id:  item.product_id,
+          quantity:    item.quantity,
+          price:       parseFloat(String(product.price)),
+          productName: product.name,
+        }
+      })
 
-    return { success: true, order }
+      const subtotal = itemsWithPrice.reduce((sum, i) => sum + i.price * i.quantity, 0)
+
+      const order = await tx.order.create({
+        data: {
+          userId:          userId || null,
+          customerName:    dto.customer_name,
+          customerPhone:   dto.customer_phone,
+          customerEmail:   dto.customer_email || null,
+          customerAddress: dto.shipping_address,
+          paymentMethod:   dto.payment_method || 'cod',
+          shippingFee:     0,
+          note:            dto.note || null,
+          subtotal,
+          total: subtotal,
+          status: 'pending',
+          items: {
+            create: itemsWithPrice.map(i => ({
+              product:     { connect: { id: i.product_id } },
+              productName: i.productName,
+              qty:         i.quantity,
+              price:       i.price,
+            })),
+          },
+        },
+        include: { items: true },
+      })
+
+      // Tạo Invoice với snapshot giá tại thời điểm đặt hàng
+      await tx.invoice.create({
+        data: {
+          code:             this.invoiceCode(),
+          orderId:          order.id,
+          customerName:     dto.customer_name,
+          customerPhone:    dto.customer_phone,
+          customerEmail:    dto.customer_email || null,
+          subtotalSnapshot: subtotal,
+          totalSnapshot:    subtotal,
+          paymentMethod:    dto.payment_method || 'cod',
+          status:           'unpaid',
+          items: {
+            create: itemsWithPrice.map(i => ({
+              description:      i.productName,
+              quantity:         i.quantity,
+              unitPriceSnapshot: i.price,
+              lineTotalSnapshot: i.price * i.quantity,
+            })),
+          },
+        },
+      })
+
+      return { success: true, order: this.transform(order) }
+    })
   }
 
   // ─── Đơn hàng của tôi ─────────────────────────────────────
   async findMyOrders(userId: string) {
     const orders = await this.prisma.order.findMany({
       where:   { userId },
-      include: { items: true },
+      include: { items: true, invoices: true },
       orderBy: { createdAt: 'desc' },
     })
     return orders.map(this.transform)
@@ -73,8 +121,8 @@ export class OrderService {
   // ─── Tất cả đơn hàng (admin) ──────────────────────────────
   async findAll(filters?: { status?: string }) {
     const orders = await this.prisma.order.findMany({
-      where: filters?.status ? { status: filters.status as any } : {},
-      include: { items: true, user: { select: { fullName: true } } },
+      where:   filters?.status ? { status: filters.status as any } : {},
+      include: { items: true, invoices: true, user: { select: { fullName: true } } },
       orderBy: { createdAt: 'desc' },
     })
     return orders.map(this.transform)
@@ -84,7 +132,7 @@ export class OrderService {
   async findOne(id: string) {
     const order = await this.prisma.order.findUnique({
       where:   { id },
-      include: { items: true },
+      include: { items: true, invoices: { include: { items: true } } },
     })
     if (!order) throw new NotFoundException('Không tìm thấy đơn hàng')
     return this.transform(order)
@@ -92,28 +140,65 @@ export class OrderService {
 
   async findOneForUser(id: string, user: any) {
     const order = await this.prisma.order.findUnique({
-      where: { id },
-      include: { items: true },
+      where:   { id },
+      include: { items: true, invoices: { include: { items: true } } },
     })
-    if (!order) throw new NotFoundException('Khong tim thay don hang')
+    if (!order) throw new NotFoundException('Không tìm thấy đơn hàng')
     if (user.role === 'admin' || user.role === 'employee') return this.transform(order)
     if (order.userId && order.userId === user.id) return this.transform(order)
-    throw new ForbiddenException('Ban khong co quyen xem don hang nay')
+    throw new ForbiddenException('Bạn không có quyền xem đơn hàng này')
   }
 
   // ─── Cập nhật trạng thái (admin) ──────────────────────────
-  async updateStatus(id: string, status: string) {
-    const order = await this.findOne(id)
-    const valid = ['pending', 'processing', 'shipping', 'delivered', 'cancelled']
-    if (!valid.includes(status)) {
-      throw new BadRequestException('Trạng thái không hợp lệ')
-    }
-    const updated = await this.prisma.order.update({
+  async updateStatus(id: string, newStatus: string) {
+    const order = await this.prisma.order.findUnique({
       where:   { id },
-      data: { status: status as any },
+      include: { invoices: true },
+    })
+    if (!order) throw new NotFoundException('Không tìm thấy đơn hàng')
+
+    const allowedNext = ORDER_TRANSITIONS[order.status] ?? []
+    if (!allowedNext.includes(newStatus)) {
+      throw new BadRequestException(
+        `Không thể chuyển từ "${order.status}" sang "${newStatus}". ` +
+        `Trạng thái hợp lệ tiếp theo: [${allowedNext.join(', ') || 'không có'}]`
+      )
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.order.update({
+        where:   { id },
+        data:    { status: newStatus as any },
+        include: { items: true, invoices: { include: { items: true } } },
+      })
+
+      // Đồng bộ trạng thái Invoice nếu cần
+      const invoiceStatus = ORDER_STATUS_TO_INVOICE[newStatus]
+      if (invoiceStatus && order.invoices.length > 0) {
+        await tx.invoice.updateMany({
+          where: { orderId: id },
+          data:  { status: invoiceStatus as any },
+        })
+      }
+
+      return { success: true, order: this.transform(updated) }
+    })
+  }
+
+  // ─── Lấy Invoice của đơn hàng ─────────────────────────────
+  async getInvoice(orderId: string, user: any) {
+    const order = await this.prisma.order.findUnique({ where: { id: orderId } })
+    if (!order) throw new NotFoundException('Không tìm thấy đơn hàng')
+    if (user.role !== 'admin' && user.role !== 'employee' && order.userId !== user.id) {
+      throw new ForbiddenException('Bạn không có quyền xem hóa đơn này')
+    }
+
+    const invoice = await this.prisma.invoice.findFirst({
+      where:   { orderId },
       include: { items: true },
     })
-    return { success: true, order: this.transform(updated) }
+    if (!invoice) throw new NotFoundException('Chưa có hóa đơn cho đơn hàng này')
+    return invoice
   }
 
   private transform(raw: any) {
@@ -125,15 +210,27 @@ export class OrderService {
       shippingAddress: raw.customerAddress,
       paymentMethod:   raw.paymentMethod,
       note:            raw.note,
-      amount:          parseFloat(String(raw.total)),
+      subtotal:        parseFloat(String(raw.subtotal)),
+      shippingFee:     parseFloat(String(raw.shippingFee)),
+      total:           parseFloat(String(raw.total)),
       status:          raw.status,
       createdAt:       raw.createdAt,
+      allowedNextStatuses: ORDER_TRANSITIONS[raw.status] ?? [],
       items: (raw.items || []).map((i: any) => ({
         productId:   i.productId,
         productName: i.productName,
-        sku:         i.sku,
         quantity:    i.qty,
         price:       parseFloat(String(i.price)),
+        lineTotal:   parseFloat(String(i.price)) * i.qty,
+      })),
+      invoices: (raw.invoices || []).map((inv: any) => ({
+        id:               inv.id,
+        code:             inv.code,
+        status:           inv.status,
+        subtotalSnapshot: parseFloat(String(inv.subtotalSnapshot)),
+        totalSnapshot:    parseFloat(String(inv.totalSnapshot)),
+        paymentMethod:    inv.paymentMethod,
+        createdAt:        inv.createdAt,
       })),
     }
   }

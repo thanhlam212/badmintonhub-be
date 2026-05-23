@@ -43,6 +43,12 @@ export class OrderController {
   updateStatus(@Param('id') id: string, @Body('status') status: string) {
     return this.ordersService.updateStatus(id, status)
   }
+
+  // GET /api/orders/:id/invoice — Lấy hóa đơn của đơn hàng
+  @Get(':id/invoice')
+  getInvoice(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.ordersService.getInvoice(id, user)
+  }
 }
 
 

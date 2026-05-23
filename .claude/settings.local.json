@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx prisma *)",
+      "Bash(npx tsc *)",
+      "Bash(node -e \"const {v4} = require\\('uuid'\\); console.log\\('uuid v4 works:', v4\\(\\)\\)\")",
+      "Bash(npx nest *)",
+      "Bash(cat jest.config.js)",
+      "Bash(cat jest.config.ts)",
+      "Bash(node -e \"const p=require\\('./package.json'\\); console.log\\(JSON.stringify\\(p.jest, null, 2\\)\\)\")",
+      "Bash(npx jest *)"
+    ]
+  }
+}
