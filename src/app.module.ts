@@ -26,15 +26,19 @@ import { PurchaseOrdersController } from './purchase-orders/purchase-orders.cont
 import { PurchaseOrdersService } from './purchase-orders/purchase-orders.service';
 import { PurchaseOrdersModule } from './purchase-orders/purchase-orders.module';
 import { PaymentModule } from './payment/payment.module';
+import { UsersModule } from './users/users.module';
+import { SalesOrdersModule } from './sales-orders/sales-orders.module';
 
 
 @Module({
   imports: [
             ConfigModule.forRoot({ isGlobal: true }),
-            PrismaModule, 
-            AuthModule, 
-            BranchesModule, 
+            PrismaModule,
+            AuthModule,
+            BranchesModule,
             CourtsModule, BookingsModule, EmailModule, ProductsModule, OrderModule, StatsModule, InventoryModule, WarehouseModule, TransfersModule, PurchaseOrdersModule, PaymentModule,
+            UsersModule,
+            SalesOrdersModule,
             ],
    providers: [
     {

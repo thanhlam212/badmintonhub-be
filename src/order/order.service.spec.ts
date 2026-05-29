@@ -96,8 +96,8 @@ describe('OrderService', () => {
       shipping_address: '123 ABC',
       payment_method:   'cod',
       items: [
-        { product_id: 1, quantity: 2, price: 9999 }, // FE price ignored
-        { product_id: 2, quantity: 1, price: 9999 },
+        { product_id: 1, qty: 2, price: 9999 }, // FE price ignored
+        { product_id: 2, qty: 1, price: 9999 },
       ],
     }
 
@@ -164,7 +164,7 @@ describe('OrderService', () => {
       const item1 = items.find((i: any) => i.description === 'Vợt cầu')
       expect(item1.unitPriceSnapshot).toBe(100000)
       expect(item1.lineTotalSnapshot).toBe(200000) // 100000 * 2
-      expect(item1.quantity).toBe(2)
+      expect(item1.quantity).toBe(2) // invoice snapshot uses qty=2
     })
 
     it('should set invoice status to unpaid for COD orders', async () => {
@@ -172,7 +172,7 @@ describe('OrderService', () => {
       prisma.order.create.mockResolvedValue(makeOrder())
       prisma.invoice.create.mockResolvedValue(makeInvoice())
 
-      await service.create({ ...dto, payment_method: 'cod', items: [{ product_id: 1, quantity: 1, price: 0 }] })
+      await service.create({ ...dto, payment_method: 'cod', items: [{ product_id: 1, qty: 1, price: 0 }] })
 
       const invoiceCreateCall = prisma.invoice.create.mock.calls[0][0]
       expect(invoiceCreateCall.data.status).toBe('unpaid')

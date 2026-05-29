@@ -1,112 +1,181 @@
-import { Injectable, BadRequestException } from '@nestjs/common'
+import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common'
 import { PrismaService } from '../prisma/prisma.service'
+import { ImportStockDto, ExportStockDto } from './dto/inventory.dto'
 
 @Injectable()
 export class InventoryService {
   constructor(private prisma: PrismaService) {}
 
-  // GET /inventory — lấy tồn kho (lọc theo warehouse của employee)
-  async getAll(user: any) {
-    const where = user.role === 'employee' && user.warehouseId
-      ? `WHERE i.warehouse_id = ${user.warehouseId}`
-      : ''
-
-    const rows = await this.prisma.$queryRawUnsafe(`
-      SELECT i.*, w.name AS warehouse_name, w.id AS warehouse_id
-      FROM inventory i
-      JOIN warehouses w ON w.id = i.warehouse_id
-      ${where}
-      ORDER BY i.category, i.name
-    `) as any[]
-    return rows
+  // ─── GET /inventory/warehouses ─────────────────────────────
+  async getWarehouses() {
+    return this.prisma.warehouse.findMany({
+      where: { isActive: true },
+      select: { id: true, name: true, branchId: true },
+      orderBy: { id: 'asc' },
+    })
   }
 
-  // GET /inventory/low-stock
-  async getLowStock(user: any) {
-    const where = user.role === 'employee' && user.warehouseId
-      ? `AND i.warehouse_id = ${user.warehouseId}`
-      : ''
+  // ─── GET /inventory/warehouse/:id ──────────────────────────
+  async getByWarehouse(warehouseId: number) {
+    const warehouse = await this.prisma.warehouse.findUnique({ where: { id: warehouseId } })
+    if (!warehouse) throw new NotFoundException(`Kho ID ${warehouseId} không tồn tại`)
 
-    const rows = await this.prisma.$queryRawUnsafe(`
-      SELECT i.*, w.name AS warehouse_name
-      FROM inventory i
-      JOIN warehouses w ON w.id = i.warehouse_id
-      WHERE i.available <= i.reorder_point ${where}
-      ORDER BY i.available ASC
-    `) as any[]
-    return rows
+    const items = await this.prisma.inventory.findMany({
+      where: { warehouseId },
+      orderBy: [{ category: 'asc' }, { name: 'asc' }],
+    })
+    return items.map(i => ({ ...i, unitCost: Number(i.unitCost) }))
   }
 
-  // GET /inventory/transactions
-  async getTransactions(user: any) {
-    const where = user.role === 'employee' && user.warehouseId
-      ? `WHERE t.warehouse_id = ${user.warehouseId}`
-      : ''
+  // ─── GET /inventory ────────────────────────────────────────
+  async getAll(user: any, filters?: {
+    warehouseId?: number; category?: string; search?: string; lowStock?: boolean
+  }) {
+    const where: any = {}
 
-    const rows = await this.prisma.$queryRawUnsafe(`
-      SELECT t.*, w.name AS warehouse_name
-      FROM inventory_transactions t
-      JOIN warehouses w ON w.id = t.warehouse_id
-      ${where}
-      ORDER BY t.date DESC
-      LIMIT 200
-    `) as any[]
-    return rows
-  }
-
-  // POST /inventory/import — nhập kho
-  async importStock(dto: { warehouse_id: number; sku: string; quantity: number; note?: string }, user: any) {
-    const { warehouse_id, sku, quantity, note } = dto
-
-    // Cập nhật tồn kho
-    const updated = await this.prisma.$executeRawUnsafe(`
-      UPDATE inventory
-      SET on_hand = on_hand + ${quantity},
-          available = available + ${quantity},
-          updated_at = NOW()
-      WHERE warehouse_id = ${warehouse_id} AND sku = '${sku}'
-    `)
-
-    if (updated === 0) {
-      throw new BadRequestException(`SKU ${sku} không tồn tại trong kho ${warehouse_id}`)
+    // Role-based: employee chỉ xem kho của mình
+    if (user.role === 'employee' && user.warehouseId) {
+      where.warehouseId = user.warehouseId
+    } else if (filters?.warehouseId) {
+      where.warehouseId = filters.warehouseId
     }
 
-    // Ghi lịch sử
-    await this.prisma.$executeRawUnsafe(`
-      INSERT INTO inventory_transactions (type, date, sku, warehouse_id, qty, cost, note, operator)
-      SELECT 'import', NOW(), '${sku}', ${warehouse_id}, ${quantity}, unit_cost,
-             '${(note || '').replace(/'/g, "''")}', '${user.fullName || user.username}'
-      FROM inventory WHERE warehouse_id = ${warehouse_id} AND sku = '${sku}'
-    `)
+    if (filters?.category) where.category = filters.category
+    if (filters?.search) {
+      where.OR = [
+        { name: { contains: filters.search, mode: 'insensitive' } },
+        { sku:  { contains: filters.search, mode: 'insensitive' } },
+      ]
+    }
+
+    const items = await this.prisma.inventory.findMany({
+      where,
+      include: { warehouse: { select: { id: true, name: true } } },
+      orderBy: [{ category: 'asc' }, { name: 'asc' }],
+    })
+
+    const mapped = items.map((i: any) => ({
+      ...i,
+      unitCost:      Number(i.unitCost),
+      warehouseName: i.warehouse.name,
+    }))
+
+    if (filters?.lowStock) {
+      return mapped.filter((i: any) => (i.available ?? i.onHand ?? 0) <= (i.reorderPoint ?? 0))
+    }
+
+    return mapped
+  }
+
+  // ─── GET /inventory/low-stock ──────────────────────────────
+  // available <= reorderPoint: cần column comparison → giữ $queryRaw (safe vì warehouseId là số)
+  async getLowStock(user: any) {
+    const isEmployee = user.role === 'employee' && user.warehouseId
+
+    const rows = isEmployee
+      ? await this.prisma.$queryRaw<any[]>`
+          SELECT i.*, w.name AS warehouse_name
+          FROM inventory i
+          JOIN warehouses w ON w.id = i.warehouse_id
+          WHERE i.available <= i.reorder_point
+            AND i.warehouse_id = ${user.warehouseId}
+          ORDER BY i.available ASC`
+      : await this.prisma.$queryRaw<any[]>`
+          SELECT i.*, w.name AS warehouse_name
+          FROM inventory i
+          JOIN warehouses w ON w.id = i.warehouse_id
+          WHERE i.available <= i.reorder_point
+          ORDER BY i.available ASC`
+
+    return rows.map(r => ({ ...r, unit_cost: Number(r.unit_cost) }))
+  }
+
+  // ─── GET /inventory/transactions ──────────────────────────
+  async getTransactions(user: any) {
+    const txns = await this.prisma.inventoryTransaction.findMany({
+      where: user.role === 'employee' && user.warehouseId
+        ? { warehouseId: user.warehouseId }
+        : {},
+      include: { warehouse: { select: { name: true } } },
+      orderBy: { date: 'desc' },
+      take: 200,
+    })
+    return txns.map(t => ({
+      ...t,
+      cost:          Number(t.cost),
+      warehouseName: t.warehouse.name,
+    }))
+  }
+
+  // ─── POST /inventory/import ────────────────────────────────
+  // FE gửi: { sku, warehouseId, qty, cost?, note? }
+  async importStock(dto: ImportStockDto, user: any) {
+    const item = await this.prisma.inventory.findUnique({
+      where: { sku_warehouseId: { sku: dto.sku, warehouseId: dto.warehouseId } },
+    })
+    if (!item) {
+      throw new BadRequestException(`SKU "${dto.sku}" không tồn tại trong kho ID ${dto.warehouseId}`)
+    }
+
+    await this.prisma.$transaction([
+      this.prisma.inventory.update({
+        where: { sku_warehouseId: { sku: dto.sku, warehouseId: dto.warehouseId } },
+        data: {
+          onHand:    { increment: dto.qty },
+          available: { increment: dto.qty },
+        },
+      }),
+      this.prisma.inventoryTransaction.create({
+        data: {
+          type:        'import',
+          date:        new Date(),
+          sku:         dto.sku,
+          warehouseId: dto.warehouseId,
+          qty:         dto.qty,
+          cost:        item.unitCost,   // dùng giá gốc, không dùng cost từ FE
+          note:        dto.note ?? null,
+          operatorId:  user.id ?? null,
+        },
+      }),
+    ])
 
     return { success: true, message: 'Nhập kho thành công' }
   }
 
-  // POST /inventory/export — xuất kho
-  async exportStock(dto: { warehouse_id: number; sku: string; quantity: number; note?: string }, user: any) {
-    const { warehouse_id, sku, quantity, note } = dto
+  // ─── POST /inventory/export ────────────────────────────────
+  // FE gửi: { sku, warehouseId, qty, note? }
+  async exportStock(dto: ExportStockDto, user: any) {
+    const item = await this.prisma.inventory.findUnique({
+      where: { sku_warehouseId: { sku: dto.sku, warehouseId: dto.warehouseId } },
+    })
+    if (!item) {
+      throw new BadRequestException(`SKU "${dto.sku}" không tồn tại trong kho ID ${dto.warehouseId}`)
+    }
+    if (item.available < dto.qty) {
+      throw new BadRequestException(`Không đủ hàng: còn ${item.available}, cần ${dto.qty}`)
+    }
 
-    // Kiểm tra tồn kho
-    const inv = await this.prisma.$queryRawUnsafe(`
-      SELECT available FROM inventory WHERE warehouse_id = ${warehouse_id} AND sku = '${sku}'
-    `) as any[]
-    if (!inv.length) throw new BadRequestException(`SKU ${sku} không tồn tại trong kho`)
-    if (inv[0].available < quantity) throw new BadRequestException(`Không đủ hàng: còn ${inv[0].available}, cần ${quantity}`)
-
-    await this.prisma.$executeRawUnsafe(`
-      UPDATE inventory
-      SET on_hand = on_hand - ${quantity},
-          available = available - ${quantity},
-          updated_at = NOW()
-      WHERE warehouse_id = ${warehouse_id} AND sku = '${sku}'
-    `)
-
-    await this.prisma.$executeRawUnsafe(`
-      INSERT INTO inventory_transactions (type, date, sku, warehouse_id, qty, cost, note, operator)
-      SELECT 'export', NOW(), '${sku}', ${warehouse_id}, ${quantity}, unit_cost,
-             '${(note || '').replace(/'/g, "''")}', '${user.fullName || user.username}'
-      FROM inventory WHERE warehouse_id = ${warehouse_id} AND sku = '${sku}'
-    `)
+    await this.prisma.$transaction([
+      this.prisma.inventory.update({
+        where: { sku_warehouseId: { sku: dto.sku, warehouseId: dto.warehouseId } },
+        data: {
+          onHand:    { decrement: dto.qty },
+          available: { decrement: dto.qty },
+        },
+      }),
+      this.prisma.inventoryTransaction.create({
+        data: {
+          type:        'export',
+          date:        new Date(),
+          sku:         dto.sku,
+          warehouseId: dto.warehouseId,
+          qty:         dto.qty,
+          cost:        item.unitCost,
+          note:        dto.note ?? null,
+          operatorId:  user.id ?? null,
+        },
+      }),
+    ])
 
     return { success: true, message: 'Xuất kho thành công' }
   }

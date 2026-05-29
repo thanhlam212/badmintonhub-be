@@ -88,13 +88,14 @@ describe('PaymentController', () => {
 
   describe('getStatus', () => {
     it('should return payment status by id', async () => {
+      const fakeUser = { id: 'user-001', role: 'admin' }
       mockPaymentService.getPaymentStatus.mockResolvedValue({
         id: 'pay-001', status: 'success', amount: 200000,
       })
 
-      const result = await controller.getStatus('pay-001')
+      const result = await controller.getStatus('pay-001', fakeUser)
 
-      expect(mockPaymentService.getPaymentStatus).toHaveBeenCalledWith('pay-001')
+      expect(mockPaymentService.getPaymentStatus).toHaveBeenCalledWith('pay-001', fakeUser)
       expect(result.status).toBe('success')
     })
   })

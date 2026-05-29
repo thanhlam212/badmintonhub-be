@@ -309,10 +309,12 @@ describe('PaymentService', () => {
 
   // ─── getPaymentStatus ──────────────────────────────────────
   describe('getPaymentStatus', () => {
+    const adminUser = { id: 'admin-001', role: 'admin' }
+
     it('should return payment info with invoice status', async () => {
       prisma.payment.findUnique.mockResolvedValue(makePayment())
 
-      const result = await service.getPaymentStatus('pay-uuid-001')
+      const result = await service.getPaymentStatus('pay-uuid-001', adminUser)
 
       expect(result.id).toBe('pay-uuid-001')
       expect(result.method).toBe('vnpay')
@@ -323,7 +325,7 @@ describe('PaymentService', () => {
     it('should throw NotFoundException when payment does not exist', async () => {
       prisma.payment.findUnique.mockResolvedValue(null)
 
-      await expect(service.getPaymentStatus('nonexistent')).rejects.toThrow(NotFoundException)
+      await expect(service.getPaymentStatus('nonexistent', adminUser)).rejects.toThrow(NotFoundException)
     })
   })
 

@@ -8,6 +8,8 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import {
   CreateBookingDto,
+  CreateRecurringDto,
+  UpdateServicesDto,
   FixedScheduleAdjustDto,
   FixedScheduleConfirmDto,
   FixedSchedulePreviewDto,
@@ -39,19 +41,14 @@ export class BookingsService {
   // ═══════════════════════════════════════════════════════════════
 
   async create(dto: CreateBookingDto) {
-    const hours = buildHourSlots(dto.timeStart, dto.timeEnd);
-    const dateObj = normalizeDate(dto.bookingDate);
+    // FE gửi snake_case — đọc trực tiếp từ DTO
+    const hours = buildHourSlots(dto.time_start, dto.time_end);
+    const dateObj = normalizeDate(dto.booking_date);
 
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       const court = await tx.court.findUnique({
-        where: { id: dto.courtId },
-        select: {
-          id: true,
-          price: true,
-          branchId: true,
-          available: true,
-          name: true,
-        },
+        where: { id: dto.court_id },
+        include: { branch: { select: { name: true } } },
       });
       if (!court) throw new NotFoundException('Sân không tồn tại');
       if (!court.available) {
@@ -60,7 +57,7 @@ export class BookingsService {
 
       const conflictSlots = await checkSlotConflict(
         tx,
-        dto.courtId,
+        dto.court_id,
         dateObj,
         hours,
       );
@@ -73,53 +70,54 @@ export class BookingsService {
       const amount = Number(court.price) * hours.length;
       const booking = await tx.booking.create({
         data: {
-          courtId: dto.courtId,
-          branchId: court.branchId,
-          bookingDate: dateObj,
-          dayLabel: dayLabel(dateObj),
-          timeStart: dto.timeStart,
-          timeEnd: dto.timeEnd,
+          courtId:       dto.court_id,
+          branchId:      court.branchId,
+          bookingDate:   dateObj,
+          dayLabel:      dayLabel(dateObj),
+          timeStart:     dto.time_start,
+          timeEnd:       dto.time_end,
           amount,
-          pricePerHour: court.price,
-          people: dto.people || 2,
-          paymentMethod: dto.paymentMethod,
-          customerName: dto.customerName,
-          customerPhone: dto.customerPhone,
-          customerEmail: dto.customerEmail || null,
-          userId: dto.userId || null,
+          pricePerHour:  court.price,
+          people:        dto.slots ?? dto.people ?? 2,
+          paymentMethod: dto.payment_method ?? 'cash',
+          customerName:  dto.customer_name,
+          customerPhone: dto.customer_phone,
+          customerEmail: dto.customer_email || null,
+          userId:        dto.user_id || null,
           status: 'pending',
         },
       });
 
       await tx.courtSlot.createMany({
         data: hours.map((time) => ({
-          courtId: dto.courtId,
-          slotDate: dateObj,
+          courtId:   dto.court_id,
+          slotDate:  dateObj,
           dateLabel: dayLabel(dateObj),
           time,
-          status: 'hold',
-          bookedBy: dto.customerName,
-          phone: dto.customerPhone,
+          status:    'hold',
+          bookedBy:  dto.customer_name,
+          phone:     dto.customer_phone,
           bookingId: booking.id,
         })),
       });
 
-      await tx.invoice.create({
+      const invoice = await tx.invoice.create({
         data: {
-          code: invoiceCode('BK'),
-          bookingId: booking.id,
-          customerName: dto.customerName,
-          customerPhone: dto.customerPhone,
-          customerEmail: dto.customerEmail || null,
+          code:             invoiceCode('BK'),
+          bookingId:        booking.id,
+          customerName:     dto.customer_name,
+          customerPhone:    dto.customer_phone,
+          customerEmail:    dto.customer_email || null,
           subtotalSnapshot: amount,
-          totalSnapshot: amount,
-          paymentMethod: dto.paymentMethod,
-          status: dto.paymentMethod === 'cash' ? 'unpaid' : 'paid',
+          totalSnapshot:    amount,
+          paymentMethod:    dto.payment_method ?? 'cash',
+          // For all methods: start as 'unpaid'. Payment gateway callbacks will mark it 'paid'.
+          status:           'unpaid',
           items: {
             create: [
               {
-                description: `Đặt sân ${court.name} ${formatDate(dateObj)} ${dto.timeStart}-${dto.timeEnd}`,
-                quantity: hours.length,
+                description:       `Đặt sân ${court.name} ${formatDate(dateObj)} ${dto.time_start}-${dto.time_end}`,
+                quantity:          hours.length,
                 unitPriceSnapshot: court.price,
                 lineTotalSnapshot: amount,
               },
@@ -128,8 +126,36 @@ export class BookingsService {
         },
       });
 
-      return { ...booking, slots: hours, amount, court: { name: court.name } };
+      return {
+        ...booking,
+        invoiceId:   invoice.id,
+        invoiceCode: invoice.code,
+        slots:       hours,
+        amount,
+        court:       { name: court.name },
+        branch:      { name: court.branch?.name || '' },
+      };
     });
+
+    // Gửi email xác nhận kèm QR check-in ngay sau khi tạo booking (fire-and-forget)
+    const customerEmail = dto.customer_email || null;
+    if (customerEmail) {
+      this.emailService.sendBookingConfirmed({
+        id:            result.id,
+        customerName:  dto.customer_name,
+        customerEmail,
+        courtName:     result.court.name,
+        branchName:    result.branch.name,
+        bookingDate:   dto.booking_date,
+        timeStart:     dto.time_start,
+        timeEnd:       dto.time_end,
+        amount:        result.amount,
+        invoiceCode:   result.invoiceCode,
+        paymentMethod: dto.payment_method,
+      }).catch(() => {/* fire-and-forget */});
+    }
+
+    return result;
   }
 
   // ═══════════════════════════════════════════════════════════════
@@ -234,6 +260,12 @@ export class BookingsService {
         slots: { updateMany: { where: {}, data: { status: 'booked' } } },
       },
       include: { court: { include: { branch: true } }, user: true },
+    });
+
+    // Cập nhật invoice liên kết → paid (cho thanh toán tiền mặt tại quầy)
+    await this.prisma.invoice.updateMany({
+      where: { bookingId: id, status: 'unpaid' },
+      data:  { status: 'paid' },
     });
 
     const email = updated.customerEmail || updated.user?.email;
@@ -363,6 +395,7 @@ export class BookingsService {
         court: { select: { name: true, type: true } },
         branch: { select: { name: true } },
         user: { select: { fullName: true, phone: true } },
+        invoices: { select: { id: true, status: true }, take: 1 },
       },
       orderBy: [{ bookingDate: 'desc' }, { timeStart: 'asc' }],
     });
@@ -375,6 +408,7 @@ export class BookingsService {
         court: { select: { name: true, image: true, type: true, price: true } },
         branch: { select: { name: true, address: true } },
         slots: { select: { time: true, status: true } },
+        invoices: { select: { id: true, status: true }, take: 1 },
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -414,6 +448,73 @@ export class BookingsService {
       throw new ForbiddenException('Bạn không có quyền hủy booking này');
     }
     return this.cancel(id);
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  // RECURRING BOOKING: tạo nhiều booking theo số tuần
+  // ═══════════════════════════════════════════════════════════════
+  async createRecurring(dto: CreateRecurringDto) {
+    const results: any[] = [];
+    const errors: any[] = [];
+    const startDate = new Date(dto.start_date);
+
+    for (let i = 0; i < dto.weeks; i++) {
+      const bookingDate = new Date(startDate);
+      bookingDate.setDate(startDate.getDate() + i * 7);
+      const dateStr = bookingDate.toISOString().split('T')[0];
+
+      try {
+        const booking = await this.create({
+          court_id:       dto.court_id,
+          booking_date:   dateStr,
+          time_start:     dto.time_start,
+          time_end:       dto.time_end,
+          slots:          dto.slots,
+          customer_name:  dto.customer_name,
+          customer_phone: dto.customer_phone,
+          customer_email: dto.customer_email,
+          payment_method: dto.payment_method ?? 'cash',
+          user_id:        dto.user_id,
+          amount:         dto.amount,
+        });
+        results.push(booking);
+      } catch (e: any) {
+        errors.push({ date: dateStr, error: e.message || 'Lỗi tạo booking' });
+      }
+    }
+
+    return { success: true, created: results.length, errors, data: results };
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  // UPDATE SERVICES: cập nhật dịch vụ đi kèm booking
+  // (DB không có cột riêng; trả về booking hiện tại kèm data dịch vụ)
+  // ═══════════════════════════════════════════════════════════════
+  async updateServices(id: string, dto: UpdateServicesDto) {
+    const booking = await this.findOne(id);
+    // Trả về booking + overlay service data từ DTO
+    return {
+      ...booking,
+      serviceLines:    dto.service_lines ?? null,
+      servicePaidHash: dto.paid_hash ?? null,
+      servicePaidAt:   dto.paid_at ?? null,
+    };
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  // DELETE BOOKING
+  // ═══════════════════════════════════════════════════════════════
+  async deleteBooking(id: string) {
+    const booking = await this.findOne(id);
+    if (booking.status === 'playing') {
+      throw new BadRequestException('Không thể xóa booking đang chơi');
+    }
+    // Hủy trước rồi xóa (để cascade slot)
+    if (!['cancelled', 'completed'].includes(booking.status)) {
+      await this.cancel(id);
+    }
+    await this.prisma.booking.delete({ where: { id } });
+    return { message: 'Đã xóa booking' };
   }
 
   async getTodayBookings(branchId?: number) {

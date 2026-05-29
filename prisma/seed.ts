@@ -319,7 +319,7 @@ async function main() {
 
   await prisma.user.upsert({
     where: { username: 'admin' },
-    update: {},
+    update: { passwordHash },   // ← luôn reset password khi seed
     create: {
       username: 'admin',
       passwordHash,

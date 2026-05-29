@@ -23,7 +23,7 @@ export class  RegisterDto {
 
   @IsString()
   @MinLength(2)
-  fullName: string;
+  full_name: string;       // FE gửi snake_case
 
   @IsEmail({}, { message: 'Email không hợp lệ' })
   email: string;
@@ -38,11 +38,11 @@ export class  RegisterDto {
   @IsOptional()
   address?: string;
 
-  @IsEnum(['nam', 'nu'], { message: 'Giới tính phải là nam hoặc nu' })
+  @IsEnum(['nam', 'nu', 'nữ'], { message: 'Giới tính phải là nam hoặc nu' })
   @IsOptional()
-  gender?: 'nam' | 'nu';
+  gender?: string;
 
   @IsDateString({}, { message: 'Ngày sinh không hợp lệ' })
   @IsOptional()
-  dateOfBirth?: string;
+  date_of_birth?: string;  // FE gửi snake_case
 }

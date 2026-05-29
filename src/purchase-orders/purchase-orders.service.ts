@@ -1,62 +1,157 @@
-import { Injectable } from '@nestjs/common'
+import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common'
 import { PrismaService } from '../prisma/prisma.service'
+import { CreatePurchaseOrderDto, UpdatePOStatusDto } from './dto/purchase-order.dto'
+
+// State machine cho Purchase Order
+const PO_TRANSITIONS: Record<string, string[]> = {
+  draft:     ['sent', 'cancelled'],
+  sent:      ['confirmed', 'cancelled'],
+  confirmed: ['shipping', 'cancelled'],
+  shipping:  ['received'],
+  received:  [],
+  cancelled: [],
+}
+
+// Include clause dùng chung
+const PO_INCLUDE = {
+  supplier:  { select: { name: true } },
+  warehouse: { select: { name: true } },
+  creator:   { select: { fullName: true } },
+  items:     true,
+} as const
 
 @Injectable()
 export class PurchaseOrdersService {
   constructor(private prisma: PrismaService) {}
 
-  async getAll(user: any) {
-    const where = user.role === 'employee' && user.warehouseId
-      ? `WHERE po.warehouse_id = ${user.warehouseId}`
-      : ''
-
-    const rows = await this.prisma.$queryRawUnsafe(`
-      SELECT po.*,
-        s.name AS supplier_name,
-        w.name AS warehouse_name,
-        u.full_name AS created_by_name,
-        COUNT(poi.po_id) AS item_count,
-        JSON_AGG(JSON_BUILD_OBJECT(
-          'sku', poi.sku,
-          'name', poi.name,
-          'qty', poi.qty,
-          'unit_cost', poi.unit_cost
-        )) FILTER (WHERE poi.po_id IS NOT NULL) AS po_items
-      FROM purchase_orders po
-      JOIN suppliers s ON s.id = po.supplier_id
-      JOIN warehouses w ON w.id = po.warehouse_id
-      JOIN users u ON u.id = po.created_by
-      LEFT JOIN po_items poi ON poi.po_id = po.id
-      ${where}
-      GROUP BY po.id, s.name, w.name, u.full_name
-      ORDER BY po.created_at DESC
-    `) as any[]
-    return rows
+  // ─── GET /purchase-orders/suppliers ───────────────────────
+  async getSuppliers() {
+    return this.prisma.supplier.findMany({
+      where: { isActive: true },
+      select: { id: true, name: true, contactPerson: true, phone: true, email: true },
+      orderBy: { name: 'asc' },
+    })
   }
 
-  async updateStatus(id: string, status: string) {
-    await this.prisma.$executeRawUnsafe(`
-      UPDATE purchase_orders SET status = '${status}', updated_at = NOW() WHERE id = '${id}'
-    `)
+  // ─── GET /purchase-orders ──────────────────────────────────
+  async getAll(user: any) {
+    const orders = await this.prisma.purchaseOrder.findMany({
+      where: user.role === 'employee' && user.warehouseId
+        ? { warehouseId: user.warehouseId }
+        : {},
+      include: PO_INCLUDE,
+      orderBy: { createdAt: 'desc' },
+    })
+    return orders.map(this.mapPO)
+  }
+
+  // ─── GET /purchase-orders/:id ──────────────────────────────
+  async getOne(id: string, user: any) {
+    const po = await this.prisma.purchaseOrder.findUnique({
+      where: { id },
+      include: PO_INCLUDE,
+    })
+    if (!po) throw new NotFoundException('Không tìm thấy đơn đặt hàng')
+
+    // Employee chỉ xem đơn thuộc kho của mình
+    if (user.role === 'employee' && user.warehouseId && po.warehouseId !== user.warehouseId) {
+      throw new NotFoundException('Không tìm thấy đơn đặt hàng')
+    }
+
+    return this.mapPO(po)
+  }
+
+  // ─── POST /purchase-orders ─────────────────────────────────
+  // FE gửi: { supplier_id, warehouse_id, note?, items: [{ sku, quantity, price }] }
+  async create(dto: CreatePurchaseOrderDto, user: any) {
+    // Verify supplier + warehouse tồn tại
+    const [supplier, warehouse] = await Promise.all([
+      this.prisma.supplier.findUnique({ where: { id: dto.supplier_id } }),
+      this.prisma.warehouse.findUnique({ where: { id: dto.warehouse_id } }),
+    ])
+    if (!supplier)  throw new NotFoundException(`Nhà cung cấp ID ${dto.supplier_id} không tồn tại`)
+    if (!warehouse) throw new NotFoundException(`Kho ID ${dto.warehouse_id} không tồn tại`)
+
+    // Tra cứu tên sản phẩm từ bảng products (để lưu vào PO item)
+    const products = await Promise.all(
+      dto.items.map(item =>
+        this.prisma.product.findFirst({
+          where: { sku: item.sku },
+          select: { name: true },
+        })
+      )
+    )
+
+    const totalValue = dto.items.reduce((sum, i) => sum + i.quantity * i.price, 0)
+
+    const po = await this.prisma.purchaseOrder.create({
+      data: {
+        supplierId:  dto.supplier_id,
+        warehouseId: dto.warehouse_id,
+        status:      'draft',
+        totalValue,
+        note:        dto.note ?? null,
+        createdBy:   user.id,
+        items: {
+          create: dto.items.map((i, idx) => ({
+            sku:      i.sku,
+            name:     products[idx]?.name || i.sku,   // fallback về SKU nếu không tìm thấy tên
+            qty:      i.quantity,
+            unitCost: i.price,
+          })),
+        },
+      },
+      include: { items: true },
+    })
+
+    return { success: true, data: { id: po.id } }
+  }
+
+  // ─── PATCH /purchase-orders/:id/status ────────────────────
+  async updateStatus(id: string, dto: UpdatePOStatusDto) {
+    const po = await this.prisma.purchaseOrder.findUnique({ where: { id } })
+    if (!po) throw new NotFoundException('Không tìm thấy đơn đặt hàng')
+
+    const allowed = PO_TRANSITIONS[po.status] ?? []
+    if (!allowed.includes(dto.status)) {
+      throw new BadRequestException(
+        `Không thể chuyển từ "${po.status}" sang "${dto.status}". ` +
+        `Trạng thái hợp lệ: [${allowed.join(', ') || 'không có'}]`
+      )
+    }
+
+    await this.prisma.purchaseOrder.update({
+      where: { id },
+      data:  { status: dto.status as any },
+    })
+
     return { success: true, message: 'Cập nhật trạng thái thành công' }
   }
 
-  async create(dto: { supplierId: number; warehouseId: number; note?: string; items: { sku: string; qty: number; unitCost: number }[] }, user: any) {
-  const result = await this.prisma.$queryRawUnsafe(`
-  INSERT INTO purchase_orders (id, supplier_id, warehouse_id, status, total_value, note, created_by)
-  VALUES (gen_random_uuid(), ${dto.supplierId}, ${dto.warehouseId}, 'draft',
-          ${dto.items.reduce((s: number, i: any) => s + i.qty * i.unitCost, 0)},
-          '${(dto.note || '').replace(/'/g, "''")}', '${user.id}')
-  RETURNING id
-`) as any[]
-  const poId = result[0].id
-  for (const item of dto.items) {
-    await this.prisma.$executeRawUnsafe(`
-      INSERT INTO po_items (po_id, sku, name, qty, unit_cost)
-      SELECT '${poId}', '${item.sku}', name, ${item.qty}, ${item.unitCost}
-      FROM inventory WHERE sku = '${item.sku}' LIMIT 1
-    `)
-  }
-  return { success: true, data: { id: poId } }
+  // ─── Private mapper ────────────────────────────────────────
+  private mapPO(po: any) {
+    return {
+      id:            po.id,
+      status:        po.status,
+      totalValue:    Number(po.totalValue),
+      note:          po.note,
+      createdAt:     po.createdAt,
+      updatedAt:     po.updatedAt,
+      supplierId:    po.supplierId,
+      supplierName:  po.supplier.name,
+      warehouseId:   po.warehouseId,
+      warehouseName: po.warehouse.name,
+      createdBy:     po.createdBy,
+      createdByName: po.creator.fullName,
+      allowedNextStatuses: PO_TRANSITIONS[po.status] ?? [],
+      items: po.items.map((i: any) => ({
+        id:       i.id,
+        sku:      i.sku,
+        name:     i.name,
+        qty:      i.qty,
+        unitCost: Number(i.unitCost),
+        total:    Number(i.unitCost) * i.qty,
+      })),
+    }
   }
 }

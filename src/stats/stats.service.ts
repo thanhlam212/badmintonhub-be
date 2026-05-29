@@ -1,12 +1,21 @@
 // src/stats/stats.service.ts
-import { Injectable } from '@nestjs/common'
+import { Injectable, BadRequestException } from '@nestjs/common'
 import { PrismaService } from '../prisma/prisma.service'
+
+export const VALID_RANGES = ['7d', '30d', 'month', 'today'] as const
+export type StatsRange = typeof VALID_RANGES[number]
 
 @Injectable()
 export class StatsService {
   constructor(private prisma: PrismaService) {}
 
   async getDashboard(range: string = '30d') {
+    if (!VALID_RANGES.includes(range as StatsRange)) {
+      throw new BadRequestException(
+        `range không hợp lệ: "${range}". Chỉ chấp nhận: ${VALID_RANGES.join(', ')}`
+      )
+    }
+
     const now = new Date()
     const from = this.getFromDate(range, now)
     const prevFrom = this.getFromDate(range, from) // kỳ trước để tính % tăng trưởng

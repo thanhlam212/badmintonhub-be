@@ -1,11 +1,10 @@
-import { Controller, Get, Post, Patch, Body, Param, Request, UseGuards } from '@nestjs/common'
+import { Controller, Get, Post, Patch, Body, Param, Request } from '@nestjs/common'
 import { TransfersService } from './transfers.service'
-import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
-import { RolesGuard } from 'src/auth/guards/roles.guard';
-import { Roles } from 'src/auth/decorators';
+import { CreateTransferDto, UpdateTransferStatusDto } from './dto/transfer.dto'
+import { Roles } from 'src/auth/decorators'
 
+// Global JwtAuthGuard + RolesGuard already applied via APP_GUARD in app.module
 @Controller('transfers')
-@UseGuards(JwtAuthGuard, RolesGuard)
 @Roles('admin', 'employee')
 export class TransfersController {
   constructor(private readonly transfersService: TransfersService) {}
@@ -15,20 +14,22 @@ export class TransfersController {
     return this.transfersService.getAll(req.user)
   }
 
+  @Get(':id')
+  getOne(@Param('id') id: string, @Request() req: any) {
+    return this.transfersService.getOne(id, req.user)
+  }
+
   @Post()
-  create(
-    @Body() dto: { from_warehouse_id: number; to_warehouse_id: number; note?: string; items: { sku: string; quantity: number }[] },
-    @Request() req: any,
-  ) {
+  create(@Body() dto: CreateTransferDto, @Request() req: any) {
     return this.transfersService.create(dto, req.user)
   }
 
   @Patch(':id/status')
   updateStatus(
     @Param('id') id: string,
-    @Body() body: { status: string },
+    @Body() dto: UpdateTransferStatusDto,
     @Request() req: any,
   ) {
-    return this.transfersService.updateStatus(id, body.status, req.user)
+    return this.transfersService.updateStatus(id, dto, req.user)
   }
 }
