@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common'
+import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common'
 import { PrismaService } from '../prisma/prisma.service'
 import { VnpayProvider } from './vnpay.provider'
 import { MomoProvider } from './momo.provider'
@@ -119,12 +119,29 @@ export class PaymentService {
   }
 
   // ─── Lấy trạng thái thanh toán ────────────────────────────
-  async getPaymentStatus(paymentId: string) {
+  async getPaymentStatus(paymentId: string, user: any) {
     const payment = await this.prisma.payment.findUnique({
       where:   { id: paymentId },
-      include: { invoice: true },
+      include: {
+        invoice: {
+          include: { order: true, booking: true, fixedSchedule: true },
+        },
+      },
     })
     if (!payment) throw new NotFoundException('Không tìm thấy giao dịch')
+
+    // Ownership check: admin/employee xem tất cả, user chỉ xem của mình
+    if (user.role !== 'admin' && user.role !== 'employee') {
+      const inv = payment.invoice
+      const isOwner =
+        (inv.order?.userId         != null && inv.order.userId         === user.id) ||
+        (inv.booking?.userId       != null && inv.booking.userId       === user.id) ||
+        (inv.fixedSchedule?.userId != null && inv.fixedSchedule.userId === user.id)
+      if (!isOwner) {
+        throw new ForbiddenException('Bạn không có quyền xem giao dịch này')
+      }
+    }
+
     return {
       id:             payment.id,
       invoiceId:      payment.invoiceId,

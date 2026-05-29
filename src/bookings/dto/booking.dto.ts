@@ -70,53 +70,153 @@ export enum FixedAdjustmentType {
 // SECTION 2: BOOKING THƯỜNG (giữ nguyên)
 // ═══════════════════════════════════════════════════════════════
 
+// FE gửi snake_case: court_id, booking_date, time_start, time_end, customer_name, ...
 export class CreateBookingDto {
+  /** ID sân — FE gửi court_id */
   @IsInt()
   @Min(1)
-  courtId: number;
+  court_id: number;
 
+  /** Ngày đặt YYYY-MM-DD — FE gửi booking_date */
   @IsDateString({}, { message: 'Ngày đặt phải đúng định dạng YYYY-MM-DD' })
-  @IsNotEmpty({ message: 'Ngày đặt sân không được để trống' })
-  bookingDate: string;
+  @IsNotEmpty()
+  booking_date: string;
 
+  /** Giờ bắt đầu HH:mm — FE gửi time_start */
   @IsString()
   @Matches(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, {
     message: 'Giờ bắt đầu phải đúng định dạng HH:mm',
   })
-  timeStart: string;
+  time_start: string;
 
+  /** Giờ kết thúc HH:mm — FE gửi time_end */
   @IsString()
   @Matches(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, {
     message: 'Giờ kết thúc phải đúng định dạng HH:mm',
   })
-  timeEnd: string;
+  time_end: string;
 
+  /** Số người / số slots — FE gửi slots */
+  @IsInt()
+  @Min(1)
+  @Max(10)
+  @IsOptional()
+  slots?: number;
+
+  /** Giữ backward compat nếu gửi people */
   @IsInt()
   @Min(1)
   @Max(10)
   @IsOptional()
   people?: number;
 
-  @IsEnum(PaymentMethod, { message: 'Phương thức thanh toán không hợp lệ' })
-  paymentMethod: PaymentMethod;
+  /** Phương thức thanh toán — FE gửi payment_method (string) */
+  @IsString()
+  @IsOptional()
+  payment_method?: string;
 
+  /** Tên khách hàng — FE gửi customer_name */
   @IsString()
   @IsNotEmpty({ message: 'Tên khách hàng không được để trống' })
-  customerName: string;
+  customer_name: string;
 
+  /** SĐT khách — FE gửi customer_phone */
   @IsString()
-  @Matches(/^(0[3|5|7|8|9])+([0-9]{8})$/, {
-    message: 'Số điện thoại phải đúng định dạng Việt Nam',
-  })
-  customerPhone: string;
+  @IsNotEmpty()
+  customer_phone: string;
 
+  /** Email khách (optional) — FE gửi customer_email */
   @IsEmail({}, { message: 'Email không đúng định dạng' })
   @IsOptional()
-  customerEmail?: string;
+  customer_email?: string;
+
+  /** User ID (optional) — FE gửi user_id */
+  @IsString()
+  @IsOptional()
+  user_id?: string;
+
+  /** Tổng tiền FE tính sẵn — BE bỏ qua, tự tính từ giá sân */
+  @IsOptional()
+  amount?: number;
+
+  /** Ghi chú */
+  @IsString()
+  @IsOptional()
+  note?: string;
+}
+
+// ─── Tạo giữ chỗ / hold — cùng struct với CreateBookingDto ────
+// Dùng lại CreateBookingDto (alias)
+export { CreateBookingDto as CreateHoldDto };
+
+// ─── Tạo booking lặp lại (recurring) theo số tuần ────────────
+export class CreateRecurringDto {
+  @IsInt()
+  @Min(1)
+  court_id: number;
+
+  @IsString()
+  @Matches(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/)
+  time_start: string;
+
+  @IsString()
+  @Matches(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/)
+  time_end: string;
+
+  @IsDateString()
+  start_date: string;
+
+  @IsInt()
+  @Min(1)
+  @Max(52)
+  weeks: number;
+
+  @IsInt()
+  @Min(1)
+  @Max(10)
+  @IsOptional()
+  slots?: number;
+
+  @IsString()
+  @IsNotEmpty()
+  customer_name: string;
+
+  @IsString()
+  @IsNotEmpty()
+  customer_phone: string;
+
+  @IsEmail()
+  @IsOptional()
+  customer_email?: string;
+
+  @IsOptional()
+  amount?: number;
 
   @IsString()
   @IsOptional()
-  userId?: string;
+  payment_method?: string;
+
+  @IsString()
+  @IsOptional()
+  note?: string;
+
+  @IsString()
+  @IsOptional()
+  user_id?: string;
+}
+
+// ─── Cập nhật service lines của booking ───────────────────────
+export class UpdateServicesDto {
+  @IsOptional()
+  service_lines?: any[];
+
+  @IsString()
+  @IsOptional()
+  paid_hash?: string | null;
+
+  @IsString()
+  @IsOptional()
+  paid_at?: string | null;
 }
 
 // ═══════════════════════════════════════════════════════════════

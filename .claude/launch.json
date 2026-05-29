@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "fe",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "D:/project/BADMINTONHUB", "run", "dev"],
+      "port": 3000,
+      "autoPort": false
+    }
+  ]
+}

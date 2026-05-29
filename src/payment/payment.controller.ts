@@ -1,7 +1,7 @@
 import { Controller, Post, Get, Body, Query, Param, Req, HttpCode } from '@nestjs/common'
 import { PaymentService } from './payment.service'
 import { CreatePaymentDto } from './dto/payment.dto'
-import { Public } from '../auth/decorators/index'
+import { Public, CurrentUser } from '../auth/decorators/index'
 
 @Controller('payment')
 export class PaymentController {
@@ -38,9 +38,9 @@ export class PaymentController {
     return this.paymentService.handleMomoIpn(body)
   }
 
-  // GET /api/payment/:id — Lấy trạng thái thanh toán
+  // GET /api/payment/:id — Lấy trạng thái thanh toán (có kiểm tra ownership)
   @Get(':id')
-  getStatus(@Param('id') id: string) {
-    return this.paymentService.getPaymentStatus(id)
+  getStatus(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.paymentService.getPaymentStatus(id, user)
   }
 }

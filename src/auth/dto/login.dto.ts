@@ -1,8 +1,9 @@
 import { IsString, MinLength } from 'class-validator';
 
 export class LoginDto {
+  /** FE gửi `username` (cũng có thể là email) */
   @IsString()
-  identifier: string;
+  username: string;
 
   @IsString()
   @MinLength(6)

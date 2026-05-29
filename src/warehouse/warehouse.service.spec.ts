@@ -1,18 +1,22 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { WarehouseService } from './warehouse.service';
+import { Test, TestingModule } from '@nestjs/testing'
+import { WarehouseService } from './warehouse.service'
+import { PrismaService } from '../prisma/prisma.service'
 
 describe('WarehouseService', () => {
-  let service: WarehouseService;
+  let service: WarehouseService
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      providers: [WarehouseService],
-    }).compile();
+      providers: [
+        WarehouseService,
+        { provide: PrismaService, useValue: { warehouse: { findMany: jest.fn(), findUnique: jest.fn() } } },
+      ],
+    }).compile()
 
-    service = module.get<WarehouseService>(WarehouseService);
-  });
+    service = module.get<WarehouseService>(WarehouseService)
+  })
 
   it('should be defined', () => {
-    expect(service).toBeDefined();
-  });
-});
+    expect(service).toBeDefined()
+  })
+})

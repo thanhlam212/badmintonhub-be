@@ -27,10 +27,36 @@ export class CourtsService {
   }
 
   // ─────────────────────────────────────────────
+  // Private mapper: flatten Prisma court → snake_case (FE's transformCourt reads này)
+  // ─────────────────────────────────────────────
+  private mapCourt(c: any) {
+    return {
+      id:             c.id,
+      name:           c.name,
+      branch_id:      c.branchId,
+      branch_name:    c.branch?.name || '',
+      branch_address: c.branch?.address || '',
+      branch_lat:     c.branch?.lat ? parseFloat(String(c.branch.lat)) : 0,
+      branch_lng:     c.branch?.lng ? parseFloat(String(c.branch.lng)) : 0,
+      type:           c.type,
+      indoor:         c.indoor,
+      price:          parseFloat(String(c.price)),
+      rating:         parseFloat(String(c.rating || 0)),
+      reviews_count:  c._count?.reviews ?? c.reviewsCount ?? 0,
+      image:          c.image || null,
+      available:      c.available,
+      // FE expects string[] for amenities
+      amenities:      (c.amenities || []).map((a: any) => typeof a === 'string' ? a : a.amenity),
+      description:    c.description || '',
+      hours:          c.hours || '06:00 - 22:00',
+    }
+  }
+
+  // ─────────────────────────────────────────────
   // GET /courts — Danh sách sân (filter theo branch, type)
   // ─────────────────────────────────────────────
   async findAll(filters: { branchId?: number; type?: string; indoor?: boolean }) {
-    return this.prisma.court.findMany({
+    const courts = await this.prisma.court.findMany({
       where: {
         available: true,
         ...(filters.branchId && { branchId: filters.branchId }),
@@ -46,6 +72,7 @@ export class CourtsService {
       },
       orderBy: { rating: 'desc' },
     });
+    return courts.map(c => this.mapCourt(c));
   }
 
   // ─────────────────────────────────────────────
@@ -55,7 +82,7 @@ export class CourtsService {
     const court = await this.prisma.court.findUnique({
       where: { id },
       include: {
-        branch: true,
+        branch: { select: { id: true, name: true, address: true, lat: true, lng: true } },
         amenities: true,
         reviews: {
           include: {
@@ -68,7 +95,10 @@ export class CourtsService {
       },
     });
     if (!court) throw new NotFoundException(`Sân #${id} không tồn tại`);
-    return court;
+    return {
+      ...this.mapCourt(court),
+      reviews: court.reviews,
+    };
   }
 
   // ─────────────────────────────────────────────

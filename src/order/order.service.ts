@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common'
 import { PrismaService } from '../prisma/prisma.service'
 import { CreateOrderDto } from './dto/order.dto'
+import { invoiceCode } from '../bookings/booking.helpers'
 
 // Các chuyển trạng thái hợp lệ cho Order
 const ORDER_TRANSITIONS: Record<string, string[]> = {
@@ -24,10 +25,6 @@ const ORDER_STATUS_TO_INVOICE: Record<string, string> = {
 export class OrderService {
   constructor(private prisma: PrismaService) {}
 
-  private invoiceCode() {
-    return `ORD-${Date.now()}-${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`
-  }
-
   // ─── Tạo đơn hàng mới ─────────────────────────────────────
   async create(dto: CreateOrderDto, userId?: string) {
     if (!dto.items || dto.items.length === 0) {
@@ -44,17 +41,20 @@ export class OrderService {
     }
 
     return this.prisma.$transaction(async (tx) => {
+      // FE gửi qty (không phải quantity), dùng giá từ DB (không tin giá FE gửi)
       const itemsWithPrice = dto.items.map(item => {
         const product = products.find(p => p.id === item.product_id)!
         return {
           product_id:  item.product_id,
-          quantity:    item.quantity,
+          qty:         item.qty,
           price:       parseFloat(String(product.price)),
           productName: product.name,
         }
       })
 
-      const subtotal = itemsWithPrice.reduce((sum, i) => sum + i.price * i.quantity, 0)
+      const subtotal = itemsWithPrice.reduce((sum, i) => sum + i.price * i.qty, 0)
+      const shippingFee = dto.shipping_fee ?? 0
+      const total = subtotal + shippingFee
 
       const order = await tx.order.create({
         data: {
@@ -62,18 +62,19 @@ export class OrderService {
           customerName:    dto.customer_name,
           customerPhone:   dto.customer_phone,
           customerEmail:   dto.customer_email || null,
-          customerAddress: dto.shipping_address,
+          // FE gửi customer_address, fallback về shipping_address
+          customerAddress: dto.customer_address || dto.shipping_address || '',
           paymentMethod:   dto.payment_method || 'cod',
-          shippingFee:     0,
+          shippingFee,
           note:            dto.note || null,
           subtotal,
-          total: subtotal,
+          total,
           status: 'pending',
           items: {
             create: itemsWithPrice.map(i => ({
               product:     { connect: { id: i.product_id } },
               productName: i.productName,
-              qty:         i.quantity,
+              qty:         i.qty,
               price:       i.price,
             })),
           },
@@ -84,27 +85,28 @@ export class OrderService {
       // Tạo Invoice với snapshot giá tại thời điểm đặt hàng
       await tx.invoice.create({
         data: {
-          code:             this.invoiceCode(),
+          code:             invoiceCode('OD'),
           orderId:          order.id,
           customerName:     dto.customer_name,
           customerPhone:    dto.customer_phone,
           customerEmail:    dto.customer_email || null,
           subtotalSnapshot: subtotal,
-          totalSnapshot:    subtotal,
+          totalSnapshot:    total,
           paymentMethod:    dto.payment_method || 'cod',
           status:           'unpaid',
           items: {
             create: itemsWithPrice.map(i => ({
-              description:      i.productName,
-              quantity:         i.quantity,
+              description:       i.productName,
+              quantity:          i.qty,
               unitPriceSnapshot: i.price,
-              lineTotalSnapshot: i.price * i.quantity,
+              lineTotalSnapshot: i.price * i.qty,
             })),
           },
         },
       })
 
-      return { success: true, order: this.transform(order) }
+      // FE reads res.data — trả về { success: true, data: {...} }
+      return { success: true, data: this.transform(order) }
     })
   }
 
@@ -181,7 +183,8 @@ export class OrderService {
         })
       }
 
-      return { success: true, order: this.transform(updated) }
+      // FE reads res.data — trả về { success: true, data: {...} }
+      return { success: true, data: this.transform(updated) }
     })
   }
 
@@ -198,7 +201,27 @@ export class OrderService {
       include: { items: true },
     })
     if (!invoice) throw new NotFoundException('Chưa có hóa đơn cho đơn hàng này')
-    return invoice
+
+    return {
+      id:               invoice.id,
+      code:             invoice.code,
+      orderId:          invoice.orderId,
+      customerName:     invoice.customerName,
+      customerPhone:    invoice.customerPhone,
+      customerEmail:    invoice.customerEmail,
+      subtotalSnapshot: parseFloat(String(invoice.subtotalSnapshot)),
+      totalSnapshot:    parseFloat(String(invoice.totalSnapshot)),
+      paymentMethod:    invoice.paymentMethod,
+      status:           invoice.status,
+      createdAt:        invoice.createdAt,
+      items: invoice.items.map(it => ({
+        id:                it.id,
+        description:       it.description,
+        quantity:          it.quantity,
+        unitPriceSnapshot: parseFloat(String(it.unitPriceSnapshot)),
+        lineTotalSnapshot: parseFloat(String(it.lineTotalSnapshot)),
+      })),
+    }
   }
 
   private transform(raw: any) {

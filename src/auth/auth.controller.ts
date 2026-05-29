@@ -1,61 +1,54 @@
-import {
-  Controller,
-  Post,
-  Get,
-  Patch,
-  Body,
-  UseGuards,
-} from '@nestjs/common';
+import { Controller, Post, Get, Put, Body } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
-import { CurrentUser, Public } from './decorators/index';
 import { LoginDto } from './dto/login.dto';
 import { ChangePasswordDto } from './dto/changePasword.dto';
-
-
+import { UpdateProfileDto } from './dto/update-profile.dto';
+import { CurrentUser, Public } from './decorators/index';
 
 @Controller('auth')
 export class AuthController {
-    constructor(private readonly authService: AuthService) {}
-    
-    // Đăng ký tài khoản mới
-    @Public()
-    @Post('register')
-        register(@Body() dto: RegisterDto) {
-        return this.authService.register(dto);
-    }
+  constructor(private readonly authService: AuthService) {}
 
-    // dang nhap
-    @Public()
-    @Post('login')
-    login(@Body() dto: LoginDto) {
-        return this.authService.login(dto);
-    }
-
-    // Lấy thông tin user hiện tại
-    @Get('profile')
-    getProfile(@CurrentUser() user: any) {
-        return this.authService.getProfile(user.id);
-    }
-
-    @Patch('change-password')
-  changePassword(
-    @CurrentUser() user: any,
-    @Body() dto: ChangePasswordDto,
-  ) {
-    return this.authService.changePassword(
-      user.id,
-      dto.oldPassword,
-      dto.newPassword,
-    );
+  // POST /api/auth/register  (public)
+  @Public()
+  @Post('register')
+  register(@Body() dto: RegisterDto) {
+    return this.authService.register(dto);
   }
 
-  // ─────────────────────────────────────
-  // GET /api/auth/me  (Cần token)
-  // Trả nhanh user từ token (không query DB)
-  // ─────────────────────────────────────
+  // POST /api/auth/login  (public)
+  // FE gửi { username, password }, trả về { token, user (snake_case) }
+  @Public()
+  @Post('login')
+  login(@Body() dto: LoginDto) {
+    return this.authService.login(dto);
+  }
+
+  // GET /api/auth/me  (cần token)
+  // Trả về user object (snake_case) — interceptor bọc thành { success: true, data: user }
   @Get('me')
   getMe(@CurrentUser() user: any) {
-    return user;
+    return this.authService.getProfile(user.id);
   }
-}   
+
+  // PUT /api/auth/me  (cần token)
+  // FE gửi { full_name, email, phone, address, gender, date_of_birth }
+  @Put('me')
+  updateMe(@CurrentUser() user: any, @Body() dto: UpdateProfileDto) {
+    return this.authService.updateProfile(user.id, dto);
+  }
+
+  // GET /api/auth/profile  (alias của /me, giữ backward compat)
+  @Get('profile')
+  getProfile(@CurrentUser() user: any) {
+    return this.authService.getProfile(user.id);
+  }
+
+  // PUT /api/auth/change-password  (cần token)
+  // FE gửi { current_password, new_password }
+  @Put('change-password')
+  changePassword(@CurrentUser() user: any, @Body() dto: ChangePasswordDto) {
+    return this.authService.changePassword(user.id, dto.current_password, dto.new_password);
+  }
+}
