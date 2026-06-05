@@ -2,6 +2,7 @@ import {
   Injectable, NotFoundException, BadRequestException, ForbiddenException,
 } from '@nestjs/common'
 import { PrismaService } from '../prisma/prisma.service'
+import { EmailService }   from '../email/email.service'
 import {
   CreateSalesOrderDto, UpdateSalesOrderStatusDto, CreateWalkInAccountDto,
 } from './dto/sales-order.dto'
@@ -61,7 +62,10 @@ const INCLUDE_FULL = {
 
 @Injectable()
 export class SalesOrdersService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private emailService: EmailService,
+  ) {}
 
   // ── GET /sales-orders ──────────────────────────────────────────
   async findAll(filters: { status?: string; branchId?: number }) {
@@ -284,17 +288,109 @@ export class SalesOrdersService {
   }
 
   // ── PATCH /sales-orders/:id/complete ──────────────────────────
-  async complete(id: string) {
-    const order = await this.prisma.salesOrder.findUnique({ where: { id } })
+  async complete(id: string, user: any) {
+    // Load đủ thông tin: items (kèm SKU), branch (kèm warehouse)
+    const order = await this.prisma.salesOrder.findUnique({
+      where: { id },
+      include: {
+        items: { include: { product: { select: { id: true, sku: true } } } },
+        branch: {
+          select: {
+            id: true, name: true,
+            warehouses: {
+              where: { isActive: true },
+              select: { id: true, name: true },
+              take: 1,
+            },
+          },
+        },
+        creator:  { select: { id: true, fullName: true } },
+        approver: { select: { id: true, fullName: true } },
+      },
+    })
     if (!order) throw new NotFoundException('Không tìm thấy đơn hàng')
     if (order.status !== 'approved') {
-      throw new BadRequestException(`Chỉ có thể hoàn thành đơn hàng đã được duyệt`)
+      throw new BadRequestException('Chỉ có thể hoàn thành đơn hàng đã được duyệt')
     }
-    const updated = await this.prisma.salesOrder.update({
+
+    const warehouse = (order as any).branch?.warehouses?.[0] ?? null
+    const now       = new Date()
+    const shortId   = id.slice(0, 8).toUpperCase()
+
+    await this.prisma.$transaction(async (tx) => {
+      // ── Xuất kho nếu có warehouse liên kết ──────────────────
+      if (warehouse) {
+        for (const item of order.items) {
+          const sku = (item as any).product?.sku
+          if (!sku) continue
+
+          const inv = await tx.inventory.findUnique({
+            where: { sku_warehouseId: { sku, warehouseId: warehouse.id } },
+          })
+
+          if (inv && inv.available >= item.qty) {
+            await tx.inventory.update({
+              where: { sku_warehouseId: { sku, warehouseId: warehouse.id } },
+              data: {
+                onHand:    { decrement: item.qty },
+                available: { decrement: item.qty },
+              },
+            })
+            await tx.inventoryTransaction.create({
+              data: {
+                type:        'export',
+                date:        now,
+                sku,
+                warehouseId: warehouse.id,
+                qty:         item.qty,
+                cost:        Number(inv.unitCost),
+                note:        `Bán hàng [${shortId}] – ${order.customerName}`,
+                operatorId:  user.id,
+              },
+            })
+          }
+          // Nếu thiếu hàng: tiếp tục xử lý (không block), ghi log
+        }
+      }
+
+      // ── Cập nhật trạng thái đơn ──────────────────────────────
+      await tx.salesOrder.update({
+        where: { id },
+        data:  { status: 'exported' as any },
+      })
+    })
+
+    // ── Gửi email xác nhận đơn hàng (fire-and-forget) ───────────
+    const customerEmail = await this.findCustomerEmail(order.customerPhone)
+    if (customerEmail) {
+      this.emailService.sendOrderConfirmed({
+        id,
+        customerName:  order.customerName,
+        customerEmail,
+        items: order.items.map((i: any) => ({
+          name:  i.productName,
+          qty:   i.qty,
+          price: Number(i.price),
+        })),
+        total:         Number(order.finalTotal),
+        paymentMethod: order.paymentMethod,
+      }).catch(() => {/* fire-and-forget */})
+    }
+
+    const updated = await this.prisma.salesOrder.findUnique({
       where: { id },
-      data: { status: 'exported' as any },
       include: INCLUDE_FULL,
     })
     return { success: true, data: mapSalesOrder(updated) }
+  }
+
+  // ── Helper: tìm email khách hàng theo SĐT ──────────────────────
+  private async findCustomerEmail(phone: string | null): Promise<string | null> {
+    if (!phone) return null
+    const user = await this.prisma.user.findFirst({
+      where:  { phone },
+      select: { email: true },
+    })
+    return user?.email ?? null
   }
 }

@@ -258,6 +258,89 @@ export class EmailService {
     }
   }
 
+  // ─── Gửi OTP quên mật khẩu ──────────────────────────────────
+  async sendOtpEmail(params: {
+    to: string
+    fullName: string
+    otp: string
+    username: string
+  }) {
+    const html = `
+<!DOCTYPE html>
+<html lang="vi">
+<head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/></head>
+<body style="margin:0;padding:0;background:#f3f4f6;font-family:Arial,Helvetica,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f3f4f6;padding:32px 16px;">
+  <tr><td align="center">
+    <table width="520" cellpadding="0" cellspacing="0" style="max-width:520px;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
+      <!-- Header -->
+      <tr>
+        <td style="background:linear-gradient(135deg,#0a2416 0%,#1a5c32 100%);padding:28px 32px;text-align:center;">
+          <p style="margin:0;color:#86efac;font-size:12px;letter-spacing:2px;text-transform:uppercase;">BadmintonHub</p>
+          <h1 style="margin:8px 0 0;color:#ffffff;font-size:24px;">🔐 Đặt lại mật khẩu</h1>
+        </td>
+      </tr>
+      <!-- Body -->
+      <tr>
+        <td style="padding:32px;">
+          <p style="margin:0 0 16px;color:#374151;font-size:16px;">
+            Xin chào <strong>${params.fullName}</strong>,
+          </p>
+          <p style="margin:0 0 20px;color:#6b7280;font-size:14px;">
+            Bạn vừa yêu cầu đặt lại mật khẩu cho tài khoản <strong style="color:#0a2416;">${params.username}</strong>.<br/>
+            Nhập mã OTP bên dưới để tiếp tục:
+          </p>
+
+          <!-- OTP Box -->
+          <div style="background:#f0fdf4;border:2px solid #86efac;border-radius:16px;padding:28px;text-align:center;margin:0 0 24px;">
+            <p style="margin:0 0 8px;color:#166534;font-size:13px;letter-spacing:1px;text-transform:uppercase;font-weight:bold;">Mã xác minh OTP</p>
+            <p style="margin:0;font-family:monospace;font-size:48px;font-weight:bold;letter-spacing:12px;color:#15803d;">
+              ${params.otp}
+            </p>
+            <p style="margin:12px 0 0;color:#6b7280;font-size:13px;">Mã có hiệu lực trong <strong>5 phút</strong></p>
+          </div>
+
+          <table width="100%" cellpadding="0" cellspacing="0"
+            style="background:#fefce8;border:1px solid #fef08a;border-radius:12px;padding:14px;margin-bottom:24px;">
+            <tr>
+              <td style="color:#854d0e;font-size:13px;">
+                ⚠️ <strong>Lưu ý bảo mật:</strong> Không chia sẻ mã này với bất kỳ ai.
+                Nếu bạn không yêu cầu đặt lại mật khẩu, hãy bỏ qua email này.
+              </td>
+            </tr>
+          </table>
+
+          <p style="color:#9ca3af;font-size:13px;text-align:center;margin:0;">
+            Đội ngũ <strong>BadmintonHub</strong> 🏸
+          </p>
+        </td>
+      </tr>
+      <!-- Footer -->
+      <tr>
+        <td style="background:#f9fafb;padding:16px 32px;text-align:center;border-top:1px solid #e5e7eb;">
+          <p style="margin:0;color:#9ca3af;font-size:12px;">© 2025 BadmintonHub · All rights reserved</p>
+        </td>
+      </tr>
+    </table>
+  </td></tr>
+</table>
+</body>
+</html>`
+
+    try {
+      await this.transporter.sendMail({
+        from:    `"BadmintonHub" <${process.env.MAIL_USER}>`,
+        to:      params.to,
+        subject: `🔐 [BadmintonHub] Mã OTP đặt lại mật khẩu: ${params.otp}`,
+        html,
+      })
+      this.logger.log(`✅ OTP email sent to ${params.to}`)
+    } catch (err) {
+      this.logger.error(`❌ Failed to send OTP email to ${params.to}:`, err)
+      throw new Error('Không thể gửi email. Vui lòng thử lại.')
+    }
+  }
+
   private payMethodLabel(method?: string): string {
     const map: Record<string, string> = {
       cash: '💵 Tiền mặt tại quầy',
