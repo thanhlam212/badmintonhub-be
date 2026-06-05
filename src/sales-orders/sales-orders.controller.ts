@@ -80,7 +80,7 @@ export class SalesOrdersController {
 
   // PATCH /sales-orders/:id/complete
   @Patch(':id/complete')
-  complete(@Param('id') id: string) {
-    return this.service.complete(id)
+  complete(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.service.complete(id, user)
   }
 }

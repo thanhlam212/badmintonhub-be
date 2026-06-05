@@ -35,6 +35,10 @@ export class EmailService {
     paymentMethod?: string
   }) {
     if (!booking.customerEmail) return
+    if (!process.env.MAIL_USER || !process.env.MAIL_PASS) {
+      this.logger.warn(`⚠️ Email credentials are not configured. Skipping sending email to ${booking.customerEmail} for booking ${booking.id}.`)
+      return
+    }
 
     const dateStr = new Date(booking.bookingDate).toLocaleDateString('vi-VN', {
       weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric',
@@ -194,6 +198,10 @@ export class EmailService {
     paymentMethod?: string
   }) {
     if (!order.customerEmail) return
+    if (!process.env.MAIL_USER || !process.env.MAIL_PASS) {
+      this.logger.warn(`⚠️ Email credentials are not configured. Skipping sending email to ${order.customerEmail} for order ${order.id}.`)
+      return
+    }
 
     const itemRows = order.items.map(i => `
       <tr style="border-top:1px solid #f3f4f6;">

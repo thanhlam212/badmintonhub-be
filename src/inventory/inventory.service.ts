@@ -33,10 +33,9 @@ export class InventoryService {
   }) {
     const where: any = {}
 
-    // Role-based: employee chỉ xem kho của mình
-    if (user.role === 'employee' && user.warehouseId) {
-      where.warehouseId = user.warehouseId
-    } else if (filters?.warehouseId) {
+    // Filter theo warehouseId nếu có query param
+    // (Bỏ filter role-based, cho nhân viên xem được tất cả kho — FE tự chọn kho mặc định)
+    if (filters?.warehouseId) {
       where.warehouseId = filters.warehouseId
     }
 
@@ -113,31 +112,56 @@ export class InventoryService {
     const item = await this.prisma.inventory.findUnique({
       where: { sku_warehouseId: { sku: dto.sku, warehouseId: dto.warehouseId } },
     })
-    if (!item) {
-      throw new BadRequestException(`SKU "${dto.sku}" không tồn tại trong kho ID ${dto.warehouseId}`)
-    }
+    const cost = dto.cost ?? item?.unitCost ?? 0
 
-    await this.prisma.$transaction([
-      this.prisma.inventory.update({
-        where: { sku_warehouseId: { sku: dto.sku, warehouseId: dto.warehouseId } },
-        data: {
-          onHand:    { increment: dto.qty },
-          available: { increment: dto.qty },
-        },
-      }),
-      this.prisma.inventoryTransaction.create({
+    await this.prisma.$transaction(async (tx) => {
+      if (item) {
+        await tx.inventory.update({
+          where: { sku_warehouseId: { sku: dto.sku, warehouseId: dto.warehouseId } },
+          data: {
+            onHand:    { increment: dto.qty },
+            available: { increment: dto.qty },
+            ...(dto.cost !== undefined && { unitCost: dto.cost }),
+          },
+        })
+      } else {
+        const product = await tx.product.findUnique({
+          where: { sku: dto.sku },
+          select: { id: true, name: true, category: true, image: true },
+        })
+        if (!product) {
+          throw new BadRequestException(`SKU "${dto.sku}" không tồn tại trong danh mục sản phẩm`)
+        }
+        await tx.inventory.create({
+          data: {
+            sku: dto.sku,
+            productId: product.id,
+            warehouseId: dto.warehouseId,
+            name: product.name,
+            category: product.category,
+            onHand: dto.qty,
+            reserved: 0,
+            available: dto.qty,
+            reorderPoint: 10,
+            unitCost: cost,
+            image: product.image ?? null,
+          },
+        })
+      }
+
+      await tx.inventoryTransaction.create({
         data: {
           type:        'import',
           date:        new Date(),
           sku:         dto.sku,
           warehouseId: dto.warehouseId,
           qty:         dto.qty,
-          cost:        item.unitCost,   // dùng giá gốc, không dùng cost từ FE
+          cost,
           note:        dto.note ?? null,
           operatorId:  user.id ?? null,
         },
-      }),
-    ])
+      })
+    })
 
     return { success: true, message: 'Nhập kho thành công' }
   }

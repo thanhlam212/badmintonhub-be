@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Body, Query, Param, Req, HttpCode } from '@nestjs/common'
+import { Controller, Post, Get, Body, Query, Param, Req, HttpCode, Headers } from '@nestjs/common'
 import { PaymentService } from './payment.service'
 import { CreatePaymentDto } from './dto/payment.dto'
 import { Public, CurrentUser } from '../auth/decorators/index'
@@ -39,6 +39,13 @@ export class PaymentController {
   }
 
   // GET /api/payment/:id — Lấy trạng thái thanh toán (có kiểm tra ownership)
+  @Public()
+  @Post('sepay/ipn')
+  @HttpCode(200)
+  sepayIpn(@Body() body: Record<string, any>, @Headers() headers: Record<string, any>) {
+    return this.paymentService.handleSepayIpn(body, headers)
+  }
+
   @Get(':id')
   getStatus(@Param('id') id: string, @CurrentUser() user: any) {
     return this.paymentService.getPaymentStatus(id, user)

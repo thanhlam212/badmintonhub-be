@@ -7,6 +7,7 @@ const mockPaymentService = {
   handleVnpayReturn: jest.fn(),
   handleVnpayIpn:    jest.fn(),
   handleMomoIpn:     jest.fn(),
+  handleSepayIpn:    jest.fn(),
   getPaymentStatus:  jest.fn(),
 }
 
@@ -83,6 +84,19 @@ describe('PaymentController', () => {
       const result = await controller.momoIpn(body)
 
       expect(result.resultCode).toBe(0)
+    })
+  })
+
+  describe('sepayIpn', () => {
+    it('should delegate to handleSepayIpn with body and headers', async () => {
+      const body = { code: 'BK-20260602-1234', transferType: 'in', transferAmount: 200000 }
+      const headers = { authorization: 'Apikey test-secret' }
+      mockPaymentService.handleSepayIpn.mockResolvedValue({ success: true })
+
+      const result = await controller.sepayIpn(body, headers)
+
+      expect(mockPaymentService.handleSepayIpn).toHaveBeenCalledWith(body, headers)
+      expect(result.success).toBe(true)
     })
   })
 

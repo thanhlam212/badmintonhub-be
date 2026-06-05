@@ -30,7 +30,7 @@ import {
   buildHourSlots,
   generateFixedDates,
   validateFixedScheduleInput,
-  invoiceCode,
+  nextInvoiceCode,
   checkSlotConflict,
   ConflictSlot,
   SuggestedReplacement,
@@ -254,7 +254,7 @@ export class FixedScheduleService {
 
       const invoice = await tx.invoice.create({
         data: {
-          code: invoiceCode('FS'),
+          code: await nextInvoiceCode(tx, 'FS'),
           fixedScheduleId: fixedSchedule.id,
           customerName: dto.customerName,
           customerPhone: dto.customerPhone,

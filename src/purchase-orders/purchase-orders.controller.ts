@@ -38,7 +38,8 @@ export class PurchaseOrdersController {
   updateStatus(
     @Param('id') id: string,
     @Body() dto: UpdatePOStatusDto,
+    @Request() req: any,
   ) {
-    return this.purchaseOrdersService.updateStatus(id, dto)
+    return this.purchaseOrdersService.updateStatus(id, dto, req.user)
   }
 }

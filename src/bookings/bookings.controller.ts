@@ -14,14 +14,28 @@ import {
   CheckSlotDto,
 } from './dto/booking.dto';
 import { Public, Roles, CurrentUser } from '../auth/decorators/index';
+import { fallbackDocumentCode } from './booking.helpers';
 
 // ─── Booking mapper ─────────────────────────────────────────────
 // FE's transformBooking() reads snake_case — mapper flattens Prisma camelCase → snake_case
 function mapBooking(b: any) {
-  if (!b) return b
+  if (!b) return b;
+  
+  let invoiceCodeVal = b.bookingCode || b.code || b.invoiceCode || '';
+  if (!invoiceCodeVal && Array.isArray(b.invoices) && b.invoices.length > 0) {
+    invoiceCodeVal = b.invoices[0]?.code || '';
+  }
+  if (!invoiceCodeVal && b.invoice?.code) {
+    invoiceCodeVal = b.invoice.code;
+  }
+  if (!invoiceCodeVal && b.id) {
+    const prefix = (b.fixedScheduleId || b.fixedOccurrenceId) ? 'FS' : 'MB';
+    invoiceCodeVal = fallbackDocumentCode(prefix, b);
+  }
+
   return {
     id:                 b.id,
-    booking_code:       b.bookingCode || b.code || '',
+    booking_code:       invoiceCodeVal,
     court_id:           b.courtId,
     court_name:         b.court?.name || b.courtName || '',
     branch_name:        b.branch?.name || b.branchName || b.court?.branch?.name || '',
@@ -46,7 +60,7 @@ function mapBooking(b: any) {
     service_paid_hash:  b.servicePaidHash ?? null,
     service_paid_at:    b.servicePaidAt ?? null,
     invoice_id:         b.invoiceId ?? (Array.isArray(b.invoices) ? b.invoices[0]?.id : null) ?? b.invoice?.id ?? null,
-    invoice_status:     Array.isArray(b.invoices) ? (b.invoices[0]?.status ?? null) : null,
+    invoice_status:     b.invoiceStatus ?? (Array.isArray(b.invoices) ? (b.invoices[0]?.status ?? null) : null),
     created_at:         b.createdAt,
   }
 }
