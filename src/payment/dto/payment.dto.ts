@@ -5,6 +5,6 @@ export class CreatePaymentDto {
   invoiceId: string
 
   @IsString()
-  @IsIn(['vnpay', 'momo'])
-  method: 'vnpay' | 'momo'
+  @IsIn(['vnpay', 'momo', 'sepay'])
+  method: 'vnpay' | 'momo' | 'sepay'
 }

@@ -113,6 +113,49 @@ export function buildHourSlots(timeStart: string, timeEnd: string): string[] {
   return slots;
 }
 
+export const BUSINESS_TIME_ZONE = 'Asia/Ho_Chi_Minh';
+
+function getBusinessNowParts(now: Date): { dateToken: string; minutes: number } {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: BUSINESS_TIME_ZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).formatToParts(now);
+
+  const get = (type: string) => parts.find((part) => part.type === type)?.value || '0';
+  const hour = Number(get('hour')) % 24;
+  const minute = Number(get('minute'));
+
+  return {
+    dateToken: `${get('year')}-${get('month')}-${get('day')}`,
+    minutes: hour * 60 + minute,
+  };
+}
+
+export function isSlotStartInPast(
+  slotDate: Date,
+  time: string,
+  now: Date = new Date(),
+): boolean {
+  const slotDateToken = formatDate(slotDate);
+  const current = getBusinessNowParts(now);
+  if (slotDateToken < current.dateToken) return true;
+  if (slotDateToken > current.dateToken) return false;
+
+  const [hour, minute = 0] = time.split(':').map(Number);
+  return hour * 60 + minute <= current.minutes;
+}
+
+export function assertSlotNotPast(date: Date, time: string): void {
+  if (isSlotStartInPast(date, time)) {
+    throw new BadRequestException('Khung giờ đã qua, vui lòng chọn khung giờ khác');
+  }
+}
+
 // ═══════════════════════════════════════════════════════════════
 // OCCURRENCE GENERATION (Fixed Schedule)
 // ═══════════════════════════════════════════════════════════════
@@ -180,6 +223,10 @@ export function validateFixedScheduleInput(input: {
   }
 
   // Throw nếu giờ sai
+  if (isSlotStartInPast(start, input.timeStart)) {
+    throw new BadRequestException('Khung giờ bắt đầu đã qua, vui lòng chọn khung giờ khác');
+  }
+
   buildHourSlots(input.timeStart, input.timeEnd);
 }
 
@@ -193,11 +240,61 @@ export function validateFixedScheduleInput(input: {
  * - FS: Fixed Schedule
  * - OD: Order
  */
-export function invoiceCode(prefix: string): string {
-  const now = new Date();
-  const datePart = formatDate(now).replace(/-/g, '');
-  const randomPart = String(Math.floor(Math.random() * 10000)).padStart(4, '0');
-  return `${prefix}-${datePart}-${randomPart}`;
+export const DOCUMENT_CODE_PATTERN = /^(MB|BK|FS|OD|SO)-\d{8}-\d{4}$/i;
+
+export function invoiceCode(prefix: string, seq?: number, date: Date = new Date()): string {
+  const cleanPrefix = String(prefix || '').trim().toUpperCase();
+  if (!/^(MB|BK|FS|OD|SO)$/.test(cleanPrefix)) {
+    throw new BadRequestException('Prefix mã chứng từ không hợp lệ');
+  }
+
+  const datePart = formatDate(date).replace(/-/g, '');
+  const numericSeq = typeof seq === 'number'
+    ? seq
+    : Math.floor(Math.random() * 10000);
+  const seqPart = String(Math.max(0, numericSeq) % 10000).padStart(4, '0');
+  return `${cleanPrefix}-${datePart}-${seqPart}`;
+}
+
+export function fallbackDocumentCode(
+  prefix: string,
+  source: { id?: string | null; createdAt?: Date | string | null },
+): string {
+  const date = source.createdAt ? new Date(source.createdAt) : new Date();
+  const safeDate = Number.isNaN(date.getTime()) ? new Date() : date;
+  const normalized = String(source.id || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+  let seq = 0;
+  for (const ch of normalized) {
+    seq = (seq * 31 + ch.charCodeAt(0)) % 10000;
+  }
+  return invoiceCode(prefix, seq, safeDate);
+}
+
+export async function nextInvoiceCode(
+  client: DbClient,
+  prefix: 'MB' | 'BK' | 'FS' | 'OD' | 'SO',
+  date: Date = new Date(),
+): Promise<string> {
+  const datePart = formatDate(date).replace(/-/g, '');
+  const codePrefix = `${prefix}-${datePart}-`;
+  const latest = await client.invoice.findFirst({
+    where: { code: { startsWith: codePrefix } },
+    select: { code: true },
+    orderBy: { code: 'desc' },
+  });
+
+  const parsedLatestSeq = latest?.code ? Number.parseInt(latest.code.slice(-4), 10) : 0;
+  const latestSeq = Number.isFinite(parsedLatestSeq) ? parsedLatestSeq : 0;
+  for (let seq = latestSeq + 1; seq <= 9999; seq++) {
+    const code = invoiceCode(prefix, seq, date);
+    const existing = await client.invoice.findFirst({
+      where: { code },
+      select: { id: true },
+    });
+    if (!existing) return code;
+  }
+
+  throw new BadRequestException(`Đã hết dải mã ${prefix} trong ngày ${datePart}`);
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -228,4 +325,76 @@ export async function checkSlotConflict(
     },
     select: { time: true, status: true, bookedBy: true },
   });
+}
+
+export const HOLD_EXPIRES_MINUTES = 10;
+
+export async function expireStaleBookingHolds(
+  client: DbClient,
+  now: Date = new Date(),
+): Promise<number> {
+  const expiresBefore = new Date(now.getTime() - HOLD_EXPIRES_MINUTES * 60 * 1000);
+  const where: any = {
+    status: 'hold',
+    createdAt: { lt: expiresBefore },
+    booking: {
+      is: {
+        status: 'pending',
+        fixedScheduleId: null,
+        fixedOccurrenceId: null,
+      },
+    },
+  };
+
+  const staleSlots = await client.courtSlot.findMany({
+    where,
+    select: { bookingId: true },
+  }) || [];
+  const staleUnpaidBookings = await client.booking.findMany({
+    where: {
+      status: 'pending',
+      createdAt: { lt: expiresBefore },
+      fixedScheduleId: null,
+      fixedOccurrenceId: null,
+      invoices: { some: { status: 'unpaid' } },
+    },
+    select: { id: true },
+  }) || [];
+  const bookingIds = Array.from(
+    new Set([
+      ...(staleSlots.map((slot) => slot.bookingId).filter(Boolean) as string[]),
+      ...staleUnpaidBookings.map((booking) => booking.id),
+    ]),
+  );
+
+  if (bookingIds.length === 0) return 0;
+
+  const deletedSlots = await client.courtSlot.deleteMany({
+    where: {
+      OR: [
+        where,
+        { bookingId: { in: bookingIds }, status: 'hold' },
+      ],
+    },
+  });
+
+  await client.booking.updateMany({
+    where: {
+      id: { in: bookingIds },
+      status: 'pending',
+      fixedScheduleId: null,
+      fixedOccurrenceId: null,
+    },
+    data: { status: 'cancelled' },
+  });
+
+  await client.invoice.updateMany({
+    where: {
+      bookingId: { in: bookingIds },
+      status: 'unpaid',
+    },
+    data: { status: 'cancelled' },
+  });
+
+  return deletedSlots.count;
 }

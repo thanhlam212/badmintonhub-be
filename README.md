@@ -44,6 +44,36 @@ $ npm run start:dev
 $ npm run start:prod
 ```
 
+## SePay configuration
+
+Set these backend environment variables before using SePay for court booking payments:
+
+```env
+SEPAY_ENV=sandbox
+SEPAY_MERCHANT_ID=
+SEPAY_SECRET_KEY=
+SEPAY_WEBHOOK_SECRET=
+SEPAY_APP_URL=http://localhost:3000
+SEPAY_SUCCESS_URL=http://localhost:3000/booking/success
+SEPAY_ERROR_URL=http://localhost:3000/booking
+SEPAY_CANCEL_URL=http://localhost:3000/booking
+SEPAY_BANK_CODE=
+SEPAY_ACCOUNT_NUMBER=
+SEPAY_QR_TEMPLATE=compact
+```
+
+Configure the SePay webhook/IPN URL as:
+
+```text
+POST http://localhost:3001/api/payment/sepay/ipn
+```
+
+If you are switching to live SePay merchant credentials, set `SEPAY_ENV=production` and replace the sandbox merchant/secret values with the live values from the SePay dashboard. You can also keep `SEPAY_APP_URL` pointed at your deployed frontend domain so success/error/cancel redirects resolve correctly.
+
+SePay checkout form action uses `https://pay-sandbox.sepay.vn/v1/checkout/init` in sandbox and `https://pay.sepay.vn/v1/checkout/init` in production. If you override `SEPAY_CHECKOUT_URL`, keep that host aligned with the current SePay environment.
+
+The booking flow keeps the booking and court slots pending until SePay sends a paid incoming transfer that contains the invoice code, for example `BK-20260602-1234`, and the paid amount is at least the invoice amount.
+
 ## Run tests
 
 ```bash

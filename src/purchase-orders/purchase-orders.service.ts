@@ -108,10 +108,17 @@ export class PurchaseOrdersService {
   }
 
   // ─── PATCH /purchase-orders/:id/status ────────────────────
+<<<<<<< HEAD
   async updateStatus(id: string, dto: UpdatePOStatusDto, user: any) {
     const po = await this.prisma.purchaseOrder.findUnique({
       where: { id },
       include: { items: true },
+=======
+  async updateStatus(id: string, dto: UpdatePOStatusDto, user?: any) {
+    const po = await this.prisma.purchaseOrder.findUnique({
+      where: { id },
+      include: { items: true, warehouse: true },
+>>>>>>> a207e7f05af68b61a5b4e549e4878089e1c55522
     })
     if (!po) throw new NotFoundException('Không tìm thấy đơn đặt hàng')
 

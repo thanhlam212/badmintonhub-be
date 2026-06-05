@@ -308,7 +308,21 @@ async function main() {
       isActive: true,
     },
   })
-  console.log('✅ 3 kho hàng')
+
+  await prisma.warehouse.upsert({
+    where: { id: 4 },
+    update: {
+      isHub: true,
+    },
+    create: {
+      id: 4,
+      name: 'Kho Hub',
+      branchId: null,
+      isHub: true,
+      isActive: true,
+    },
+  })
+  console.log('✅ 4 kho hàng')
 
   // ═══════════════════════════════════════════════
   // 3. ADMIN USER — Tài khoản quản trị
@@ -340,10 +354,25 @@ async function main() {
       email: 'nv1@badmintonhub.vn',
       phone: '0902222222',
       role: 'employee',
+      warehouseId: 1,
     },
   })
 
-  console.log('✅ Đã tạo tài khoản admin và employee')
+  await prisma.user.upsert({
+    where: { username: 'hub' },
+    update: { warehouseId: 4 },
+    create: {
+      username: 'hub',
+      passwordHash: await bcrypt.hash('Employee@123', 10),
+      fullName: 'Thủ kho HUB',
+      email: 'hub@badmintonhub.vn',
+      phone: '0905555555',
+      role: 'employee',
+      warehouseId: 4,
+    },
+  })
+
+  console.log('✅ Đã tạo tài khoản admin, employee và thủ kho hub')
 
   // ═══════════════════════════════════════════════
   // 4. PRODUCTS — 14 sản phẩm
@@ -513,6 +542,7 @@ async function main() {
     1: { onHand: 50, reorderPoint: 10 }, // Kho Cầu Giấy
     2: { onHand: 30, reorderPoint: 8  }, // Kho Thanh Xuân
     3: { onHand: 20, reorderPoint: 5  }, // Kho Long Biên
+    4: { onHand: 150, reorderPoint: 15 }, // Kho Hub
   }
 
   for (const item of skuList) {
@@ -543,7 +573,7 @@ async function main() {
       `
     }
   }
-  console.log(`✅ Tồn kho: ${skuList.length} sản phẩm × 3 kho = ${skuList.length * 3} bản ghi`)
+  console.log(`✅ Tồn kho: ${skuList.length} sản phẩm × ${Object.keys(warehouseStock).length} kho = ${skuList.length * Object.keys(warehouseStock).length} bản ghi`)
 
   console.log('\n🎉 Seed hoàn tất!')
   console.log('─────────────────────────────────')
@@ -552,6 +582,7 @@ async function main() {
   console.log(`📦 Sản phẩm: ${products.length}`)
   console.log('👤 Admin: admin / Admin@123')
   console.log('👤 Employee: employee1 / Employee@123')
+  console.log('👤 Thủ kho HUB: hub / Employee@123')
   console.log('─────────────────────────────────')
 
   // SUPPLIERS

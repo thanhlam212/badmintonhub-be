@@ -26,9 +26,13 @@ import {
   formatDate,
   dayLabel,
   buildHourSlots,
-  invoiceCode,
+  nextInvoiceCode,
   checkSlotConflict,
 } from './booking.helpers';
+import {
+  isAutoConfirmedGateway,
+  normalizePaymentMethod,
+} from '../common/payment-methods';
 
 /** Thời gian giữ chỗ (ms) — 5 phút */
 const HOLD_DURATION_MS = 5 * 60 * 1000;
@@ -126,6 +130,8 @@ export class BookingsService implements OnModuleInit {
     // FE gửi snake_case — đọc trực tiếp từ DTO
     const hours = buildHourSlots(dto.time_start, dto.time_end);
     const dateObj = normalizeDate(dto.booking_date);
+    const paymentMethod = normalizePaymentMethod(dto.payment_method, 'cash');
+    const autoConfirmed = isAutoConfirmedGateway(paymentMethod);
 
     // Giải phóng chỗ hết hạn TRƯỚC khi vào transaction để tránh conflict giả
     await this.releaseExpiredForSlots(dto.court_id, dateObj, hours).catch(() => {})
@@ -164,12 +170,12 @@ export class BookingsService implements OnModuleInit {
           amount,
           pricePerHour:  court.price,
           people:        dto.slots ?? dto.people ?? 2,
-          paymentMethod: dto.payment_method ?? 'cash',
+          paymentMethod,
           customerName:  dto.customer_name,
           customerPhone: dto.customer_phone,
           customerEmail: dto.customer_email || null,
           userId:        dto.user_id || null,
-          status: 'pending',
+          status: autoConfirmed ? 'confirmed' : 'pending',
         },
       });
 
@@ -179,7 +185,7 @@ export class BookingsService implements OnModuleInit {
           slotDate:  dateObj,
           dateLabel: dayLabel(dateObj),
           time,
-          status:    'hold',
+          status:    autoConfirmed ? 'booked' : 'hold',
           bookedBy:  dto.customer_name,
           phone:     dto.customer_phone,
           bookingId: booking.id,
@@ -188,16 +194,15 @@ export class BookingsService implements OnModuleInit {
 
       const invoice = await tx.invoice.create({
         data: {
-          code:             invoiceCode('BK'),
+          code:             await nextInvoiceCode(tx, 'MB'),
           bookingId:        booking.id,
           customerName:     dto.customer_name,
           customerPhone:    dto.customer_phone,
           customerEmail:    dto.customer_email || null,
           subtotalSnapshot: amount,
           totalSnapshot:    amount,
-          paymentMethod:    dto.payment_method ?? 'cash',
-          // For all methods: start as 'unpaid'. Payment gateway callbacks will mark it 'paid'.
-          status:           'unpaid',
+          paymentMethod,
+          status:           autoConfirmed ? 'paid' : 'unpaid',
           items: {
             create: [
               {
@@ -215,6 +220,7 @@ export class BookingsService implements OnModuleInit {
         ...booking,
         invoiceId:   invoice.id,
         invoiceCode: invoice.code,
+        invoiceStatus: invoice.status,
         slots:       hours,
         amount,
         court:       { name: court.name },
@@ -236,7 +242,7 @@ export class BookingsService implements OnModuleInit {
         timeEnd:       dto.time_end,
         amount:        result.amount,
         invoiceCode:   result.invoiceCode,
-        paymentMethod: dto.payment_method,
+        paymentMethod,
       }).catch(() => {/* fire-and-forget */});
     }
 
@@ -480,7 +486,7 @@ export class BookingsService implements OnModuleInit {
         court: { select: { name: true, type: true } },
         branch: { select: { name: true } },
         user: { select: { fullName: true, phone: true } },
-        invoices: { select: { id: true, status: true }, take: 1 },
+        invoices: { select: { id: true, code: true, status: true }, take: 1 },
       },
       orderBy: [{ bookingDate: 'desc' }, { timeStart: 'asc' }],
     });
@@ -493,7 +499,7 @@ export class BookingsService implements OnModuleInit {
         court: { select: { name: true, image: true, type: true, price: true } },
         branch: { select: { name: true, address: true } },
         slots: { select: { time: true, status: true } },
-        invoices: { select: { id: true, status: true }, take: 1 },
+        invoices: { select: { id: true, code: true, status: true }, take: 1 },
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -619,8 +625,20 @@ export class BookingsService implements OnModuleInit {
   }
 
   async checkin(bookingId: string) {
+    let realBookingId = bookingId;
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(bookingId)) {
+      const invoice = await this.prisma.invoice.findUnique({
+        where: { code: bookingId },
+        select: { bookingId: true },
+      });
+      if (!invoice || !invoice.bookingId) {
+        throw new NotFoundException('Không tìm thấy booking theo mã này');
+      }
+      realBookingId = invoice.bookingId;
+    }
+
     const booking = await this.prisma.booking.findUnique({
-      where: { id: bookingId },
+      where: { id: realBookingId },
       include: { court: { include: { branch: true } }, user: true },
     });
     if (!booking) throw new NotFoundException('Không tìm thấy booking');
@@ -657,7 +675,7 @@ export class BookingsService implements OnModuleInit {
     }
 
     const updated = await this.prisma.booking.update({
-      where: { id: bookingId },
+      where: { id: realBookingId },
       data: { status: 'playing', updatedAt: new Date() },
       include: { court: { include: { branch: true } }, user: true },
     });

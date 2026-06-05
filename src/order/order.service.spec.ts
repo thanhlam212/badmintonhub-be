@@ -61,6 +61,17 @@ function makePrismaMock() {
       findFirst:  jest.fn(),
       updateMany: jest.fn(),
     },
+    warehouse: {
+      findFirst:  jest.fn(),
+      findMany:   jest.fn(),
+    },
+    inventory: {
+      findUnique: jest.fn(),
+      update:     jest.fn(),
+    },
+    inventoryTransaction: {
+      create:     jest.fn(),
+    },
     $transaction: jest.fn(),
   }
   mock.$transaction.mockImplementation(async (fn: (tx: any) => any) => fn(mock))
@@ -178,6 +189,21 @@ describe('OrderService', () => {
       expect(invoiceCreateCall.data.status).toBe('unpaid')
     })
 
+    it.each(['sepay', 'vnpay', 'momo'])('should keep %s orders pending until payment callback succeeds', async (method) => {
+      prisma.product.findMany.mockResolvedValue([makeProduct(1, 100000)])
+      prisma.order.create.mockResolvedValue(makeOrder({ paymentMethod: method, status: 'pending' }))
+      prisma.invoice.create.mockResolvedValue(makeInvoice({ paymentMethod: method, status: 'unpaid' }))
+
+      await service.create({ ...dto, payment_method: method, items: [{ product_id: 1, qty: 1, price: 0 }] })
+
+      const orderCreateCall = prisma.order.create.mock.calls[0][0]
+      const invoiceCreateCall = prisma.invoice.create.mock.calls[0][0]
+      expect(orderCreateCall.data.paymentMethod).toBe(method)
+      expect(orderCreateCall.data.status).toBe('pending')
+      expect(invoiceCreateCall.data.paymentMethod).toBe(method)
+      expect(invoiceCreateCall.data.status).toBe('unpaid')
+    })
+
     it('should throw BadRequestException when items array is empty', async () => {
       await expect(service.create({ ...dto, items: [] })).rejects.toThrow(BadRequestException)
     })
@@ -196,6 +222,11 @@ describe('OrderService', () => {
       prisma.order.findUnique.mockResolvedValue(order)
       prisma.order.update.mockResolvedValue({ ...order, status: 'confirmed', items: [], invoices: [] })
       prisma.invoice.updateMany.mockResolvedValue({ count: 1 })
+      prisma.warehouse.findFirst.mockResolvedValue({ id: 1, name: 'Kho Cầu Giấy' })
+      prisma.warehouse.findMany.mockResolvedValue([{ id: 1, name: 'Kho Cầu Giấy', branch: { lat: 21.0379, lng: 105.7826 } }])
+      prisma.inventory.findUnique.mockResolvedValue({ id: 1, available: 100, unitCost: 10000 })
+      prisma.inventory.update.mockResolvedValue({ id: 1 })
+      prisma.inventoryTransaction.create.mockResolvedValue({ id: 'txn-1' })
     }
 
     // ── Valid transitions ────────────────────────────────────

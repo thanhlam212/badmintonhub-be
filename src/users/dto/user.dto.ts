@@ -11,6 +11,7 @@ export class CreateUserDto {
 
   @IsString()
   @MinLength(6)
+  @Matches(/^[\x00-\x7F]+$/, { message: 'password không được dùng ký tự có dấu hoặc ký tự đặc biệt Unicode' })
   password: string
 
   @IsString()
@@ -84,5 +85,6 @@ export class UpdateUserDto {
 export class ResetPasswordDto {
   @IsString()
   @MinLength(6)
+  @Matches(/^[\x00-\x7F]+$/, { message: 'new_password không được dùng ký tự có dấu hoặc ký tự đặc biệt Unicode' })
   new_password: string
 }

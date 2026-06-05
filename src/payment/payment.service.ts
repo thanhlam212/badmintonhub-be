@@ -3,20 +3,30 @@ import { PrismaService } from '../prisma/prisma.service'
 import { EmailService }  from '../email/email.service'
 import { VnpayProvider } from './vnpay.provider'
 import { MomoProvider } from './momo.provider'
+import { SepayProvider } from './sepay.provider'
 import { CreatePaymentDto } from './dto/payment.dto'
 import { randomUUID } from 'crypto'
+import { HOLD_EXPIRES_MINUTES, expireStaleBookingHolds } from '../bookings/booking.helpers'
 
 @Injectable()
 export class PaymentService {
   constructor(
     private prisma: PrismaService,
+<<<<<<< HEAD
     private email:  EmailService,
     private vnpay:  VnpayProvider,
     private momo:   MomoProvider,
+=======
+    private vnpay: VnpayProvider,
+    private momo:  MomoProvider,
+    private sepay: SepayProvider,
+>>>>>>> a207e7f05af68b61a5b4e549e4878089e1c55522
   ) {}
 
   // ─── Tạo yêu cầu thanh toán ───────────────────────────────
   async createPayment(dto: CreatePaymentDto, ipAddr: string) {
+    await expireStaleBookingHolds(this.prisma)
+
     const invoice = await this.prisma.invoice.findUnique({
       where:   { id: dto.invoiceId },
       include: { booking: true, order: true, fixedSchedule: true },
@@ -26,6 +36,8 @@ export class PaymentService {
     if (invoice.status === 'cancelled') throw new BadRequestException('Hóa đơn đã bị hủy')
 
     // Kiểm tra nếu đã có payment đang pending
+    await this.cancelExpiredPendingOrder(invoice)
+
     const existingPending = await this.prisma.payment.findFirst({
       where: { invoiceId: dto.invoiceId, status: 'pending' },
     })
@@ -47,16 +59,26 @@ export class PaymentService {
     const orderInfo = this.buildOrderInfo(invoice)
 
     if (dto.method === 'vnpay') {
+      if (!this.vnpay.isConfigured()) {
+        throw new BadRequestException(
+          'VNPay chưa được cấu hình. Vui lòng liên hệ quản trị viên để thiết lập VNPAY_TMN_CODE/VNPAY_HASH_SECRET/VNPAY_RETURN_URL.',
+        )
+      }
       const payUrl = this.vnpay.createPaymentUrl({
         txnRef:    payment.transactionRef!,
         amount,
         orderInfo,
         ipAddr,
       })
-      return { paymentId: payment.id, method: 'vnpay', payUrl }
+      return { paymentId: payment.id, method: 'vnpay', amount, payUrl }
     }
 
     if (dto.method === 'momo') {
+      if (!this.momo.isConfigured()) {
+        throw new BadRequestException(
+          'MoMo chưa được cấu hình. Vui lòng liên hệ quản trị viên để thiết lập MOMO_PARTNER_CODE/MOMO_ACCESS_KEY/MOMO_SECRET_KEY.',
+        )
+      }
       const requestId = randomUUID()
       const payUrl = await this.momo.createPaymentUrl({
         orderId:   payment.transactionRef!,
@@ -64,7 +86,52 @@ export class PaymentService {
         amount,
         orderInfo,
       })
-      return { paymentId: payment.id, method: 'momo', payUrl }
+      return { paymentId: payment.id, method: 'momo', amount, payUrl }
+    }
+
+    if (dto.method === 'sepay') {
+      // Validate: at least one mode must be configured
+      if (!this.sepay.isQrConfigured() && !this.sepay.isCheckoutConfigured()) {
+        throw new BadRequestException(
+          'SePay chưa được cấu hình. Vui lòng liên hệ quản trị viên để thiết lập SEPAY_BANK_CODE/SEPAY_ACCOUNT_NUMBER hoặc SEPAY_MERCHANT_ID/SEPAY_SECRET_KEY.',
+        )
+      }
+
+      const result: Record<string, any> = {
+        paymentId: payment.id,
+        method: 'sepay',
+        amount,
+      }
+
+      // QR mode (VietQR): requires bank code + account number
+      if (this.sepay.isQrConfigured()) {
+        const qr = this.sepay.createQrPayment({
+          invoiceNumber: invoice.code,
+          amount,
+        })
+        result.qrImageUrl = qr.qrImageUrl
+        result.bankCode = qr.bankCode
+        result.accountNumber = qr.accountNumber
+        result.transferContent = qr.transferContent
+      }
+
+      // Checkout form mode: requires merchant ID + secret key
+      if (this.sepay.isCheckoutConfigured()) {
+        const checkout = this.sepay.createCheckoutForm({
+          invoiceNumber: invoice.code,
+          amount,
+          description: orderInfo,
+          customerId:
+            invoice.booking?.userId ||
+            invoice.order?.userId ||
+            invoice.fixedSchedule?.userId ||
+            null,
+        })
+        result.checkoutUrl = checkout.checkoutUrl
+        result.formFields = checkout.fields
+      }
+
+      return result
     }
 
     throw new BadRequestException('Phương thức thanh toán không hỗ trợ: ' + dto.method)
@@ -118,6 +185,53 @@ export class PaymentService {
     const success = body.resultCode === 0
     await this.confirmPayment(payment.id, success, body)
     return { resultCode: 0, message: 'Received' }
+  }
+
+  async handleSepayIpn(body: Record<string, any>, headers: Record<string, any>) {
+    if (!this.sepay.verifyIpnSecret(headers)) {
+      return { success: false, message: 'Unauthorized' }
+    }
+
+    if (!this.sepay.isPaidIpn(body)) return { success: true }
+
+    const invoiceNumber = this.sepay.extractInvoiceNumber(body)
+    if (!invoiceNumber) return { success: true }
+
+    const invoice = await this.prisma.invoice.findUnique({
+      where: { code: invoiceNumber },
+    })
+    if (!invoice) return { success: true }
+
+    // Look for an existing pending payment first
+    let payment = await this.prisma.payment.findFirst({
+      where: { method: 'sepay', invoiceId: invoice.id, status: 'pending' },
+      orderBy: { createdAt: 'desc' },
+    })
+    // If no pending payment, check if already confirmed (idempotent)
+    if (!payment) {
+      const existing = await this.prisma.payment.findFirst({
+        where: { method: 'sepay', invoiceId: invoice.id, status: 'success' },
+      })
+      if (existing) return { success: true }
+
+      // Create a new pending payment (covers both first-time and retry-after-failed)
+      payment = await this.prisma.payment.create({
+        data: {
+          invoiceId: invoice.id,
+          method: 'sepay',
+          amount: invoice.totalSnapshot,
+          status: 'pending',
+          transactionRef: `SEPAY-${body?.id || body?.referenceCode || Date.now()}`,
+        },
+      })
+    }
+
+    const expectedAmount = parseFloat(String(payment.amount))
+    const paidAmount = this.sepay.extractPaidAmount(body)
+    const success = paidAmount >= expectedAmount
+
+    await this.confirmPayment(payment.id, success, body)
+    return { success: true }
   }
 
   // ─── Lấy trạng thái thanh toán ────────────────────────────
@@ -196,10 +310,16 @@ export class PaymentService {
           where: { id: invoice.bookingId },
           data:  { status: 'confirmed' },
         })
+<<<<<<< HEAD
         // Update slots: hold → booked
         await tx.courtSlot.updateMany({
           where:  { bookingId: invoice.bookingId },
           data:   { status: 'booked' },
+=======
+        await tx.courtSlot.updateMany({
+          where: { bookingId: invoice.bookingId },
+          data:  { status: 'booked' },
+>>>>>>> a207e7f05af68b61a5b4e549e4878089e1c55522
         })
       }
 
@@ -207,6 +327,14 @@ export class PaymentService {
         await tx.fixedSchedule.update({
           where: { id: invoice.fixedScheduleId },
           data:  { status: 'confirmed' },
+        })
+        await tx.booking.updateMany({
+          where: { fixedScheduleId: invoice.fixedScheduleId },
+          data:  { status: 'confirmed' },
+        })
+        await tx.courtSlot.updateMany({
+          where: { booking: { fixedScheduleId: invoice.fixedScheduleId } },
+          data:  { status: 'booked' },
         })
       }
     })
@@ -250,5 +378,27 @@ export class PaymentService {
     if (invoice.fixedScheduleId) return `Thanh toan lich co dinh - ${invoice.code}`
     if (invoice.orderId)         return `Thanh toan don hang - ${invoice.code}`
     return `Thanh toan - ${invoice.code}`
+  }
+
+  private async cancelExpiredPendingOrder(invoice: any) {
+    if (!invoice.orderId || invoice.status !== 'unpaid' || invoice.order?.status !== 'pending') return
+
+    const createdAt = new Date(invoice.order?.createdAt || invoice.createdAt)
+    const expiresAt = createdAt.getTime() + HOLD_EXPIRES_MINUTES * 60 * 1000
+    if (Number.isNaN(createdAt.getTime()) || Date.now() <= expiresAt) return
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.order.update({
+        where: { id: invoice.orderId },
+        data: { status: 'cancelled' as any },
+      })
+      await tx.invoice.update({
+        where: { id: invoice.id },
+        data: { status: 'cancelled' as any },
+      })
+    })
+
+    invoice.status = 'cancelled'
+    throw new BadRequestException('Đơn hàng quá 10 phút chưa thanh toán nên đã bị hủy')
   }
 }

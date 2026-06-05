@@ -10,6 +10,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateCourtDto, UpdateCourtDto, CreateReviewDto } from './dto/court.dto';
 import { Roles } from 'src/auth/decorators';
 import { UpdateBookingStatusDto } from 'src/bookings/dto/booking.dto';
+import { expireStaleBookingHolds, normalizeDate } from '../bookings/booking.helpers';
 
 @Injectable()
 export class CourtsService {
@@ -106,6 +107,8 @@ export class CourtsService {
   // Lấy danh sách slot theo ngày (trống/đã đặt)
   // ─────────────────────────────────────────────
   async getSlots(courtId: number, date: string) {
+    await expireStaleBookingHolds(this.prisma);
+
     const court = await this.prisma.court.findUnique({
       where: { id: courtId },
       select: { price: true, hours: true },
@@ -122,7 +125,7 @@ export class CourtsService {
     const bookedSlots = await this.prisma.courtSlot.findMany({
       where: {
         courtId,
-        slotDate: new Date(date),
+        slotDate: normalizeDate(date),
         status: { in: ['booked', 'hold'] },
       },
       select: { time: true, status: true },

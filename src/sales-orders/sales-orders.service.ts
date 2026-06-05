@@ -175,6 +175,29 @@ export class SalesOrdersService {
     const discount   = dto.discount   ?? 0
     const finalTotal = dto.final_total ?? (total - discount)
 
+    let branchId = dto.branch_id ?? null
+    if (dto.fulfill_warehouse_id) {
+      const fulfillWarehouse = await this.prisma.warehouse.findUnique({
+        where: { id: dto.fulfill_warehouse_id },
+        select: { branchId: true },
+      })
+      if (!fulfillWarehouse) {
+        throw new BadRequestException('Kho xuat hang khong ton tai')
+      }
+      if (fulfillWarehouse.branchId) {
+        branchId = fulfillWarehouse.branchId
+      }
+    }
+    if (!branchId || branchId <= 0) {
+      const creator = await this.prisma.user.findUnique({
+        where: { id: createdBy },
+        include: { warehouse: true }
+      })
+      if (creator?.warehouse?.branchId) {
+        branchId = creator.warehouse.branchId
+      }
+    }
+
     // Xử lý items: nếu product_id null, tìm theo tên
     const resolvedItems: Array<{ productId: number; productName: string; price: number; qty: number }> = []
     for (const item of dto.items) {
@@ -205,7 +228,7 @@ export class SalesOrdersService {
     const order = await this.prisma.salesOrder.create({
       data: {
         createdBy,
-        branchId:      dto.branch_id ?? null,
+        branchId,
         customerName:  dto.customer_name  ?? 'Khách lẻ',
         customerPhone: dto.customer_phone ?? null,
         total,
@@ -288,6 +311,7 @@ export class SalesOrdersService {
   }
 
   // ── PATCH /sales-orders/:id/complete ──────────────────────────
+<<<<<<< HEAD
   async complete(id: string, user: any) {
     // Load đủ thông tin: items (kèm SKU), branch (kèm warehouse)
     const order = await this.prisma.salesOrder.findUnique({
@@ -307,12 +331,19 @@ export class SalesOrdersService {
         creator:  { select: { id: true, fullName: true } },
         approver: { select: { id: true, fullName: true } },
       },
+=======
+  async complete(id: string, user?: any) {
+    const order = await this.prisma.salesOrder.findUnique({
+      where: { id },
+      include: { items: { include: { product: true } } }
+>>>>>>> a207e7f05af68b61a5b4e549e4878089e1c55522
     })
     if (!order) throw new NotFoundException('Không tìm thấy đơn hàng')
     if (order.status !== 'approved') {
       throw new BadRequestException('Chỉ có thể hoàn thành đơn hàng đã được duyệt')
     }
 
+<<<<<<< HEAD
     const warehouse = (order as any).branch?.warehouses?.[0] ?? null
     const now       = new Date()
     const shortId   = id.slice(0, 8).toUpperCase()
@@ -380,7 +411,79 @@ export class SalesOrdersService {
     const updated = await this.prisma.salesOrder.findUnique({
       where: { id },
       include: INCLUDE_FULL,
+=======
+    if (!order.branchId) {
+      const operator = await this.prisma.user.findUnique({
+        where: { id: user?.id || order.createdBy },
+        include: { warehouse: true },
+      })
+      if (operator?.warehouse?.branchId) {
+        order.branchId = operator.warehouse.branchId
+      }
+    }
+
+    if (!order.branchId) {
+      throw new BadRequestException('Đơn hàng không liên kết với chi nhánh nào')
+    }
+
+    const warehouse = await this.prisma.warehouse.findFirst({
+      where: { branchId: order.branchId, isActive: true }
+>>>>>>> a207e7f05af68b61a5b4e549e4878089e1c55522
     })
+    if (!warehouse) {
+      throw new NotFoundException(`Không tìm thấy kho hoạt động cho chi nhánh này`)
+    }
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      // Check stock
+      for (const item of order.items) {
+        const sku = item.product.sku
+        const inv = await tx.inventory.findUnique({
+          where: { sku_warehouseId: { sku, warehouseId: warehouse.id } }
+        })
+        if (!inv || inv.available < item.qty) {
+          throw new BadRequestException(
+            `Kho ${warehouse.name} không đủ sản phẩm "${item.productName}": còn ${inv?.available ?? 0}, cần ${item.qty}`
+          )
+        }
+      }
+
+      // Deduct stock and log transaction
+      for (const item of order.items) {
+        const sku = item.product.sku
+        const inv = await tx.inventory.findUnique({
+          where: { sku_warehouseId: { sku, warehouseId: warehouse.id } }
+        })
+
+        await tx.inventory.update({
+          where: { sku_warehouseId: { sku, warehouseId: warehouse.id } },
+          data: {
+            onHand:    { decrement: item.qty },
+            available: { decrement: item.qty },
+          },
+        })
+
+        await tx.inventoryTransaction.create({
+          data: {
+            type:        'export',
+            date:        new Date(),
+            sku,
+            warehouseId: warehouse.id,
+            qty:         item.qty,
+            cost:        inv ? inv.unitCost : 0,
+            note:        `Xuất bán offline tại cửa hàng (Đơn: ${id})`,
+            operatorId:  order.createdBy || null,
+          },
+        })
+      }
+
+      return tx.salesOrder.update({
+        where: { id },
+        data: { status: 'exported' as any },
+        include: INCLUDE_FULL,
+      })
+    })
+
     return { success: true, data: mapSalesOrder(updated) }
   }
 

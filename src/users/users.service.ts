@@ -127,7 +127,11 @@ export class UsersService {
   // ── PUT /users/:id/password ─────────────────────────────────
   async resetPassword(id: string, dto: ResetPasswordDto) {
     await this.findOne(id)
-    const passwordHash = await bcrypt.hash(dto.new_password, 10)
+    const newPassword = dto.new_password.trim()
+    if (newPassword.length < 6) {
+      throw new BadRequestException('Mật khẩu mới ít nhất 6 ký tự')
+    }
+    const passwordHash = await bcrypt.hash(newPassword, 10)
     await this.prisma.user.update({ where: { id }, data: { passwordHash } })
     return { message: 'Đổi mật khẩu thành công' }
   }
