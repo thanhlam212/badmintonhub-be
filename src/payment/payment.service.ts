@@ -12,15 +12,10 @@ import { HOLD_EXPIRES_MINUTES, expireStaleBookingHolds } from '../bookings/booki
 export class PaymentService {
   constructor(
     private prisma: PrismaService,
-<<<<<<< HEAD
     private email:  EmailService,
     private vnpay:  VnpayProvider,
     private momo:   MomoProvider,
-=======
-    private vnpay: VnpayProvider,
-    private momo:  MomoProvider,
-    private sepay: SepayProvider,
->>>>>>> a207e7f05af68b61a5b4e549e4878089e1c55522
+    private sepay:  SepayProvider,
   ) {}
 
   // ─── Tạo yêu cầu thanh toán ───────────────────────────────
@@ -310,16 +305,10 @@ export class PaymentService {
           where: { id: invoice.bookingId },
           data:  { status: 'confirmed' },
         })
-<<<<<<< HEAD
         // Update slots: hold → booked
-        await tx.courtSlot.updateMany({
-          where:  { bookingId: invoice.bookingId },
-          data:   { status: 'booked' },
-=======
         await tx.courtSlot.updateMany({
           where: { bookingId: invoice.bookingId },
           data:  { status: 'booked' },
->>>>>>> a207e7f05af68b61a5b4e549e4878089e1c55522
         })
       }
 
