@@ -214,11 +214,12 @@ model FixedSchedule {
   id                    String                    @id @default(uuid()) @db.Uuid
   userId                String?                   @map("user_id") @db.Uuid
   courtId               Int                       @map("court_id")
-  cycle                 FixedScheduleCycle
+  cycle                 FixedScheduleCycle        @default(weekly)
   startDate             DateTime                  @map("start_date") @db.Date
   endDate               DateTime                  @map("end_date") @db.Date
   timeStart             String                    @map("time_start") @db.VarChar(5)
   timeEnd               String                    @map("time_end") @db.VarChar(5)
+  weeklySlots           Json?                     @map("weekly_slots")
   customerName          String                    @map("customer_name") @db.VarChar(100)
   customerPhone         String                    @map("customer_phone") @db.VarChar(15)
   customerEmail         String?                   @map("customer_email") @db.VarChar(100)

@@ -224,25 +224,14 @@ export class UpdateServicesDto {
 // ═══════════════════════════════════════════════════════════════
 
 /**
- * Bước 1: Khách điền form đặt lịch cố định.
- * KHÔNG cần thông tin khách ở bước này → chỉ check conflict + tính giá.
- * Thông tin khách sẽ điền ở bước Confirm.
+ * Một buổi trong tuần: thứ mấy + giờ bắt đầu/kết thúc.
+ * dayOfWeek: 0=CN, 1=T2, 2=T3, 3=T4, 4=T5, 5=T6, 6=T7
  */
-export class FixedSchedulePreviewDto {
-  @IsInt({ message: 'ID sân phải là số nguyên' })
-  @Min(1, { message: 'ID sân không hợp lệ' })
-  courtId: number;
-
-  @IsEnum(FixedScheduleCycle, {
-    message: 'Chu kỳ phải là "weekly" hoặc "monthly"',
-  })
-  cycle: FixedScheduleCycle;
-
-  @IsDateString({}, { message: 'Ngày bắt đầu phải đúng định dạng YYYY-MM-DD' })
-  startDate: string;
-
-  @IsDateString({}, { message: 'Ngày kết thúc phải đúng định dạng YYYY-MM-DD' })
-  endDate: string;
+export class WeeklySlotDto {
+  @IsInt({ message: 'Thứ trong tuần phải là số nguyên' })
+  @Min(0, { message: 'Thứ trong tuần từ 0 (CN) đến 6 (T7)' })
+  @Max(6, { message: 'Thứ trong tuần từ 0 (CN) đến 6 (T7)' })
+  dayOfWeek: number;
 
   @IsString()
   @Matches(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, {
@@ -255,6 +244,30 @@ export class FixedSchedulePreviewDto {
     message: 'Giờ kết thúc phải đúng định dạng HH:mm',
   })
   timeEnd: string;
+}
+
+/**
+ * Bước 1: Khách chọn sân, ngày bắt đầu, số tuần và các buổi trong tuần.
+ * KHÔNG cần thông tin khách ở bước này → chỉ check conflict + tính giá.
+ */
+export class FixedSchedulePreviewDto {
+  @IsInt({ message: 'ID sân phải là số nguyên' })
+  @Min(1, { message: 'ID sân không hợp lệ' })
+  courtId: number;
+
+  @IsDateString({}, { message: 'Ngày bắt đầu phải đúng định dạng YYYY-MM-DD' })
+  startDate: string;
+
+  @IsInt({ message: 'Số tuần phải là số nguyên' })
+  @Min(4, { message: 'Tối thiểu 4 tuần' })
+  @Max(52, { message: 'Tối đa 52 tuần' })
+  numberOfWeeks: number;
+
+  @IsArray({ message: 'weeklySlots phải là mảng' })
+  @ArrayMinSize(1, { message: 'Phải chọn ít nhất 1 buổi trong tuần' })
+  @ValidateNested({ each: true })
+  @Type(() => WeeklySlotDto)
+  weeklySlots: WeeklySlotDto[];
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -327,22 +340,19 @@ export class FixedScheduleConfirmDto {
   @Min(1)
   courtId: number;
 
-  @IsEnum(FixedScheduleCycle)
-  cycle: FixedScheduleCycle;
-
   @IsDateString()
   startDate: string;
 
-  @IsDateString()
-  endDate: string;
+  @IsInt()
+  @Min(4)
+  @Max(52)
+  numberOfWeeks: number;
 
-  @IsString()
-  @Matches(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/)
-  timeStart: string;
-
-  @IsString()
-  @Matches(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/)
-  timeEnd: string;
+  @IsArray()
+  @ArrayMinSize(1)
+  @ValidateNested({ each: true })
+  @Type(() => WeeklySlotDto)
+  weeklySlots: WeeklySlotDto[];
 
   // ─── Thông tin khách hàng ───
   @IsString()
@@ -378,7 +388,7 @@ export class FixedScheduleConfirmDto {
   @Min(0)
   @Max(5)
   @IsOptional()
-  adjustmentLimit?: number; // Mặc định: 2 (monthly) / 1 (weekly)
+  adjustmentLimit?: number;
 }
 
 // ═══════════════════════════════════════════════════════════════

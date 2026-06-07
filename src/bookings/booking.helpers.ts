@@ -11,7 +11,6 @@
 import { BadRequestException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { FixedScheduleCycle } from './dto/booking.dto';
 
 // ═══════════════════════════════════════════════════════════════
 // TYPE EXPORTS
@@ -157,31 +156,60 @@ export function assertSlotNotPast(date: Date, time: string): void {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// OCCURRENCE GENERATION (Fixed Schedule)
+// OCCURRENCE GENERATION (Fixed Schedule - Weekly Slots)
 // ═══════════════════════════════════════════════════════════════
 
+export interface WeeklySlot {
+  dayOfWeek: number; // 0=CN, 1=T2, 2=T3, 3=T4, 4=T5, 5=T6, 6=T7
+  timeStart: string;
+  timeEnd: string;
+}
+
+export interface SlotOccurrence {
+  date: Date;
+  timeStart: string;
+  timeEnd: string;
+}
+
 /**
- * Sinh danh sách ngày theo cycle:
- * - weekly: lặp mỗi 7 ngày
- * - monthly: lặp mỗi 28 ngày (4 tuần) - cố định để dễ tính giá
+ * Tìm ngày đầu tiên >= startDate có dayOfWeek khớp với slot.
  */
-export function generateFixedDates(
+export function getFirstOccurrenceOnOrAfter(startDate: Date, dayOfWeek: number): Date {
+  const startDay = startDate.getUTCDay();
+  let offset = dayOfWeek - startDay;
+  if (offset < 0) offset += 7;
+  return addDays(startDate, offset);
+}
+
+/**
+ * Sinh danh sách buổi theo weeklySlots trong N tuần.
+ * Mỗi slot (thứ + giờ) sẽ xuất hiện 1 lần/tuần × numberOfWeeks tuần.
+ */
+export function generateWeeklySlotDates(
   startDate: string,
-  endDate: string,
-  cycle: FixedScheduleCycle,
-): Date[] {
+  numberOfWeeks: number,
+  weeklySlots: WeeklySlot[],
+): SlotOccurrence[] {
   const start = normalizeDate(startDate);
-  const end = normalizeDate(endDate);
-  const step = cycle === FixedScheduleCycle.WEEKLY ? 7 : 28;
+  const occurrences: SlotOccurrence[] = [];
 
-  const dates: Date[] = [];
-  let cursor = new Date(start);
-
-  while (cursor <= end) {
-    dates.push(new Date(cursor));
-    cursor = addDays(cursor, step);
+  for (const slot of weeklySlots) {
+    const firstDate = getFirstOccurrenceOnOrAfter(start, slot.dayOfWeek);
+    for (let week = 0; week < numberOfWeeks; week++) {
+      occurrences.push({
+        date: addDays(firstDate, week * 7),
+        timeStart: slot.timeStart,
+        timeEnd: slot.timeEnd,
+      });
+    }
   }
-  return dates;
+
+  // Sắp xếp theo ngày, sau đó theo giờ bắt đầu
+  return occurrences.sort((a, b) => {
+    const dateDiff = a.date.getTime() - b.date.getTime();
+    if (dateDiff !== 0) return dateDiff;
+    return a.timeStart.localeCompare(b.timeStart);
+  });
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -189,45 +217,46 @@ export function generateFixedDates(
 // ═══════════════════════════════════════════════════════════════
 
 /**
- * Validate input cho cả Preview và Confirm fixed schedule.
+ * Validate input cho cả Preview và Confirm fixed schedule (weeklySlots model).
  */
-export function validateFixedScheduleInput(input: {
+export function validateWeeklySlotInput(input: {
   startDate: string;
-  endDate: string;
-  cycle: FixedScheduleCycle;
-  timeStart: string;
-  timeEnd: string;
+  numberOfWeeks: number;
+  weeklySlots: WeeklySlot[];
 }): void {
   const start = normalizeDate(input.startDate);
-  const end = normalizeDate(input.endDate);
   const today = normalizeDate(new Date());
 
   if (start < today) {
     throw new BadRequestException('Ngày bắt đầu phải từ hôm nay trở đi');
   }
-  if (end <= start) {
-    throw new BadRequestException('Ngày kết thúc phải sau ngày bắt đầu');
+  if (input.numberOfWeeks < 4) {
+    throw new BadRequestException('Gói đặt sân cố định tối thiểu 4 tuần');
+  }
+  if (input.weeklySlots.length === 0) {
+    throw new BadRequestException('Phải chọn ít nhất 1 buổi trong tuần');
   }
 
-  const daysDiff = Math.ceil(
-    (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24),
-  );
-
-  if (input.cycle === FixedScheduleCycle.WEEKLY && daysDiff < 28) {
-    throw new BadRequestException('Gói theo tuần tối thiểu 4 tuần (28 ngày)');
-  }
-  if (input.cycle === FixedScheduleCycle.MONTHLY && daysDiff < 56) {
-    throw new BadRequestException(
-      'Gói theo tháng tối thiểu 2 chu kỳ (56 ngày)',
-    );
+  // Kiểm tra không có thứ trùng
+  const days = input.weeklySlots.map((s) => s.dayOfWeek);
+  if (new Set(days).size !== days.length) {
+    throw new BadRequestException('Mỗi thứ trong tuần chỉ được chọn một lần');
   }
 
-  // Throw nếu giờ sai
-  if (isSlotStartInPast(start, input.timeStart)) {
-    throw new BadRequestException('Khung giờ bắt đầu đã qua, vui lòng chọn khung giờ khác');
-  }
+  // Validate giờ từng slot + check giờ chưa qua nếu buổi đầu tiên là hôm nay
+  for (const slot of input.weeklySlots) {
+    // Throws nếu giờ không hợp lệ (end <= start)
+    buildHourSlots(slot.timeStart, slot.timeEnd);
 
-  buildHourSlots(input.timeStart, input.timeEnd);
+    // Nếu ngày đầu tiên của slot này là hôm nay → check giờ chưa qua
+    const firstDate = getFirstOccurrenceOnOrAfter(start, slot.dayOfWeek);
+    if (isSlotStartInPast(firstDate, slot.timeStart)) {
+      const label = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'][slot.dayOfWeek];
+      throw new BadRequestException(
+        `Khung giờ ${slot.timeStart} của ${label} đã qua, vui lòng chọn giờ khác`,
+      );
+    }
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════
