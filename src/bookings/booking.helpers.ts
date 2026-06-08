@@ -114,7 +114,7 @@ export function buildHourSlots(timeStart: string, timeEnd: string): string[] {
 
 export const BUSINESS_TIME_ZONE = 'Asia/Ho_Chi_Minh';
 
-function getBusinessNowParts(now: Date): { dateToken: string; minutes: number } {
+export function getBusinessNowParts(now: Date): { dateToken: string; minutes: number } {
   const parts = new Intl.DateTimeFormat('en-US', {
     timeZone: BUSINESS_TIME_ZONE,
     year: 'numeric',

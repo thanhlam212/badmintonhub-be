@@ -28,6 +28,7 @@ import {
   buildHourSlots,
   nextInvoiceCode,
   checkSlotConflict,
+  getBusinessNowParts,
 } from './booking.helpers';
 import {
   isAutoConfirmedGateway,
@@ -655,10 +656,10 @@ export class BookingsService implements OnModuleInit {
       throw new BadRequestException('Booking chưa được xác nhận thanh toán');
     }
 
-    const today = formatDate(new Date());
+    const current = getBusinessNowParts(new Date());
+    const today = current.dateToken;
     const bookingDate = formatDate(booking.bookingDate);
-    const now = new Date();
-    const nowTotal = now.getHours() * 60 + now.getMinutes();
+    const nowTotal = current.minutes;
     const startTotal =
       parseInt(booking.timeStart.split(':')[0]) * 60 +
       parseInt(booking.timeStart.split(':')[1]);
