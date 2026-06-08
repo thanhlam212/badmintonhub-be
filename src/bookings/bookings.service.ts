@@ -3,7 +3,9 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
+  OnModuleInit,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import {
@@ -32,13 +34,93 @@ import {
   normalizePaymentMethod,
 } from '../common/payment-methods';
 
+/** Thời gian giữ chỗ (ms) — 5 phút */
+const HOLD_DURATION_MS = 5 * 60 * 1000;
+
 @Injectable()
-export class BookingsService {
+export class BookingsService implements OnModuleInit {
+  private readonly logger = new Logger(BookingsService.name);
+
   constructor(
     private prisma: PrismaService,
     private emailService: EmailService,
     private fixedScheduleService: FixedScheduleService,
   ) {}
+
+  // ═══════════════════════════════════════════════════════════════
+  // AUTO-RELEASE: chạy mỗi 60 giây để giải phóng chỗ hết hạn
+  // ═══════════════════════════════════════════════════════════════
+  onModuleInit() {
+    // Dọn dẹp ngay khi khởi động, sau đó mỗi 60 giây
+    this.releaseAllExpiredBookings().catch(() => {})
+    setInterval(() => {
+      this.releaseAllExpiredBookings().catch(() => {})
+    }, 60_000)
+  }
+
+  /** Giải phóng tất cả booking pending quá 5 phút chưa thanh toán */
+  async releaseAllExpiredBookings() {
+    const cutoff = new Date(Date.now() - HOLD_DURATION_MS)
+    // Chỉ hủy các booking online payment (vnpay/momo) vì cash/bank do nhân viên xác nhận
+    const expired = await this.prisma.booking.findMany({
+      where: {
+        status:        'pending',
+        paymentMethod: { in: ['vnpay', 'momo'] },
+        createdAt:     { lt: cutoff },
+      },
+      select: { id: true },
+    })
+
+    if (expired.length === 0) return
+
+    const ids = expired.map(b => b.id)
+    await this.prisma.$transaction([
+      // Xóa CourtSlot (giải phóng giờ)
+      this.prisma.courtSlot.deleteMany({ where: { bookingId: { in: ids } } }),
+      // Hủy invoice
+      this.prisma.invoice.updateMany({ where: { bookingId: { in: ids }, status: 'unpaid' }, data: { status: 'cancelled' } }),
+      // Hủy booking
+      this.prisma.booking.updateMany({ where: { id: { in: ids } }, data: { status: 'cancelled' } }),
+    ])
+
+    this.logger.log(`🗑️  Released ${ids.length} expired pending booking(s)`)
+  }
+
+  /**
+   * Giải phóng chỗ hết hạn cho 1 sân + ngày + danh sách giờ cụ thể.
+   * Gọi trước khi tạo booking mới để tránh false conflict.
+   */
+  private async releaseExpiredForSlots(courtId: number, date: Date, hours: string[]) {
+    const cutoff = new Date(Date.now() - HOLD_DURATION_MS)
+
+    // Tìm CourtSlots thuộc các booking pending quá hạn ở cùng sân/ngày/giờ
+    const expiredSlots = await this.prisma.courtSlot.findMany({
+      where: {
+        courtId,
+        slotDate: date,
+        time:     { in: hours },
+        booking:  {
+          status:        'pending',
+          paymentMethod: { in: ['vnpay', 'momo'] },
+          createdAt:     { lt: cutoff },
+        },
+      },
+      select: { bookingId: true },
+    })
+
+    if (expiredSlots.length === 0) return
+
+    const bookingIds = [...new Set(expiredSlots.map(s => s.bookingId).filter(Boolean))] as string[]
+    if (bookingIds.length === 0) return
+
+    await this.prisma.$transaction([
+      this.prisma.courtSlot.deleteMany({ where: { bookingId: { in: bookingIds } } }),
+      this.prisma.invoice.updateMany({ where: { bookingId: { in: bookingIds }, status: 'unpaid' }, data: { status: 'cancelled' } }),
+      this.prisma.booking.updateMany({ where: { id: { in: bookingIds } }, data: { status: 'cancelled' } }),
+    ])
+
+    this.logger.log(`🗑️  Released ${bookingIds.length} expired slot(s) for court ${courtId}`)
+  }
 
   // ═══════════════════════════════════════════════════════════════
   // BOOKING THƯỜNG: CREATE
@@ -50,6 +132,9 @@ export class BookingsService {
     const dateObj = normalizeDate(dto.booking_date);
     const paymentMethod = normalizePaymentMethod(dto.payment_method, 'cash');
     const autoConfirmed = isAutoConfirmedGateway(paymentMethod);
+
+    // Giải phóng chỗ hết hạn TRƯỚC khi vào transaction để tránh conflict giả
+    await this.releaseExpiredForSlots(dto.court_id, dateObj, hours).catch(() => {})
 
     const result = await this.prisma.$transaction(async (tx) => {
       const court = await tx.court.findUnique({

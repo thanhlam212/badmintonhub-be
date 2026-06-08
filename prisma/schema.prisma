@@ -227,32 +227,33 @@ model Booking {
 }
 
 model FixedSchedule {
-  id                   String                    @id @default(uuid()) @db.Uuid
-  userId               String?                   @map("user_id") @db.Uuid
-  courtId              Int                       @map("court_id")
-  cycle                FixedScheduleCycle
-  startDate            DateTime                  @map("start_date") @db.Date
-  endDate              DateTime                  @map("end_date") @db.Date
-  timeStart            String                    @map("time_start") @db.VarChar(5)
-  timeEnd              String                    @map("time_end") @db.VarChar(5)
-  customerName         String                    @map("customer_name") @db.VarChar(100)
-  customerPhone        String                    @map("customer_phone") @db.VarChar(15)
-  customerEmail        String?                   @map("customer_email") @db.VarChar(100)
-  paymentMethod        String                    @map("payment_method") @db.VarChar(30)
-  pricePerHourSnapshot Decimal                   @map("price_per_hour_snapshot") @db.Decimal(12, 0)
-  totalAmountSnapshot  Decimal                   @map("total_amount_snapshot") @db.Decimal(12, 0)
-  occurrenceCount      Int                       @default(0) @map("occurrence_count")
-  adjustmentLimit      Int                       @default(2) @map("adjustment_limit")
-  adjustmentUsed       Int                       @default(0) @map("adjustment_used")
-  status               FixedScheduleStatus       @default(pending)
-  createdAt            DateTime                  @default(now()) @map("created_at")
-  updatedAt            DateTime                  @default(now()) @updatedAt @map("updated_at")
-  bookings             Booking[]
-  court                Court                     @relation(fields: [courtId], references: [id])
-  user                 User?                     @relation(fields: [userId], references: [id])
-  occurrences          FixedScheduleOccurrence[]
-  adjustments          FixedScheduleAdjustment[]
-  invoices             Invoice[]
+  id                    String                    @id @default(uuid()) @db.Uuid
+  userId                String?                   @map("user_id") @db.Uuid
+  courtId               Int                       @map("court_id")
+  cycle                 FixedScheduleCycle        @default(weekly)
+  startDate             DateTime                  @map("start_date") @db.Date
+  endDate               DateTime                  @map("end_date") @db.Date
+  timeStart             String                    @map("time_start") @db.VarChar(5)
+  timeEnd               String                    @map("time_end") @db.VarChar(5)
+  weeklySlots           Json?                     @map("weekly_slots")
+  customerName          String                    @map("customer_name") @db.VarChar(100)
+  customerPhone         String                    @map("customer_phone") @db.VarChar(15)
+  customerEmail         String?                   @map("customer_email") @db.VarChar(100)
+  paymentMethod         String                    @map("payment_method") @db.VarChar(30)
+  pricePerHourSnapshot  Decimal                   @map("price_per_hour_snapshot") @db.Decimal(12, 0)
+  totalAmountSnapshot   Decimal                   @map("total_amount_snapshot") @db.Decimal(12, 0)
+  occurrenceCount       Int                       @default(0) @map("occurrence_count")
+  adjustmentLimit       Int                       @default(2) @map("adjustment_limit")
+  adjustmentUsed        Int                       @default(0) @map("adjustment_used")
+  status                FixedScheduleStatus       @default(pending)
+  createdAt             DateTime                  @default(now()) @map("created_at")
+  updatedAt             DateTime                  @default(now()) @updatedAt @map("updated_at")
+  bookings              Booking[]
+  court                 Court                     @relation(fields: [courtId], references: [id])
+  user                  User?                     @relation(fields: [userId], references: [id])
+  occurrences           FixedScheduleOccurrence[]
+  adjustments           FixedScheduleAdjustment[]
+  invoices              Invoice[]
 
   @@index([userId], map: "idx_fixed_schedules_user")
   @@index([status], map: "idx_fixed_schedules_status")

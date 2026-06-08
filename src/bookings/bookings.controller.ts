@@ -78,6 +78,18 @@ export class BookingsController {
   constructor(private readonly bookingsService: BookingsService) {}
 
   // ─────────────────────────────────────────────────────
+  // POST /api/bookings/release-expired
+  // FE gọi khi đồng hồ đếm ngược về 0 để hủy chỗ hết hạn
+  // Public vì FE không có auth khi timer hết hạn
+  // ─────────────────────────────────────────────────────
+  @Public()
+  @Post('release-expired')
+  async releaseExpired() {
+    await this.bookingsService.releaseAllExpiredBookings()
+    return { success: true, message: 'Đã giải phóng các chỗ hết hạn' }
+  }
+
+  // ─────────────────────────────────────────────────────
   // POST /api/bookings — Đặt sân thường
   // ─────────────────────────────────────────────────────
   @Public()

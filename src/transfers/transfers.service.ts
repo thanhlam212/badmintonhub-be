@@ -115,7 +115,10 @@ export class TransfersService {
 
   // ─── PATCH /transfers/:id/status ──────────────────────────
   async updateStatus(id: string, dto: UpdateTransferStatusDto, user: any) {
-    const transfer = await this.prisma.transferRequest.findUnique({ where: { id } })
+    const transfer = await this.prisma.transferRequest.findUnique({
+      where: { id },
+      include: { items: true },
+    })
     if (!transfer) throw new NotFoundException('Không tìm thấy yêu cầu điều chuyển')
 
     const allowed = TRANSFER_TRANSITIONS[transfer.status] ?? []
@@ -126,13 +129,94 @@ export class TransfersService {
       )
     }
 
+    // ── Hoàn thành điều chuyển: di chuyển tồn kho ─────────────
+    if (dto.status === 'completed') {
+      await this.prisma.$transaction(async (tx) => {
+        const now = new Date()
+        const shortId = id.slice(0, 8).toUpperCase()
+
+        for (const item of transfer.items) {
+          // Lấy metadata từ kho nguồn
+          const srcInv = await tx.inventory.findUnique({
+            where: { sku_warehouseId: { sku: item.sku, warehouseId: transfer.fromWarehouseId } },
+          })
+          if (!srcInv) throw new BadRequestException(`SKU "${item.sku}" không tồn tại trong kho nguồn`)
+          if (srcInv.available < item.qty) {
+            throw new BadRequestException(
+              `SKU "${item.sku}": tồn kho khả dụng ${srcInv.available}, yêu cầu ${item.qty}`
+            )
+          }
+
+          // Trừ kho nguồn
+          await tx.inventory.update({
+            where: { sku_warehouseId: { sku: item.sku, warehouseId: transfer.fromWarehouseId } },
+            data: { onHand: { decrement: item.qty }, available: { decrement: item.qty } },
+          })
+
+          // Cộng kho đích (tạo mới nếu SKU chưa có)
+          await tx.inventory.upsert({
+            where: { sku_warehouseId: { sku: item.sku, warehouseId: transfer.toWarehouseId } },
+            create: {
+              sku:         item.sku,
+              warehouseId: transfer.toWarehouseId,
+              productId:   srcInv.productId,
+              name:        srcInv.name,
+              category:    srcInv.category,
+              onHand:      item.qty,
+              available:   item.qty,
+              unitCost:    srcInv.unitCost,
+              image:       srcInv.image,
+            },
+            update: {
+              onHand:    { increment: item.qty },
+              available: { increment: item.qty },
+            },
+          })
+
+          // Tạo phiếu giao dịch kho
+          await tx.inventoryTransaction.createMany({
+            data: [
+              {
+                type:        'transfer_out',
+                date:        now,
+                sku:         item.sku,
+                warehouseId: transfer.fromWarehouseId,
+                qty:         item.qty,
+                cost:        Number(srcInv.unitCost),
+                note:        `Xuất điều chuyển [${shortId}] → Kho ${transfer.toWarehouseId}`,
+                operatorId:  user.id,
+              },
+              {
+                type:        'transfer_in',
+                date:        now,
+                sku:         item.sku,
+                warehouseId: transfer.toWarehouseId,
+                qty:         item.qty,
+                cost:        Number(srcInv.unitCost),
+                note:        `Nhận điều chuyển [${shortId}] từ Kho ${transfer.fromWarehouseId}`,
+                operatorId:  user.id,
+              },
+            ],
+          })
+        }
+
+        // Cập nhật trạng thái
+        await tx.transferRequest.update({
+          where: { id },
+          data: { status: 'completed', completedAt: now },
+        })
+      })
+
+      return { success: true, message: 'Điều chuyển hoàn thành – tồn kho đã được cập nhật' }
+    }
+
+    // ── Các trạng thái khác ────────────────────────────────────
     const updated = await this.prisma.transferRequest.update({
       where: { id },
       data: {
-        status:      dto.status as any,
-        approvedBy:  dto.status === 'approved' ? user.id : undefined,
-        approvedAt:  dto.status === 'approved' ? new Date() : undefined,
-        completedAt: dto.status === 'completed' ? new Date() : undefined,
+        status:     dto.status as any,
+        approvedBy: dto.status === 'approved' ? user.id    : undefined,
+        approvedAt: dto.status === 'approved' ? new Date() : undefined,
       },
     })
 

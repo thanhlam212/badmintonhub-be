@@ -18,7 +18,11 @@ export class VnpayProvider {
   }
 
   isConfigured(): boolean {
-    return Boolean(this.tmnCode && this.hashSecret && this.returnUrl)
+    return Boolean(
+      this.tmnCode && this.hashSecret && this.returnUrl &&
+      !this.tmnCode.includes('your_') &&
+      !this.hashSecret.includes('your_')
+    )
   }
 
   createPaymentUrl(params: {

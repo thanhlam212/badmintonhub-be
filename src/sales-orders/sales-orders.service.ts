@@ -2,6 +2,7 @@ import {
   Injectable, NotFoundException, BadRequestException, ForbiddenException,
 } from '@nestjs/common'
 import { PrismaService } from '../prisma/prisma.service'
+import { EmailService }   from '../email/email.service'
 import {
   CreateSalesOrderDto, UpdateSalesOrderStatusDto, CreateWalkInAccountDto,
 } from './dto/sales-order.dto'
@@ -61,7 +62,10 @@ const INCLUDE_FULL = {
 
 @Injectable()
 export class SalesOrdersService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private emailService: EmailService,
+  ) {}
 
   // ── GET /sales-orders ──────────────────────────────────────────
   async findAll(filters: { status?: string; branchId?: number }) {
@@ -314,7 +318,7 @@ export class SalesOrdersService {
     })
     if (!order) throw new NotFoundException('Không tìm thấy đơn hàng')
     if (order.status !== 'approved') {
-      throw new BadRequestException(`Chỉ có thể hoàn thành đơn hàng đã được duyệt`)
+      throw new BadRequestException('Chỉ có thể hoàn thành đơn hàng đã được duyệt')
     }
 
     if (!order.branchId) {
@@ -389,5 +393,15 @@ export class SalesOrdersService {
     })
 
     return { success: true, data: mapSalesOrder(updated) }
+  }
+
+  // ── Helper: tìm email khách hàng theo SĐT ──────────────────────
+  private async findCustomerEmail(phone: string | null): Promise<string | null> {
+    if (!phone) return null
+    const user = await this.prisma.user.findFirst({
+      where:  { phone },
+      select: { email: true },
+    })
+    return user?.email ?? null
   }
 }

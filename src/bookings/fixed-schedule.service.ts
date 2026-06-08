@@ -28,13 +28,12 @@ import {
   formatDate,
   dayLabel,
   buildHourSlots,
-  generateFixedDates,
-  validateFixedScheduleInput,
+  generateWeeklySlotDates,
+  validateWeeklySlotInput,
   nextInvoiceCode,
   checkSlotConflict,
-  ConflictSlot,
-  SuggestedReplacement,
   PreviewOccurrence,
+  SlotOccurrence,
 } from './booking.helpers';
 
 // ═══════════════════════════════════════════════════════════════
@@ -54,7 +53,7 @@ export class FixedScheduleService {
    * KHÔNG tạo data. Idempotent.
    */
   async preview(dto: FixedSchedulePreviewDto) {
-    validateFixedScheduleInput(dto);
+    validateWeeklySlotInput(dto);
 
     const court = await this.prisma.court.findUnique({
       where: { id: dto.courtId },
@@ -72,18 +71,23 @@ export class FixedScheduleService {
       throw new BadRequestException('Sân hiện đang đóng cửa');
     }
 
-    const dates = generateFixedDates(dto.startDate, dto.endDate, dto.cycle);
-    if (dates.length === 0) {
-      throw new BadRequestException('Không có buổi nào trong khoảng đã chọn');
+    const slotOccurrences = generateWeeklySlotDates(
+      dto.startDate,
+      dto.numberOfWeeks,
+      dto.weeklySlots,
+    );
+    if (slotOccurrences.length === 0) {
+      throw new BadRequestException('Không có buổi nào trong lịch đã chọn');
     }
 
-    const hours = buildHourSlots(dto.timeStart, dto.timeEnd);
+    const pricePerHour = Number(court.price);
 
     // Check conflict + suggest replacement cho từng buổi
     const occurrences: PreviewOccurrence[] = await Promise.all(
-      dates.map((date) =>
-        this.buildPreviewOccurrence(date, court, hours, dto.timeStart, dto.timeEnd),
-      ),
+      slotOccurrences.map((slot) => {
+        const hours = buildHourSlots(slot.timeStart, slot.timeEnd);
+        return this.buildPreviewOccurrence(slot.date, court, hours, slot.timeStart, slot.timeEnd);
+      }),
     );
 
     const availableCount = occurrences.filter((o) => !o.hasConflict).length;
@@ -94,10 +98,15 @@ export class FixedScheduleService {
       (o) => o.hasConflict && o.suggestedReplacement === null,
     ).length;
 
-    const pricePerHour = Number(court.price);
-    const pricePerSession = pricePerHour * hours.length;
-    const billableCount = availableCount + replaceableCount;
-    const estimatedTotal = pricePerSession * billableCount;
+    const estimatedTotal = occurrences
+      .filter((o) => !o.hasConflict || o.suggestedReplacement !== null)
+      .reduce((sum, o) => {
+        const hours = buildHourSlots(o.timeStart, o.timeEnd);
+        return sum + pricePerHour * hours.length;
+      }, 0);
+
+    // Tính endDate = ngày của occurrence cuối cùng
+    const lastDate = slotOccurrences[slotOccurrences.length - 1].date;
 
     return {
       court: {
@@ -107,12 +116,10 @@ export class FixedScheduleService {
         price: pricePerHour,
         branchId: court.branchId,
       },
-      cycle: dto.cycle,
       startDate: formatDate(normalizeDate(dto.startDate)),
-      endDate: formatDate(normalizeDate(dto.endDate)),
-      timeStart: dto.timeStart,
-      timeEnd: dto.timeEnd,
-      hoursPerSession: hours.length,
+      endDate: formatDate(lastDate),
+      numberOfWeeks: dto.numberOfWeeks,
+      weeklySlots: dto.weeklySlots,
       occurrences,
       summary: {
         totalOccurrences: occurrences.length,
@@ -122,7 +129,6 @@ export class FixedScheduleService {
       },
       pricing: {
         pricePerHour,
-        pricePerSession,
         estimatedTotal,
         currency: 'VND',
       },
@@ -138,7 +144,7 @@ export class FixedScheduleService {
    * BE re-validate + tạo records trong 1 transaction.
    */
   async confirm(dto: FixedScheduleConfirmDto) {
-    validateFixedScheduleInput(dto);
+    validateWeeklySlotInput(dto);
 
     const billable = dto.decisions.filter(
       (d) =>
@@ -172,6 +178,48 @@ export class FixedScheduleService {
       }
     }
 
+    // Re-generate occurrences để lấy timeStart/timeEnd gốc của từng buổi
+    const slotOccurrences = generateWeeklySlotDates(
+      dto.startDate,
+      dto.numberOfWeeks,
+      dto.weeklySlots,
+    );
+
+    // Map date → slot gốc (để confirm biết giờ gốc của từng buổi)
+    const slotMap = new Map<string, SlotOccurrence>();
+    for (const slot of slotOccurrences) {
+      slotMap.set(formatDate(slot.date), slot);
+    }
+
+    // ── Validate 1: Không được trùng ngày trong decisions ──
+    const seenDates = new Set<string>();
+    for (const d of dto.decisions) {
+      if (seenDates.has(d.date)) {
+        throw new BadRequestException(`Trùng lặp quyết định cho buổi ${d.date}`);
+      }
+      seenDates.add(d.date);
+    }
+
+    // ── Validate 2: Mỗi decision phải thuộc một slot hợp lệ ──
+    for (const d of dto.decisions) {
+      if (!slotMap.has(d.date)) {
+        throw new BadRequestException(
+          `Buổi ${d.date} không thuộc lịch đã đăng ký`,
+        );
+      }
+    }
+
+    // ── Validate 3: Mỗi slot được generate phải có đúng 1 decision ──
+    const decisionDates = new Set(dto.decisions.map((d) => d.date));
+    for (const slot of slotOccurrences) {
+      const dateStr = formatDate(slot.date);
+      if (!decisionDates.has(dateStr)) {
+        throw new BadRequestException(
+          `Thiếu quyết định cho buổi ${dateStr} — vui lòng tải lại trang và thử lại`,
+        );
+      }
+    }
+
     return this.prisma.$transaction(async (tx) => {
       const originalCourt = await tx.court.findUnique({
         where: { id: dto.courtId },
@@ -189,23 +237,38 @@ export class FixedScheduleService {
         throw new BadRequestException('Sân hiện đang đóng cửa');
       }
 
-      const hours = buildHourSlots(dto.timeStart, dto.timeEnd);
       const pricePerHour = Number(originalCourt.price);
-      const pricePerSession = pricePerHour * hours.length;
-      const totalAmount = pricePerSession * billable.length;
 
-      const adjustmentLimit =
-        dto.adjustmentLimit ?? (dto.cycle === 'monthly' ? 2 : 1);
+      // Tính tổng tiền — phải xét giờ custom nếu action='custom'
+      const totalAmount = billable.reduce((sum, d) => {
+        let hrs: string[];
+        if (
+          d.action === OccurrenceAction.CUSTOM &&
+          d.customTimeStart &&
+          d.customTimeEnd
+        ) {
+          hrs = buildHourSlots(d.customTimeStart, d.customTimeEnd);
+        } else {
+          const slot = slotMap.get(d.date)!;
+          hrs = buildHourSlots(slot.timeStart, slot.timeEnd);
+        }
+        return sum + pricePerHour * hrs.length;
+      }, 0);
+
+      const adjustmentLimit = dto.adjustmentLimit ?? 2;
+      const lastSlot = slotOccurrences[slotOccurrences.length - 1];
+      const firstSlot = dto.weeklySlots[0];
 
       const fixedSchedule = await tx.fixedSchedule.create({
         data: {
           userId: dto.userId || null,
           courtId: dto.courtId,
-          cycle: dto.cycle,
+          cycle: 'weekly',
           startDate: normalizeDate(dto.startDate),
-          endDate: normalizeDate(dto.endDate),
-          timeStart: dto.timeStart,
-          timeEnd: dto.timeEnd,
+          endDate: lastSlot.date,
+          timeStart: firstSlot.timeStart,
+          timeEnd: firstSlot.timeEnd,
+          weeklySlots: dto.weeklySlots as any,
           customerName: dto.customerName,
           customerPhone: dto.customerPhone,
           customerEmail: dto.customerEmail || null,
@@ -223,21 +286,26 @@ export class FixedScheduleService {
       const invoiceItems: any[] = [];
 
       for (const decision of dto.decisions) {
+        const slot = slotMap.get(decision.date)!; // guaranteed by validation above
+
         if (decision.action === OccurrenceAction.SKIP) {
           await this.handleSkipDecision(tx, fixedSchedule.id, decision, {
             courtId: dto.courtId,
-            timeStart: dto.timeStart,
-            timeEnd: dto.timeEnd,
+            timeStart: slot.timeStart,
+            timeEnd: slot.timeEnd,
             pricePerHour,
           });
           continue;
         }
 
+        const occHours = buildHourSlots(slot.timeStart, slot.timeEnd);
+        const pricePerSession = pricePerHour * occHours.length;
+
         const result = await this.handleBillableDecision(tx, {
           decision,
           fixedScheduleId: fixedSchedule.id,
           originalCourt,
-          hours,
+          hours: occHours,
           pricePerHour,
           pricePerSession,
           customerName: dto.customerName,
@@ -245,11 +313,25 @@ export class FixedScheduleService {
           customerEmail: dto.customerEmail,
           userId: dto.userId,
           paymentMethod: dto.paymentMethod,
-          timeStart: dto.timeStart,
-          timeEnd: dto.timeEnd,
+          timeStart: slot.timeStart,
+          timeEnd: slot.timeEnd,
         });
         createdBookings.push(result.booking);
         invoiceItems.push(result.invoiceItem);
+      }
+
+      // Tổng thực tế = tổng các invoice items (đã xét custom hours)
+      const actualTotal = invoiceItems.reduce(
+        (sum, item) => sum + Number(item.lineTotalSnapshot),
+        0,
+      );
+
+      // Cập nhật totalAmountSnapshot nếu custom action thay đổi tổng tiền
+      if (actualTotal !== totalAmount) {
+        await tx.fixedSchedule.update({
+          where: { id: fixedSchedule.id },
+          data: { totalAmountSnapshot: actualTotal },
+        });
       }
 
       const invoice = await tx.invoice.create({
@@ -259,8 +341,8 @@ export class FixedScheduleService {
           customerName: dto.customerName,
           customerPhone: dto.customerPhone,
           customerEmail: dto.customerEmail || null,
-          subtotalSnapshot: totalAmount,
-          totalSnapshot: totalAmount,
+          subtotalSnapshot: actualTotal,
+          totalSnapshot: actualTotal,
           paymentMethod: dto.paymentMethod,
           status:
             dto.paymentMethod === PaymentMethod.CASH ? 'unpaid' : 'deposited',
@@ -272,7 +354,7 @@ export class FixedScheduleService {
         scheduleId: fixedSchedule.id,
         invoiceId: invoice.id,
         invoiceCode: invoice.code,
-        totalAmount,
+        totalAmount: actualTotal,
         bookingsCreated: createdBookings.length,
         skipped: dto.decisions.length - billable.length,
         status: fixedSchedule.status,

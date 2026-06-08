@@ -1,0 +1,582 @@
+// ╔══════════════════════════════════════════════════════════════╗
+// ║         BADMINTONHUB — DATABASE ERD (dbdiagram.io)          ║
+// ║  Paste toàn bộ file này vào https://dbdiagram.io            ║
+// ╚══════════════════════════════════════════════════════════════╝
+
+// ═══════════════════════════════════════════════════════════════
+// NHÓM 1: CƠ SỞ VẬT CHẤT
+// ═══════════════════════════════════════════════════════════════
+
+Table branches [headercolor: #2E7D32, note: "Chi nhánh cầu lông"] {
+  id          int           [pk, increment, note: "Mã chi nhánh"]
+  name        varchar(100)  [not null, note: "Tên chi nhánh"]
+  address     varchar(255)  [not null, note: "Địa chỉ"]
+  lat         decimal(10,6) [not null, note: "Vĩ độ (GPS)"]
+  lng         decimal(10,6) [not null, note: "Kinh độ (GPS)"]
+  phone       varchar(20)  
+  email       varchar(100) 
+  is_active   boolean       [not null, default: true, note: "Còn hoạt động?"]
+  created_at  timestamp     [not null, default: `now()`]
+}
+
+Table warehouses [headercolor: #1565C0, note: "Kho hàng hoá tại chi nhánh"] {
+  id          int           [pk, increment]
+  name        varchar(100)  [not null, unique, note: "Tên kho (duy nhất)"]
+  branch_id   int          
+  address     varchar(255)
+  is_hub      boolean       [not null, default: false, note: "Kho trung tâm?"]
+  is_active   boolean       [not null, default: true]
+  created_at  timestamp     [not null, default: `now()`]
+}
+
+Table courts [headercolor: #2E7D32, note: "Sân cầu lông"] {
+  id            int           [pk, increment]
+  name          varchar(100)  [not null, note: "Tên sân, VD: Sân A1"]
+  branch_id     int           [not null, note: "Thuộc chi nhánh"]
+  type          varchar(20)   [not null, default: "standard", note: "standard / premium / vip"]
+  indoor        boolean       [not null, default: true, note: "Sân trong nhà?"]
+  price         decimal(12,0) [not null, note: "Giá mỗi giờ (VNĐ)"]
+  rating        decimal(2,1)  [not null, default: 0, note: "Điểm trung bình 0-5"]
+  reviews_count int           [not null, default: 0]
+  image         varchar(255)
+  description   text
+  hours         varchar(20)   [default: "06:00 - 22:00", note: "Giờ hoạt động"]
+  available     boolean       [not null, default: true, note: "Đang cho thuê?"]
+  created_at    timestamp     [not null, default: `now()`]
+  updated_at    timestamp     [not null, default: `now()`]
+}
+
+Table court_amenities [headercolor: #2E7D32, note: "Tiện ích của sân"] {
+  id        int          [pk, increment]
+  court_id  int          [not null]
+  amenity   varchar(50)  [not null, note: "VD: Quạt, Điều hoà, Ghế ngồi..."]
+}
+
+Table court_slots [headercolor: #2E7D32, note: "Ô giờ thực tế của sân (quản lý trạng thái đặt chỗ)"] {
+  id          int          [pk, increment]
+  court_id    int          [not null]
+  slot_date   date         [not null, note: "Ngày của slot"]
+  date_label  varchar(10)  [not null, note: "VD: 2024-06-06"]
+  time        varchar(5)   [not null, note: "VD: 08:00"]
+  status      varchar(10)  [not null, default: "booked", note: "hold (đang giữ) / booked (đã đặt)"]
+  booked_by   varchar(100)
+  phone       varchar(15)
+  booking_id  uuid        
+  created_at  timestamp    [not null, default: `now()`]
+
+  indexes {
+    (court_id, slot_date, time) [unique, name: "uq_court_slot"]
+    (court_id, slot_date)       [name: "idx_court_slots_lookup"]
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// NHÓM 2: NGƯỜI DÙNG
+// ═══════════════════════════════════════════════════════════════
+
+Table users [headercolor: #6A1B9A, note: "Tài khoản hệ thống"] {
+  id            uuid          [pk, default: `gen_random_uuid()`, note: "UUID"]
+  username      varchar(50)   [not null, unique]
+  password_hash varchar(255)  [not null]
+  full_name     varchar(100)  [not null]
+  email         varchar(100)  [not null, unique]
+  phone         varchar(15)   [not null, unique]
+  address       varchar(255)
+  gender        varchar(5)   
+  date_of_birth date
+  role          varchar(20)   [not null, default: "user", note: "user / admin / employee / guest"]
+  warehouse_id  int          
+  created_at    timestamp     [not null, default: `now()`]
+  updated_at    timestamp     [not null, default: `now()`]
+}
+
+Table reviews [headercolor: #6A1B9A, note: "Đánh giá sân của khách hàng"] {
+  id         int       [pk, increment]
+  user_id    uuid      [not null]
+  court_id   int       [not null]
+  rating     int       [not null, note: "1 đến 5 sao"]
+  content    text     
+  created_at timestamp [not null, default: `now()`]
+
+  indexes {
+    (user_id, court_id) [unique, name: "uq_review_user_court", note: "Mỗi user chỉ review 1 lần/sân"]
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// NHÓM 3: ĐẶT SÂN
+// ═══════════════════════════════════════════════════════════════
+
+Table bookings [headercolor: #E65100, note: "Đơn đặt sân (lẻ hoặc từ lịch cố định)"] {
+  id                   uuid          [pk, default: `gen_random_uuid()`]
+  court_id             int           [not null]
+  branch_id            int           [not null]
+  user_id              uuid         
+  booking_date         date          [not null, note: "Ngày đặt sân"]
+  day_label            varchar(10)   [not null, note: "VD: Thứ 2, Thứ 3..."]
+  time_start           varchar(5)    [not null, note: "VD: 08:00"]
+  time_end             varchar(5)   
+  people               int           [not null, default: 2, note: "Số người chơi"]
+  amount               decimal(12,0) [not null, note: "Tổng tiền (VNĐ)"]
+  price_per_hour       decimal(12,0) [not null, default: 0, note: "Giá/giờ tại thời điểm đặt"]
+  status               varchar(20)   [not null, default: "pending", note: "pending / deposited / confirmed / playing / completed / cancelled"]
+  fixed_schedule_id    uuid         
+  fixed_occurrence_id  uuid          [unique, note: "Liên kết buổi cụ thể của lịch cố định"]
+  payment_method       varchar(30)   [not null, note: "vnpay / momo / sepay / cash"]
+  customer_name        varchar(100)  [not null]
+  customer_phone       varchar(15)   [not null]
+  customer_email       varchar(100)
+  created_at           timestamp     [not null, default: `now()`]
+  updated_at           timestamp     [not null, default: `now()`]
+
+  indexes {
+    (court_id, booking_date) [name: "idx_bookings_court_date"]
+    status                   [name: "idx_bookings_status"]
+    customer_phone           [name: "idx_bookings_phone"]
+  }
+}
+
+Table fixed_schedules [headercolor: #E65100, note: "Lịch đặt sân cố định (hợp đồng dài hạn)"] {
+  id                      uuid          [pk, default: `gen_random_uuid()`]
+  user_id                 uuid         
+  court_id                int           [not null, note: "Sân đăng ký"]
+  cycle                   varchar(10)   [not null, note: "weekly / monthly"]
+  start_date              date          [not null, note: "Ngày bắt đầu hợp đồng"]
+  end_date                date          [not null, note: "Ngày kết thúc hợp đồng"]
+  time_start              varchar(5)    [not null, note: "Giờ bắt đầu mỗi buổi"]
+  time_end                varchar(5)    [not null, note: "Giờ kết thúc mỗi buổi"]
+  customer_name           varchar(100)  [not null]
+  customer_phone          varchar(15)   [not null]
+  customer_email          varchar(100)
+  payment_method          varchar(30)   [not null]
+  price_per_hour_snapshot decimal(12,0) [not null, note: "Giá/giờ tại thời điểm ký hợp đồng"]
+  total_amount_snapshot   decimal(12,0) [not null, note: "Tổng tiền cả hợp đồng"]
+  occurrence_count        int           [not null, default: 0, note: "Tổng số buổi sẽ chơi"]
+  adjustment_limit        int           [not null, default: 2, note: "Số lần được đổi lịch tối đa"]
+  adjustment_used         int           [not null, default: 0, note: "Số lần đã dùng đổi lịch"]
+  status                  varchar(20)   [not null, default: "pending", note: "pending / deposited / confirmed / completed / cancelled"]
+  created_at              timestamp     [not null, default: `now()`]
+  updated_at              timestamp     [not null, default: `now()`]
+
+  indexes {
+    user_id [name: "idx_fixed_schedules_user"]
+    status  [name: "idx_fixed_schedules_status"]
+  }
+}
+
+Table fixed_schedule_occurrences [headercolor: #E65100, note: "Từng buổi thực tế của lịch cố định"] {
+  id                      uuid          [pk, default: `gen_random_uuid()`]
+  fixed_schedule_id       uuid          [not null]
+  court_id                int           [not null, note: "Sân của buổi này (có thể khác sân gốc nếu đã đổi)"]
+  occurrence_date         date          [not null, note: "Ngày diễn ra buổi"]
+  day_label               varchar(10)   [not null]
+  time_start              varchar(5)    [not null]
+  time_end                varchar(5)    [not null]
+  price_per_hour_snapshot decimal(12,0) [not null]
+  amount_snapshot         decimal(12,0) [not null, note: "Tiền của riêng buổi này"]
+  status                  varchar(20)   [not null, default: "scheduled", note: "scheduled / rescheduled / skipped / cancelled / completed"]
+}
+
+Table fixed_schedule_adjustments [headercolor: #E65100, note: "Lịch sử điều chỉnh lịch cố định (đổi buổi, bỏ buổi, đổi sân)"] {
+  id                uuid          [pk, default: `gen_random_uuid()`]
+  fixed_schedule_id uuid          [not null]
+  occurrence_id     uuid         
+  type              varchar(20)   [not null, note: "skip / reschedule / change_court"]
+  old_court_id      int          
+  old_date          date         
+  old_time_start    varchar(5)
+  old_time_end      varchar(5)
+  new_court_id      int          
+  new_date          date         
+  new_time_start    varchar(5)
+  new_time_end      varchar(5)
+  note              text
+  created_at        timestamp     [not null, default: `now()`]
+
+  indexes {
+    fixed_schedule_id [name: "idx_fixed_adjustments_schedule"]
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// NHÓM 4: HÓA ĐƠN & THANH TOÁN
+// ═══════════════════════════════════════════════════════════════
+
+Table invoices [headercolor: #AD1457, note: "Hóa đơn thanh toán (liên kết 1 trong 4 nguồn)"] {
+  id                uuid          [pk, default: `gen_random_uuid()`]
+  code              varchar(30)   [not null, unique, note: "Mã hóa đơn hiển thị, VD: INV-20240606-001"]
+  booking_id        uuid         
+  order_id          uuid         
+  fixed_schedule_id uuid         
+  sales_order_id    uuid         
+  customer_name     varchar(100)  [not null]
+  customer_phone    varchar(15)   [not null]
+  customer_email    varchar(100)
+  subtotal_snapshot decimal(12,0) [not null, note: "Tiền trước giảm giá"]
+  total_snapshot    decimal(12,0) [not null, note: "Tiền sau giảm giá (số tiền cần thu)"]
+  payment_method    varchar(30)   [not null]
+  status            varchar(20)   [not null, default: "unpaid", note: "unpaid / deposited / paid / cancelled / refunded"]
+  created_at        timestamp     [not null, default: `now()`]
+
+  indexes {
+    booking_id        [name: "idx_invoices_booking"]
+    fixed_schedule_id [name: "idx_invoices_fixed_schedule"]
+  }
+}
+
+Table invoice_items [headercolor: #AD1457, note: "Chi tiết dòng hàng trong hóa đơn (snapshot tại thời điểm xuất)"] {
+  id                  int           [pk, increment]
+  invoice_id          uuid          [not null]
+  description         varchar(255)  [not null, note: "Tên dịch vụ / sản phẩm"]
+  quantity            int           [not null]
+  unit_price_snapshot decimal(12,0) [not null, note: "Đơn giá tại thời điểm xuất hoá đơn"]
+  line_total_snapshot decimal(12,0) [not null, note: "= quantity × unit_price_snapshot"]
+}
+
+Table payments [headercolor: #AD1457, note: "Giao dịch thanh toán qua cổng (VNPay / MoMo / SePay / Cash)"] {
+  id               uuid          [pk, default: `gen_random_uuid()`]
+  invoice_id       uuid          [not null, note: "Hóa đơn cần thanh toán"]
+  method           varchar(30)   [not null, note: "vnpay / momo / sepay / cash"]
+  amount           decimal(12,0) [not null, note: "Số tiền giao dịch (VNĐ)"]
+  status           varchar(20)   [not null, default: "pending", note: "pending / success / failed / refunded"]
+  transaction_ref  varchar(150)  [unique, note: "Mã giao dịch phía cổng thanh toán (unique)"]
+  gateway_response jsonb        
+  created_at       timestamp     [not null, default: `now()`]
+  updated_at       timestamp     [not null, default: `now()`]
+
+  indexes {
+    invoice_id [name: "idx_payments_invoice"]
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// NHÓM 5: SẢN PHẨM & ĐƠN HÀNG ONLINE
+// ═══════════════════════════════════════════════════════════════
+
+Table products [headercolor: #00695C, note: "Sản phẩm bán (vợt, giày, áo, phụ kiện...)"] {
+  id             int           [pk, increment]
+  sku            varchar(20)   [not null, unique, note: "Mã sản phẩm nội bộ (duy nhất)"]
+  name           varchar(200)  [not null]
+  brand          varchar(50)   [not null, note: "Thương hiệu, VD: Yonex, Victor"]
+  category       varchar(50)   [not null, note: "Danh mục, VD: Vợt, Giày, Áo"]
+  price          decimal(12,0) [not null, note: "Giá bán lẻ (VNĐ)"]
+  original_price decimal(12,0)
+  rating         decimal(2,1)  [not null, default: 0]
+  reviews_count  int           [not null, default: 0]
+  image          varchar(255) 
+  description    text
+  specs          jsonb        
+  features       jsonb        
+  in_stock       boolean       [not null, default: true]
+  gender         varchar(5)   
+  created_at     timestamp     [not null, default: `now()`]
+  updated_at     timestamp     [not null, default: `now()`]
+}
+
+Table product_images [headercolor: #00695C, note: "Ảnh gallery của sản phẩm"] {
+  id         int          [pk, increment]
+  product_id int          [not null]
+  url        varchar(255) [not null, note: "URL ảnh"]
+  sort_order int          [not null, default: 0, note: "Thứ tự hiển thị"]
+}
+
+Table product_badges [headercolor: #00695C, note: "Nhãn hiển thị trên sản phẩm"] {
+  id         int         [pk, increment]
+  product_id int         [not null]
+  badge      varchar(20) [not null, note: "VD: New, Sale, Hot, Best Seller"]
+}
+
+Table orders [headercolor: #00695C, note: "Đơn hàng online của khách (mua sản phẩm)"] {
+  id                      uuid          [pk, default: `gen_random_uuid()`]
+  user_id                 uuid         
+  type                    varchar(10)   [not null, default: "online", note: "online / pos"]
+  delivery_method         varchar(15)   [not null, default: "delivery", note: "delivery (giao hàng) / pickup (lấy tại cửa hàng)"]
+  pickup_branch_id        int          
+  fulfilling_warehouse_id int          
+  customer_coords         jsonb        
+  customer_name           varchar(100)  [not null]
+  customer_phone          varchar(15)   [not null]
+  customer_email          varchar(100)
+  customer_address        varchar(255) 
+  note                    text
+  subtotal                decimal(12,0) [not null, note: "Tiền hàng (trước phí ship)"]
+  shipping_fee            decimal(12,0) [not null, default: 0, note: "Phí vận chuyển"]
+  total                   decimal(12,0) [not null, note: "= subtotal + shipping_fee"]
+  payment_method          varchar(30)   [not null]
+  status                  varchar(20)   [not null, default: "pending", note: "pending / confirmed / processing / shipping / delivered / cancelled / refunded"]
+  approved_by             uuid         
+  created_at              timestamp     [not null, default: `now()`]
+  updated_at              timestamp     [not null, default: `now()`]
+
+  indexes {
+    status     [name: "idx_orders_status"]
+    user_id    [name: "idx_orders_user"]
+    created_at [name: "idx_orders_created"]
+  }
+}
+
+Table order_items [headercolor: #00695C, note: "Chi tiết sản phẩm trong đơn hàng online"] {
+  id           int           [pk, increment]
+  order_id     uuid          [not null]
+  product_id   int           [not null]
+  product_name varchar(200)  [not null, note: "Snapshot tên SP lúc đặt (không bị ảnh hưởng khi SP đổi tên)"]
+  price        decimal(12,0) [not null, note: "Snapshot giá lúc đặt"]
+  qty          int           [not null, note: "Số lượng"]
+}
+
+// ═══════════════════════════════════════════════════════════════
+// NHÓM 6: QUẢN LÝ KHO
+// ═══════════════════════════════════════════════════════════════
+
+Table inventory [headercolor: #1565C0, note: "Tồn kho từng SKU tại từng kho"] {
+  id            int           [pk, increment]
+  sku           varchar(20)   [not null, note: "Mã SKU sản phẩm"]
+  product_id    int          
+  warehouse_id  int           [not null]
+  name          varchar(200)  [not null, note: "Snapshot tên sản phẩm"]
+  category      varchar(50)   [not null]
+  on_hand       int           [not null, default: 0, note: "Số lượng thực tế trong kho"]
+  reserved      int           [not null, default: 0, note: "Đang giữ cho đơn chưa xuất"]
+  available     int           [not null, default: 0, note: "= on_hand - reserved (có thể bán)"]
+  reorder_point int           [not null, default: 0, note: "Ngưỡng cần nhập thêm hàng"]
+  unit_cost     decimal(12,0) [not null, note: "Giá vốn trung bình (VNĐ)"]
+  image         varchar(255)
+  updated_at    timestamp     [not null, default: `now()`]
+
+  indexes {
+    (sku, warehouse_id) [unique, name: "uq_inventory_sku_warehouse"]
+    warehouse_id        [name: "idx_inventory_warehouse"]
+    sku                 [name: "idx_inventory_sku"]
+  }
+}
+
+Table inventory_transactions [headercolor: #1565C0, note: "Nhật ký mọi phát sinh kho (nhập/xuất/chuyển)"] {
+  id           uuid          [pk, default: `gen_random_uuid()`]
+  type         varchar(20)   [not null, note: "import / export / transfer_out / transfer_in"]
+  date         timestamp     [not null, note: "Ngày giờ phát sinh"]
+  sku          varchar(20)   [not null]
+  warehouse_id int           [not null, note: "Kho phát sinh giao dịch"]
+  qty          int           [not null, note: "Số lượng (luôn dương, type quyết định chiều)"]
+  cost         decimal(12,0) [not null, note: "Giá vốn tại thời điểm giao dịch"]
+  note         text         
+  operator_id  uuid         
+  created_at   timestamp     [not null, default: `now()`]
+
+  indexes {
+    (warehouse_id, date) [name: "idx_txn_warehouse_date"]
+    sku                  [name: "idx_txn_sku"]
+  }
+}
+
+Table suppliers [headercolor: #4527A0, note: "Nhà cung cấp hàng hoá"] {
+  id             int          [pk, increment]
+  name           varchar(100) [not null, note: "Tên công ty/nhà cung cấp"]
+  contact_person varchar(100)
+  phone          varchar(20)
+  email          varchar(100)
+  address        varchar(255)
+  is_active      boolean      [not null, default: true]
+  created_at     timestamp    [not null, default: `now()`]
+}
+
+Table purchase_orders [headercolor: #4527A0, note: "Đơn đặt hàng từ nhà cung cấp (nhập hàng vào kho)"] {
+  id           uuid          [pk, default: `gen_random_uuid()`]
+  supplier_id  int           [not null]
+  warehouse_id int           [not null, note: "Hàng nhập về kho nào"]
+  status       varchar(20)   [not null, default: "draft", note: "draft / sent / confirmed / shipping / received / cancelled"]
+  total_value  decimal(14,0) [not null, note: "Tổng giá trị đơn đặt (VNĐ)"]
+  note         text
+  created_by   uuid          [not null, note: "Admin tạo đơn"]
+  created_at   timestamp     [not null, default: `now()`]
+  updated_at   timestamp     [not null, default: `now()`]
+
+  indexes {
+    status [name: "idx_po_status"]
+  }
+}
+
+Table po_items [headercolor: #4527A0, note: "Chi tiết sản phẩm trong đơn đặt hàng nhà cung cấp"] {
+  id         int           [pk, increment]
+  po_id      uuid          [not null]
+  sku        varchar(20)   [not null]
+  name       varchar(200)  [not null, note: "Tên sản phẩm tại thời điểm đặt"]
+  qty        int           [not null]
+  unit_cost  decimal(12,0) [not null, note: "Giá nhập từ nhà cung cấp"]
+}
+
+// ═══════════════════════════════════════════════════════════════
+// NHÓM 7: BÁN HÀNG NỘI BỘ & CHUYỂN KHO
+// ═══════════════════════════════════════════════════════════════
+
+Table sales_orders [headercolor: #BF360C, note: "Đơn bán hàng nội bộ (nhân viên lập tại quầy)"] {
+  id             uuid          [pk, default: `gen_random_uuid()`]
+  created_by     uuid          [not null, note: "Nhân viên tạo đơn"]
+  branch_id      int          
+  customer_name  varchar(100)  [not null]
+  customer_phone varchar(15)
+  total          decimal(12,0) [not null, note: "Tổng trước giảm giá"]
+  discount       decimal(12,0) [not null, default: 0, note: "Số tiền giảm"]
+  final_total    decimal(12,0) [not null, note: "Tổng sau giảm giá (tiền thực thu)"]
+  payment_method varchar(30)   [not null]
+  note           text
+  status         varchar(20)   [not null, default: "pending", note: "pending / approved / rejected / exported"]
+  approved_by    uuid         
+  approved_at    timestamp
+  reject_reason  varchar(255) 
+  export_slip_id uuid         
+  created_at     timestamp     [not null, default: `now()`]
+
+  indexes {
+    status [name: "idx_sales_orders_status"]
+  }
+}
+
+Table sales_order_items [headercolor: #BF360C, note: "Chi tiết sản phẩm trong đơn bán nội bộ"] {
+  id            int           [pk, increment]
+  sales_order_id uuid         [not null]
+  product_id    int           [not null]
+  product_name  varchar(200)  [not null, note: "Snapshot tên SP"]
+  price         decimal(12,0) [not null, note: "Snapshot giá bán"]
+  qty           int           [not null]
+}
+
+Table transfer_requests [headercolor: #37474F, note: "Yêu cầu chuyển hàng giữa các kho"] {
+  id                uuid          [pk, default: `gen_random_uuid()`]
+  date              timestamp     [not null, note: "Ngày yêu cầu chuyển kho"]
+  from_warehouse_id int           [not null, note: "Kho xuất hàng"]
+  to_warehouse_id   int           [not null, note: "Kho nhận hàng"]
+  reason            varchar(255)  [not null, note: "Lý do chuyển kho"]
+  note              text
+  status            varchar(20)   [not null, default: "pending", note: "pending / approved / in_transit / completed / rejected"]
+  pickup_method     varchar(20)   [not null, note: "employee (NV đem) / delivery (giao vận) / customer (khách tự lấy)"]
+  created_by        uuid          [not null]
+  customer_name     varchar(100) 
+  customer_phone    varchar(15)
+  approved_by       uuid
+  approved_at       timestamp
+  completed_at      timestamp
+  created_at        timestamp     [not null, default: `now()`]
+
+  indexes {
+    status [name: "idx_transfer_status"]
+  }
+}
+
+Table transfer_items [headercolor: #37474F, note: "Chi tiết hàng hoá trong phiếu chuyển kho"] {
+  id                   int          [pk, increment]
+  transfer_id          uuid         [not null]
+  sku                  varchar(20)  [not null]
+  name                 varchar(200) [not null]
+  qty                  int          [not null, note: "Số lượng cần chuyển"]
+  available_at_request int          [not null, note: "Tồn khả dụng tại thời điểm tạo phiếu (kiểm tra tính hợp lệ)"]
+}
+
+Table admin_warehouse_slips [headercolor: #37474F, note: "Phiếu nhập/xuất kho do admin tạo và giao nhân viên xử lý"] {
+  id            uuid         [pk, default: `gen_random_uuid()`]
+  type          varchar(10)  [not null, note: "import (nhập kho) / export (xuất kho)"]
+  po_id         uuid        
+  supplier_id   int         
+  warehouse_id  int          [not null, note: "Kho thực hiện"]
+  note          text
+  status        varchar(20)  [not null, default: "pending", note: "pending / processed"]
+  created_by    uuid         [not null, note: "Admin tạo phiếu"]
+  assigned_to   uuid         [not null, note: "Nhân viên kho được giao xử lý"]
+  processed_at  timestamp   
+  processed_by  uuid        
+  created_at    timestamp    [not null, default: `now()`]
+
+  indexes {
+    status [name: "idx_slips_status"]
+  }
+}
+
+Table slip_items [headercolor: #37474F, note: "Chi tiết hàng trong phiếu nhập/xuất kho"] {
+  id        int           [pk, increment]
+  slip_id   uuid          [not null]
+  sku       varchar(20)   [not null]
+  name      varchar(200)  [not null]
+  qty       int           [not null]
+  unit_cost decimal(12,0) [not null, note: "Giá vốn"]
+}
+
+// ╔══════════════════════════════════════════════════════════════╗
+// ║                  QUAN HỆ (REFERENCES)                       ║
+// ╚══════════════════════════════════════════════════════════════╝
+
+// ── BRANCH ──────────────────────────────────────────────────────
+Ref: warehouses.branch_id         > branches.id            
+Ref: courts.branch_id             > branches.id            
+Ref: bookings.branch_id           > branches.id
+Ref: orders.pickup_branch_id      > branches.id            
+Ref: sales_orders.branch_id       > branches.id
+
+// ── USER ─────────────────────────────────────────────────────────
+Ref: users.warehouse_id           > warehouses.id          
+Ref: bookings.user_id             > users.id
+Ref: fixed_schedules.user_id      > users.id
+Ref: orders.user_id               > users.id
+Ref: orders.approved_by           > users.id
+Ref: reviews.user_id              > users.id
+Ref: purchase_orders.created_by   > users.id
+Ref: sales_orders.created_by      > users.id               
+Ref: sales_orders.approved_by     > users.id               
+Ref: transfer_requests.created_by > users.id
+Ref: transfer_requests.approved_by > users.id
+Ref: admin_warehouse_slips.created_by  > users.id
+Ref: admin_warehouse_slips.assigned_to > users.id
+Ref: admin_warehouse_slips.processed_by > users.id
+
+// ── COURT ────────────────────────────────────────────────────────
+Ref: court_amenities.court_id     > courts.id               [delete: cascade]
+Ref: court_slots.court_id         > courts.id
+Ref: bookings.court_id            > courts.id
+Ref: fixed_schedules.court_id     > courts.id
+Ref: fixed_schedule_occurrences.court_id > courts.id
+Ref: reviews.court_id             > courts.id
+
+// ── BOOKING ──────────────────────────────────────────────────────
+Ref: court_slots.booking_id             > bookings.id
+Ref: bookings.fixed_schedule_id         > fixed_schedules.id
+Ref: bookings.fixed_occurrence_id       > fixed_schedule_occurrences.id
+Ref: invoices.booking_id                > bookings.id
+
+// ── FIXED SCHEDULE ───────────────────────────────────────────────
+Ref: fixed_schedule_occurrences.fixed_schedule_id  > fixed_schedules.id   [delete: cascade]
+Ref: fixed_schedule_adjustments.fixed_schedule_id  > fixed_schedules.id   [delete: cascade]
+Ref: fixed_schedule_adjustments.occurrence_id      > fixed_schedule_occurrences.id
+Ref: invoices.fixed_schedule_id                    > fixed_schedules.id
+
+// ── INVOICE ──────────────────────────────────────────────────────
+Ref: invoice_items.invoice_id     > invoices.id             [delete: cascade]
+Ref: payments.invoice_id          > invoices.id
+
+// ── ORDER ────────────────────────────────────────────────────────
+Ref: order_items.order_id         > orders.id               [delete: cascade]
+Ref: order_items.product_id       > products.id
+Ref: invoices.order_id            > orders.id
+
+// ── PRODUCT ──────────────────────────────────────────────────────
+Ref: product_images.product_id    > products.id             [delete: cascade]
+Ref: product_badges.product_id    > products.id             [delete: cascade]
+Ref: inventory.product_id         > products.id
+Ref: sales_order_items.product_id > products.id
+
+// ── INVENTORY / WAREHOUSE ────────────────────────────────────────
+Ref: inventory.warehouse_id            > warehouses.id
+Ref: inventory_transactions.warehouse_id > warehouses.id
+Ref: purchase_orders.warehouse_id      > warehouses.id
+Ref: purchase_orders.supplier_id       > suppliers.id
+Ref: po_items.po_id                    > purchase_orders.id [delete: cascade]
+Ref: admin_warehouse_slips.warehouse_id > warehouses.id
+Ref: admin_warehouse_slips.po_id        > purchase_orders.id
+Ref: admin_warehouse_slips.supplier_id  > suppliers.id
+Ref: slip_items.slip_id                > admin_warehouse_slips.id [delete: cascade]
+
+// ── SALES ORDER ──────────────────────────────────────────────────
+Ref: sales_order_items.sales_order_id  > sales_orders.id   [delete: cascade]
+Ref: sales_orders.export_slip_id       > admin_warehouse_slips.id
+
+// ── TRANSFER ─────────────────────────────────────────────────────
+Ref: transfer_requests.from_warehouse_id > warehouses.id
+Ref: transfer_requests.to_warehouse_id   > warehouses.id
+Ref: transfer_items.transfer_id          > transfer_requests.id [delete: cascade]

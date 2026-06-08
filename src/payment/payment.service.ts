@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common'
 import { PrismaService } from '../prisma/prisma.service'
+import { EmailService }  from '../email/email.service'
 import { VnpayProvider } from './vnpay.provider'
 import { MomoProvider } from './momo.provider'
 import { SepayProvider } from './sepay.provider'
@@ -11,9 +12,10 @@ import { HOLD_EXPIRES_MINUTES, expireStaleBookingHolds } from '../bookings/booki
 export class PaymentService {
   constructor(
     private prisma: PrismaService,
-    private vnpay: VnpayProvider,
-    private momo:  MomoProvider,
-    private sepay: SepayProvider,
+    private email:  EmailService,
+    private vnpay:  VnpayProvider,
+    private momo:   MomoProvider,
+    private sepay:  SepayProvider,
   ) {}
 
   // ─── Tạo yêu cầu thanh toán ───────────────────────────────
@@ -303,6 +305,7 @@ export class PaymentService {
           where: { id: invoice.bookingId },
           data:  { status: 'confirmed' },
         })
+        // Update slots: hold → booked
         await tx.courtSlot.updateMany({
           where: { bookingId: invoice.bookingId },
           data:  { status: 'booked' },
@@ -323,6 +326,39 @@ export class PaymentService {
           data:  { status: 'booked' },
         })
       }
+    })
+
+    // ── Gửi email xác nhận kèm QR sau khi payment gateway confirm ──
+    if (success && payment.invoice.bookingId) {
+      this.sendBookingConfirmedEmail(payment.invoice.bookingId).catch(() => {})
+    }
+  }
+
+  // ── Gửi email xác nhận đặt sân kèm QR ──────────────────────────
+  private async sendBookingConfirmedEmail(bookingId: string) {
+    const booking = await this.prisma.booking.findUnique({
+      where:   { id: bookingId },
+      include: {
+        court:   { include: { branch: { select: { name: true } } } },
+        invoices: { select: { code: true }, take: 1 },
+      },
+    })
+    if (!booking) return
+    const email = booking.customerEmail
+    if (!email) return
+
+    await this.email.sendBookingConfirmed({
+      id:            booking.id,
+      customerName:  booking.customerName,
+      customerEmail: email,
+      courtName:     booking.court.name,
+      branchName:    booking.court.branch?.name ?? '',
+      bookingDate:   booking.bookingDate.toISOString(),
+      timeStart:     booking.timeStart ?? '',
+      timeEnd:       booking.timeEnd  ?? '',
+      amount:        parseFloat(String(booking.amount)),
+      invoiceCode:   booking.invoices[0]?.code,
+      paymentMethod: booking.paymentMethod,
     })
   }
 
