@@ -1,7 +1,13 @@
 // prisma/seed.ts
 // Chạy: npx prisma db seed
 
-import { PrismaClient } from '@prisma/client'
+import {
+  CommunityDistrict,
+  CommunityLevel,
+  CommunityNotificationKind,
+  CommunityPostKind,
+  PrismaClient,
+} from '@prisma/client'
 import * as bcrypt from 'bcrypt'
 type Gender = 'nam' | 'nu'
 
@@ -574,6 +580,451 @@ async function main() {
     }
   }
   console.log(`✅ Tồn kho: ${skuList.length} sản phẩm × ${Object.keys(warehouseStock).length} kho = ${skuList.length * Object.keys(warehouseStock).length} bản ghi`)
+
+  // ═══════════════════════════════════════════════════════
+  // 7. COMMUNITY — dữ liệu mạng xã hội mini
+  // ═══════════════════════════════════════════════════════
+  console.log('🏸 Tạo dữ liệu community...')
+
+  await prisma.communityNotification.deleteMany()
+  await prisma.communityMatchParticipant.deleteMany()
+  await prisma.communityMatch.deleteMany()
+  await prisma.communityCommentLike.deleteMany()
+  await prisma.communityComment.deleteMany()
+  await prisma.communityPostLike.deleteMany()
+  await prisma.communityPostSave.deleteMany()
+  await prisma.communityPostHashtag.deleteMany()
+  await prisma.communityPostMedia.deleteMany()
+  await prisma.communityPost.deleteMany()
+  await prisma.communityHashtag.deleteMany()
+  await prisma.communityFollow.deleteMany()
+  await prisma.communityProfile.deleteMany()
+
+  const communityPassword = await bcrypt.hash('Community@123', 10)
+
+  const communityUsers = {
+    minhsmash: await prisma.user.upsert({
+      where: { username: 'minhsmash' },
+      update: { passwordHash: communityPassword },
+      create: {
+        username: 'minhsmash',
+        passwordHash: communityPassword,
+        fullName: 'Trần Nhật Minh',
+        email: 'minhsmash@badmintonhub.vn',
+        phone: '0903000001',
+        role: 'user',
+      },
+    }),
+    linhdrop: await prisma.user.upsert({
+      where: { username: 'linhdrop' },
+      update: { passwordHash: communityPassword },
+      create: {
+        username: 'linhdrop',
+        passwordHash: communityPassword,
+        fullName: 'Phạm Khánh Linh',
+        email: 'linhdrop@badmintonhub.vn',
+        phone: '0903000002',
+        role: 'user',
+      },
+    }),
+    quannet: await prisma.user.upsert({
+      where: { username: 'quannet' },
+      update: { passwordHash: communityPassword },
+      create: {
+        username: 'quannet',
+        passwordHash: communityPassword,
+        fullName: 'Lê Anh Quân',
+        email: 'quannet@badmintonhub.vn',
+        phone: '0903000003',
+        role: 'user',
+      },
+    }),
+    huedefense: await prisma.user.upsert({
+      where: { username: 'huedefense' },
+      update: { passwordHash: communityPassword },
+      create: {
+        username: 'huedefense',
+        passwordHash: communityPassword,
+        fullName: 'Đỗ Thu Huế',
+        email: 'huedefense@badmintonhub.vn',
+        phone: '0903000004',
+        role: 'user',
+      },
+    }),
+    tungrally: await prisma.user.upsert({
+      where: { username: 'tungrally' },
+      update: { passwordHash: communityPassword },
+      create: {
+        username: 'tungrally',
+        passwordHash: communityPassword,
+        fullName: 'Vũ Thanh Tùng',
+        email: 'tungrally@badmintonhub.vn',
+        phone: '0903000005',
+        role: 'user',
+      },
+    }),
+  }
+
+  const allCourts = await prisma.court.findMany({
+    include: { branch: true },
+    orderBy: { id: 'asc' },
+  })
+
+  const courtCauGiay = allCourts.find((court) => court.branchId === 1) ?? allCourts[0]
+  const courtThanhXuan = allCourts.find((court) => court.branchId === 2) ?? allCourts[1]
+  const courtLongBien = allCourts.find((court) => court.branchId === 3) ?? allCourts[2]
+
+  await prisma.communityProfile.createMany({
+    data: [
+      {
+        userId: communityUsers.minhsmash.id,
+        avatar: null,
+        coverImage: '/community/hero.png',
+        bio: 'Đập cầu là đam mê. Chơi tối T2-T4-T6 ở Cầu Giấy. Tìm bạn đánh đôi ổn định.',
+        district: CommunityDistrict.cau_giay,
+        level: CommunityLevel.expert,
+        followersCount: 3,
+        followingCount: 2,
+        matchesCount: 2,
+        checkinsCount: 1,
+      },
+      {
+        userId: communityUsers.linhdrop.id,
+        avatar: null,
+        coverImage: '/community/hero.png',
+        bio: 'Cầu lông + cà phê = cuối tuần hoàn hảo. Hay tổ chức kèo đôi nữ.',
+        district: CommunityDistrict.thanh_xuan,
+        level: CommunityLevel.advanced,
+        followersCount: 3,
+        followingCount: 2,
+        matchesCount: 1,
+        checkinsCount: 1,
+      },
+      {
+        userId: communityUsers.quannet.id,
+        avatar: null,
+        coverImage: '/community/hero.png',
+        bio: 'Mới quay lại sau 2 năm nghỉ. Đang tìm nhóm trình trung bình đánh vui.',
+        district: CommunityDistrict.long_bien,
+        level: CommunityLevel.intermediate,
+        followersCount: 0,
+        followingCount: 2,
+        matchesCount: 1,
+        checkinsCount: 0,
+      },
+      {
+        userId: communityUsers.huedefense.id,
+        avatar: null,
+        coverImage: '/community/hero.png',
+        bio: 'Phòng thủ là nghệ thuật. HLV bán thời gian, nhận kèo giao lưu.',
+        district: CommunityDistrict.cau_giay,
+        level: CommunityLevel.expert,
+        followersCount: 3,
+        followingCount: 1,
+        matchesCount: 1,
+        checkinsCount: 0,
+      },
+      {
+        userId: communityUsers.tungrally.id,
+        avatar: null,
+        coverImage: '/community/hero.png',
+        bio: 'Mê những pha cầu dài. Săn vợt cũ, chia sẻ review giày.',
+        district: CommunityDistrict.thanh_xuan,
+        level: CommunityLevel.advanced,
+        followersCount: 0,
+        followingCount: 3,
+        matchesCount: 0,
+        checkinsCount: 0,
+      },
+    ],
+  })
+
+  await prisma.communityFollow.createMany({
+    data: [
+      { followerId: communityUsers.minhsmash.id, followingId: communityUsers.linhdrop.id },
+      { followerId: communityUsers.minhsmash.id, followingId: communityUsers.huedefense.id },
+      { followerId: communityUsers.linhdrop.id, followingId: communityUsers.minhsmash.id },
+      { followerId: communityUsers.linhdrop.id, followingId: communityUsers.huedefense.id },
+      { followerId: communityUsers.quannet.id, followingId: communityUsers.minhsmash.id },
+      { followerId: communityUsers.quannet.id, followingId: communityUsers.linhdrop.id },
+      { followerId: communityUsers.huedefense.id, followingId: communityUsers.minhsmash.id },
+      { followerId: communityUsers.tungrally.id, followingId: communityUsers.minhsmash.id },
+      { followerId: communityUsers.tungrally.id, followingId: communityUsers.linhdrop.id },
+      { followerId: communityUsers.tungrally.id, followingId: communityUsers.huedefense.id },
+    ],
+    skipDuplicates: true,
+  })
+
+  const postMinh = await prisma.communityPost.create({
+    data: {
+      authorId: communityUsers.minhsmash.id,
+      kind: CommunityPostKind.find_team,
+      body: 'Tối nay 20h cần thêm 2 bạn đánh đôi nam trình Khá trở lên tại Cầu Giấy. Sân đã đặt, chia tiền sân nhẹ nhàng. Ai máu thì vào kèo nhé!',
+      district: CommunityDistrict.cau_giay,
+      level: CommunityLevel.advanced,
+      branchId: branch1.id,
+      courtId: courtCauGiay?.id ?? null,
+      media: {
+        create: [
+          {
+            url: '/community/hero.png',
+            sortOrder: 0,
+          },
+        ],
+      },
+    },
+  })
+
+  const postLinh = await prisma.communityPost.create({
+    data: {
+      authorId: communityUsers.linhdrop.id,
+      kind: CommunityPostKind.check_in,
+      body: 'Vừa xong 2 tiếng cháy hết mình ở Thanh Xuân. Cảm giác smash trúng tim cầu đã không tả nổi. Cảm ơn team nữ chiến đã quẩy cùng!',
+      district: CommunityDistrict.thanh_xuan,
+      branchId: branch2.id,
+      courtId: courtThanhXuan?.id ?? null,
+      media: {
+        create: [
+          { url: '/community/hero.png', sortOrder: 0 },
+          { url: '/community/hero.png', sortOrder: 1 },
+        ],
+      },
+    },
+  })
+
+  const postTung = await prisma.communityPost.create({
+    data: {
+      authorId: communityUsers.tungrally.id,
+      kind: CommunityPostKind.court_review,
+      body: 'Review nhanh sân Long Biên: mặt sàn bám tốt, ánh sáng đều không chói, ít gió. Điểm trừ duy nhất là chỗ để xe hơi chật giờ cao điểm. Tổng 9/10.',
+      district: CommunityDistrict.long_bien,
+      branchId: branch3.id,
+      courtId: courtLongBien?.id ?? null,
+      media: {
+        create: [
+          { url: '/community/hero.png', sortOrder: 0 },
+        ],
+      },
+    },
+  })
+
+  const postHue = await prisma.communityPost.create({
+    data: {
+      authorId: communityUsers.huedefense.id,
+      kind: CommunityPostKind.tip,
+      body: 'Mẹo phòng thủ cho người mới: đừng nhìn vợt đối thủ, hãy nhìn vai và cổ tay họ để đoán hướng cầu sớm hơn nửa nhịp. Cực kỳ hiệu quả trong đánh đôi.',
+      district: CommunityDistrict.cau_giay,
+      level: CommunityLevel.intermediate,
+      branchId: branch1.id,
+    },
+  })
+
+  const hashtags = ['timdoi', 'checkin', 'reviewsan', 'meochoi', 'caugiay', 'thanhxuan', 'longbien']
+  const hashtagMap = new Map<string, number>()
+  for (const slug of hashtags) {
+    const hashtag = await prisma.communityHashtag.create({
+      data: { slug, label: slug },
+    })
+    hashtagMap.set(slug, hashtag.id)
+  }
+
+  await prisma.communityPostHashtag.createMany({
+    data: [
+      { postId: postMinh.id, hashtagId: hashtagMap.get('timdoi')! },
+      { postId: postMinh.id, hashtagId: hashtagMap.get('caugiay')! },
+      { postId: postLinh.id, hashtagId: hashtagMap.get('checkin')! },
+      { postId: postLinh.id, hashtagId: hashtagMap.get('thanhxuan')! },
+      { postId: postTung.id, hashtagId: hashtagMap.get('reviewsan')! },
+      { postId: postTung.id, hashtagId: hashtagMap.get('longbien')! },
+      { postId: postHue.id, hashtagId: hashtagMap.get('meochoi')! },
+      { postId: postHue.id, hashtagId: hashtagMap.get('caugiay')! },
+    ],
+    skipDuplicates: true,
+  })
+
+  const comment1 = await prisma.communityComment.create({
+    data: {
+      postId: postMinh.id,
+      authorId: communityUsers.tungrally.id,
+      body: 'Cho mình 1 slot với, trình Khá ổn áp luôn.',
+    },
+  })
+  const comment2 = await prisma.communityComment.create({
+    data: {
+      postId: postMinh.id,
+      authorId: communityUsers.quannet.id,
+      body: 'Lần sau rủ mình nha, tối nay bận mất rồi.',
+    },
+  })
+  const comment3 = await prisma.communityComment.create({
+    data: {
+      postId: postLinh.id,
+      authorId: communityUsers.huedefense.id,
+      body: 'Nhìn là biết đã lắm! Hôm nào giao lưu nhé.',
+    },
+  })
+
+  await prisma.communityPostLike.createMany({
+    data: [
+      { postId: postMinh.id, userId: communityUsers.tungrally.id },
+      { postId: postMinh.id, userId: communityUsers.quannet.id },
+      { postId: postLinh.id, userId: communityUsers.minhsmash.id },
+      { postId: postLinh.id, userId: communityUsers.huedefense.id },
+      { postId: postTung.id, userId: communityUsers.minhsmash.id },
+      { postId: postTung.id, userId: communityUsers.linhdrop.id },
+      { postId: postHue.id, userId: communityUsers.minhsmash.id },
+      { postId: postHue.id, userId: communityUsers.linhdrop.id },
+      { postId: postHue.id, userId: communityUsers.quannet.id },
+    ],
+    skipDuplicates: true,
+  })
+
+  await prisma.communityPostSave.createMany({
+    data: [
+      { postId: postHue.id, userId: communityUsers.minhsmash.id },
+      { postId: postHue.id, userId: communityUsers.linhdrop.id },
+      { postId: postTung.id, userId: communityUsers.minhsmash.id },
+      { postId: postMinh.id, userId: communityUsers.quannet.id },
+    ],
+    skipDuplicates: true,
+  })
+
+  await prisma.communityCommentLike.createMany({
+    data: [
+      { commentId: comment1.id, userId: communityUsers.minhsmash.id },
+      { commentId: comment1.id, userId: communityUsers.linhdrop.id },
+      { commentId: comment2.id, userId: communityUsers.minhsmash.id },
+      { commentId: comment3.id, userId: communityUsers.linhdrop.id },
+    ],
+    skipDuplicates: true,
+  })
+
+  const match1 = await prisma.communityMatch.create({
+    data: {
+      hostId: communityUsers.minhsmash.id,
+      title: 'Đánh đôi nam tối thứ 6',
+      district: CommunityDistrict.cau_giay,
+      level: CommunityLevel.advanced,
+      branchId: branch1.id,
+      courtId: courtCauGiay?.id ?? null,
+      date: new Date('2026-06-13'),
+      slotStart: '20:00',
+      slotEnd: '22:00',
+      currentPlayers: 2,
+      neededPlayers: 4,
+      pricePerPerson: 60000,
+      note: 'Cần thêm 2 bạn đánh đôi nam, trình Khá trở lên, đánh nhiệt tình vui vẻ.',
+    },
+  })
+
+  const match2 = await prisma.communityMatch.create({
+    data: {
+      hostId: communityUsers.linhdrop.id,
+      title: 'Kèo đôi nữ cuối tuần',
+      district: CommunityDistrict.thanh_xuan,
+      level: CommunityLevel.intermediate,
+      branchId: branch2.id,
+      courtId: courtThanhXuan?.id ?? null,
+      date: new Date('2026-06-14'),
+      slotStart: '08:00',
+      slotEnd: '10:00',
+      currentPlayers: 3,
+      neededPlayers: 4,
+      pricePerPerson: 50000,
+      note: 'Nhóm nữ vui tính, chỉ thiếu 1 bạn. Ưu tiên gần Thanh Xuân.',
+    },
+  })
+
+  const match3 = await prisma.communityMatch.create({
+    data: {
+      hostId: communityUsers.quannet.id,
+      title: 'Giao lưu trình trung bình',
+      district: CommunityDistrict.long_bien,
+      level: CommunityLevel.intermediate,
+      branchId: branch3.id,
+      courtId: courtLongBien?.id ?? null,
+      date: new Date('2026-06-15'),
+      slotStart: '17:00',
+      slotEnd: '19:00',
+      currentPlayers: 4,
+      neededPlayers: 8,
+      pricePerPerson: 45000,
+      note: 'Đánh vui là chính, không quan trọng thắng thua. Còn 4 slot.',
+    },
+  })
+
+  const match4 = await prisma.communityMatch.create({
+    data: {
+      hostId: communityUsers.huedefense.id,
+      title: 'Buổi tập kỹ thuật phòng thủ',
+      district: CommunityDistrict.cau_giay,
+      level: CommunityLevel.expert,
+      branchId: branch1.id,
+      courtId: courtCauGiay?.id ?? null,
+      date: new Date('2026-06-12'),
+      slotStart: '19:00',
+      slotEnd: '21:00',
+      currentPlayers: 5,
+      neededPlayers: 6,
+      pricePerPerson: 70000,
+      note: 'Có HLV hướng dẫn. Phù hợp bạn muốn nâng trình phòng thủ.',
+    },
+  })
+
+  await prisma.communityMatchParticipant.createMany({
+    data: [
+      { matchId: match1.id, userId: communityUsers.tungrally.id, status: 'joined' },
+      { matchId: match2.id, userId: communityUsers.huedefense.id, status: 'joined' },
+      { matchId: match2.id, userId: communityUsers.minhsmash.id, status: 'joined' },
+      { matchId: match3.id, userId: communityUsers.minhsmash.id, status: 'joined' },
+      { matchId: match3.id, userId: communityUsers.linhdrop.id, status: 'joined' },
+      { matchId: match3.id, userId: communityUsers.tungrally.id, status: 'joined' },
+      { matchId: match4.id, userId: communityUsers.minhsmash.id, status: 'joined' },
+      { matchId: match4.id, userId: communityUsers.linhdrop.id, status: 'joined' },
+      { matchId: match4.id, userId: communityUsers.tungrally.id, status: 'joined' },
+      { matchId: match4.id, userId: communityUsers.quannet.id, status: 'joined' },
+    ],
+    skipDuplicates: true,
+  })
+
+  await prisma.communityNotification.createMany({
+    data: [
+      {
+        userId: communityUsers.minhsmash.id,
+        actorId: communityUsers.tungrally.id,
+        kind: CommunityNotificationKind.match,
+        text: 'đã xin tham gia kèo "Đánh đôi nam tối thứ 6" của bạn.',
+        targetType: 'match',
+        targetId: match1.id,
+      },
+      {
+        userId: communityUsers.linhdrop.id,
+        actorId: communityUsers.huedefense.id,
+        kind: CommunityNotificationKind.like,
+        text: 'đã thích bài check-in của bạn ở Thanh Xuân.',
+        targetType: 'post',
+        targetId: postLinh.id,
+      },
+      {
+        userId: communityUsers.minhsmash.id,
+        actorId: communityUsers.quannet.id,
+        kind: CommunityNotificationKind.comment,
+        text: 'đã bình luận: "Lần sau rủ mình nha".',
+        targetType: 'post',
+        targetId: postMinh.id,
+      },
+      {
+        userId: communityUsers.minhsmash.id,
+        actorId: communityUsers.linhdrop.id,
+        kind: CommunityNotificationKind.follow,
+        text: 'đã bắt đầu theo dõi bạn.',
+        targetType: 'profile',
+        targetId: communityUsers.minhsmash.username,
+      },
+    ],
+  })
+
+  console.log('✅ Community: 5 người chơi, 4 bài viết, 4 kèo, notifications mẫu')
 
   console.log('\n🎉 Seed hoàn tất!')
   console.log('─────────────────────────────────')

@@ -28,6 +28,7 @@ import { PurchaseOrdersModule } from './purchase-orders/purchase-orders.module';
 import { PaymentModule } from './payment/payment.module';
 import { UsersModule } from './users/users.module';
 import { SalesOrdersModule } from './sales-orders/sales-orders.module';
+import { CommunityModule } from './community/community.module';
 
 
 @Module({
@@ -39,6 +40,7 @@ import { SalesOrdersModule } from './sales-orders/sales-orders.module';
             CourtsModule, BookingsModule, EmailModule, ProductsModule, OrderModule, StatsModule, InventoryModule, WarehouseModule, TransfersModule, PurchaseOrdersModule, PaymentModule,
             UsersModule,
             SalesOrdersModule,
+            CommunityModule,
             ],
    providers: [
     {
