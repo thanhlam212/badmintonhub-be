@@ -38,6 +38,8 @@ async function bootstrap() {
       'http://localhost:3001',
       'http://localhost:3002',
       'https://badmintonhub-fe.vercel.app',
+      'https://www.badmintonhub.tech',
+      'https://badmintonhub.tech',
     ],
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
