@@ -372,7 +372,7 @@ export class CommunityService {
         where: { id: created.id },
         include: this.buildPostInclude(undefined),
       });
-    });
+    }, { timeout: 15000 });
 
     return this.mapPost(post);
   }

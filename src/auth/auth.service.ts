@@ -94,7 +94,7 @@ export class AuthService {
         email: dto.email,
         phone: dto.phone,
         address: dto.address,
-        gender: dto.gender as any,
+        gender: (dto.gender === 'nữ' || dto.gender === 'Nữ' || dto.gender === 'nu' ? 'nu' : (dto.gender === 'nam' || dto.gender === 'Nam' ? 'nam' : null)) as any,
         dateOfBirth: ((dto as any).date_of_birth || (dto as any).dateOfBirth)
           ? new Date((dto as any).date_of_birth || (dto as any).dateOfBirth)
           : undefined,
@@ -206,7 +206,7 @@ export class AuthService {
         ...(dto.email !== undefined && { email: dto.email }),
         ...(dto.phone !== undefined && { phone: dto.phone }),
         ...(dto.address !== undefined && { address: dto.address }),
-        ...(dto.gender !== undefined && { gender: dto.gender as any }),
+        ...(dto.gender !== undefined && { gender: (dto.gender === 'nữ' || dto.gender === 'Nữ' || dto.gender === 'nu' ? 'nu' : (dto.gender === 'nam' || dto.gender === 'Nam' ? 'nam' : null)) as any }),
         ...(dto.date_of_birth !== undefined && {
           dateOfBirth: dto.date_of_birth ? new Date(dto.date_of_birth) : null,
         }),
