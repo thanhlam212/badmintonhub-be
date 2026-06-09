@@ -114,7 +114,7 @@ export class CommunityChatGateway
   @SubscribeMessage('chat:send_message')
   async handleSendMessage(
     @ConnectedSocket() client: ChatSocket,
-    @MessageBody() body: { roomId?: string; message?: string },
+    @MessageBody() body: { roomId?: string; message?: string; clientTempId?: string },
   ) {
     const user = this.getSocketUser(client);
     const roomId = String(body?.roomId || '');
@@ -132,9 +132,10 @@ export class CommunityChatGateway
     this.server.to(roomId).emit('chat:new_message', {
       roomId,
       message: result.message,
+      clientTempId: body.clientTempId || null,
     });
 
-    return { ok: true, message: result.message };
+    return { ok: true, message: result.message, clientTempId: body.clientTempId || null };
   }
 
   private extractToken(client: ChatSocket) {
