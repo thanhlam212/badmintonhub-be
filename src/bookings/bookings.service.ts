@@ -54,8 +54,10 @@ export class BookingsService implements OnModuleInit {
   onModuleInit() {
     // Dọn dẹp ngay khi khởi động, sau đó mỗi 60 giây
     this.releaseAllExpiredBookings().catch(() => {})
+    this.autoCompleteElapsedPlayingBookings().catch(() => {})
     setInterval(() => {
       this.releaseAllExpiredBookings().catch(() => {})
+      this.autoCompleteElapsedPlayingBookings().catch(() => {})
     }, 60_000)
   }
 
@@ -121,6 +123,80 @@ export class BookingsService implements OnModuleInit {
     ])
 
     this.logger.log(`🗑️  Released ${bookingIds.length} expired slot(s) for court ${courtId}`)
+  }
+
+  private timeToMinutes(time: string) {
+    const [hour, minute] = time.split(':').map(Number)
+    return hour * 60 + minute
+  }
+
+  private hasBookingElapsed(
+    booking: { bookingDate: Date; timeEnd?: string | null },
+    current: { dateToken: string; minutes: number },
+  ) {
+    if (!booking.timeEnd) return false
+
+    const bookingDate = formatDate(booking.bookingDate)
+    if (bookingDate < current.dateToken) return true
+    if (bookingDate > current.dateToken) return false
+
+    return current.minutes >= this.timeToMinutes(booking.timeEnd)
+  }
+
+  private async autoCompleteElapsedPlayingBookings(filters?: {
+    userId?: string
+    bookingIds?: string[]
+  }) {
+    if (filters?.bookingIds && filters.bookingIds.length === 0) return new Set<string>()
+
+    const current = getBusinessNowParts(new Date())
+    const playingBookings = await this.prisma.booking.findMany({
+      where: {
+        status: 'playing',
+        ...(filters?.userId ? { userId: filters.userId } : {}),
+        ...(filters?.bookingIds ? { id: { in: filters.bookingIds } } : {}),
+      },
+      select: {
+        id: true,
+        bookingDate: true,
+        timeEnd: true,
+        fixedOccurrenceId: true,
+      },
+    })
+
+    const elapsedBookings = playingBookings.filter((booking) =>
+      this.hasBookingElapsed(booking, current),
+    )
+
+    if (elapsedBookings.length === 0) return new Set<string>()
+
+    const bookingIds = elapsedBookings.map((booking) => booking.id)
+    const fixedOccurrenceIds = elapsedBookings
+      .map((booking) => booking.fixedOccurrenceId)
+      .filter(Boolean) as string[]
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.booking.updateMany({
+        where: { id: { in: bookingIds } },
+        data: { status: 'completed' },
+      })
+
+      if (fixedOccurrenceIds.length > 0) {
+        await tx.fixedScheduleOccurrence.updateMany({
+          where: {
+            id: { in: fixedOccurrenceIds },
+            status: { notIn: ['cancelled', 'completed', 'skipped'] },
+          },
+          data: { status: 'completed' },
+        })
+      }
+    })
+
+    this.logger.log(
+      `✅ Auto-completed ${bookingIds.length} elapsed playing booking(s)`,
+    )
+
+    return new Set(bookingIds)
   }
 
   // ═══════════════════════════════════════════════════════════════
@@ -494,6 +570,7 @@ export class BookingsService implements OnModuleInit {
   }
 
   async findByUser(userId: string) {
+    await this.autoCompleteElapsedPlayingBookings({ userId }).catch(() => {})
     return this.prisma.booking.findMany({
       where: { userId },
       include: {
@@ -522,6 +599,7 @@ export class BookingsService implements OnModuleInit {
   }
 
   async findOneForUser(id: string, user: any) {
+    await this.autoCompleteElapsedPlayingBookings({ bookingIds: [id] }).catch(() => {})
     const booking = await this.findOne(id);
     if (user.role === 'admin' || user.role === 'employee') return booking;
     if (booking.userId && booking.userId === user.id) return booking;
