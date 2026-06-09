@@ -1286,6 +1286,11 @@ export class CommunityService {
     return { message: this.mapChatMessage(message, userId) };
   }
 
+  async assertChatMember(userId: string, roomId: string) {
+    await this.ensureChatMember(userId, roomId);
+    return true;
+  }
+
   private async ensureProfile(userId: string) {
     const existing = await this.prisma.communityProfile.findUnique({
       where: { userId },
