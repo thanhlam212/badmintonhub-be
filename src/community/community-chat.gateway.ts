@@ -73,7 +73,7 @@ export class CommunityChatGateway
       if (!user) throw new UnauthorizedException('Invalid token');
       client.data.user = user;
     } catch {
-      client.emit('chat:error', { message: 'Unauthorized socket connection' });
+      client.emit('chat:error', { message: 'Kết nối socket chưa được xác thực' });
       client.disconnect(true);
     }
   }
@@ -87,7 +87,7 @@ export class CommunityChatGateway
   ) {
     const user = this.getSocketUser(client);
     const roomId = String(body?.roomId || '');
-    if (!roomId) throw new ForbiddenException('Missing room id');
+    if (!roomId) throw new ForbiddenException('Thiếu mã phòng chat');
 
     await this.communityService.assertChatMember(user.id, roomId);
     await client.join(roomId);
@@ -121,7 +121,7 @@ export class CommunityChatGateway
     const messageBody = String(body?.message || '').trim();
 
     if (!roomId || !messageBody) {
-      throw new ForbiddenException('Missing room id or message');
+      throw new ForbiddenException('Thiếu mã phòng chat hoặc nội dung tin nhắn');
     }
 
     await this.communityService.assertChatMember(user.id, roomId);

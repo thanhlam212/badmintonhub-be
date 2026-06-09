@@ -1189,9 +1189,9 @@ export class CommunityService {
       where: { username },
       include: { communityProfile: true },
     });
-    if (!target) throw new NotFoundException('Khong tim thay nguoi choi');
+    if (!target) throw new NotFoundException('Không tìm thấy người chơi');
     if (target.id === userId) {
-      throw new BadRequestException('Ban khong the chat rieng voi chinh minh');
+      throw new BadRequestException('Bạn không thể chat riêng với chính mình');
     }
     await this.ensureProfile(target.id);
 
@@ -1204,7 +1204,7 @@ export class CommunityService {
         create: {
           type: CommunityChatRoomType.private,
           directKey,
-          title: `Chat rieng`,
+          title: `Chat riêng`,
         },
       });
 
@@ -1277,7 +1277,7 @@ export class CommunityService {
 
       await tx.communityChatRoom.update({
         where: { id: roomId },
-        data: {},
+        data: { updatedAt: new Date() },
       });
 
       return created;
@@ -1406,7 +1406,7 @@ export class CommunityService {
     const member = await this.prisma.communityChatMember.findUnique({
       where: { roomId_userId: { roomId, userId } },
     });
-    if (!member) throw new ForbiddenException('Ban chua o trong nhom chat nay');
+    if (!member) throw new ForbiddenException('Bạn chưa ở trong nhóm chat này');
     return member;
   }
 
@@ -1415,9 +1415,9 @@ export class CommunityService {
       where: { username },
       include: { communityProfile: true },
     });
-    if (!target) throw new NotFoundException('Khong tim thay nguoi choi');
+    if (!target) throw new NotFoundException('Không tìm thấy người chơi');
     if (target.id === userId) {
-      throw new BadRequestException('Khong the ket ban voi chinh minh');
+      throw new BadRequestException('Không thể kết bạn với chính mình');
     }
     await this.ensureProfile(userId);
     await this.ensureProfile(target.id);
@@ -1650,17 +1650,17 @@ export class CommunityService {
   private getMatchStatusLabel(status: CommunityMatchStatus) {
     switch (status) {
       case CommunityMatchStatus.open:
-        return 'Dang mo';
+        return 'Đang mở';
       case CommunityMatchStatus.full:
-        return 'Da du';
+        return 'Đã đủ';
       case CommunityMatchStatus.expired:
-        return 'Qua han';
+        return 'Quá hạn';
       case CommunityMatchStatus.completed:
-        return 'Da hoan thanh';
+        return 'Đã hoàn thành';
       case CommunityMatchStatus.cancelled:
-        return 'Da huy';
+        return 'Đã hủy';
       default:
-        return 'Da dong';
+        return 'Đã đóng';
     }
   }
 
@@ -1693,6 +1693,7 @@ export class CommunityService {
     return {
       id: message.id,
       roomId: message.roomId,
+      senderId: message.senderId,
       body: message.body,
       createdAt: message.createdAt,
       time: this.formatRelativeTime(message.createdAt),
