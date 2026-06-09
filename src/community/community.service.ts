@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import {
   BookingStatus,
+  CommunityChatRole,
   CommunityDistrict,
   CommunityLevel,
   CommunityMatchParticipationStatus,
@@ -21,7 +22,13 @@ import {
   CreateCommunityCommentDto,
   CreateCommunityMatchDto,
   CreateCommunityPostDto,
+  SendCommunityChatMessageDto,
 } from './dto/community.dto';
+import {
+  formatDate,
+  getBusinessNowParts,
+  normalizeDate,
+} from 'src/bookings/booking.helpers';
 
 type CurrentUser = { id: string; username: string; role?: string };
 
@@ -80,6 +87,8 @@ export class CommunityService {
   constructor(private readonly prisma: PrismaService) {}
 
   async getLanding() {
+    await this.syncExpiredMatches();
+
     const [featuredPlayers, featuredPosts, activeMatches] = await Promise.all([
       this.prisma.communityProfile.findMany({
         take: 3,
@@ -107,6 +116,8 @@ export class CommunityService {
   }
 
   async getFeed(query: CommunityFeedQueryDto) {
+    await this.syncExpiredMatches();
+
     const where: Prisma.CommunityPostWhereInput = {};
     if (query.kind && query.kind !== 'Tất cả') {
       where.kind = POST_KIND_LABEL_TO_ENUM[query.kind];
@@ -203,8 +214,16 @@ export class CommunityService {
   }
 
   async getMatches(query: CommunityMatchesQueryDto, currentUserId?: string) {
+    await this.syncExpiredMatches();
+
     const where: Prisma.CommunityMatchWhereInput = {
-      status: { in: [CommunityMatchStatus.open, CommunityMatchStatus.full] },
+      status: {
+        in: [
+          CommunityMatchStatus.open,
+          CommunityMatchStatus.full,
+          CommunityMatchStatus.expired,
+        ],
+      },
     };
 
     if (query.district && query.district !== 'Tất cả') {
@@ -618,6 +637,9 @@ export class CommunityService {
     if (bookingDate < today) {
       throw new BadRequestException('Khong the tao keo tu booking da qua');
     }
+    if (this.hasMatchElapsed(bookingDate, booking.timeEnd ?? booking.timeStart)) {
+      throw new BadRequestException('Khong the tao keo tu booking da het gio choi');
+    }
 
     const district = this.inferDistrictFromBranch(booking.branch);
     if (!district) {
@@ -626,14 +648,13 @@ export class CommunityService {
 
     const existingMatch = await this.prisma.communityMatch.findFirst({
       where: {
-        hostId: userId,
-        branchId: booking.branchId,
-        courtId: booking.courtId,
-        date: bookingDate,
-        slotStart: booking.timeStart,
-        slotEnd: booking.timeEnd ?? booking.timeStart,
+        bookingId: booking.id,
         status: {
-          in: [CommunityMatchStatus.open, CommunityMatchStatus.full],
+          in: [
+            CommunityMatchStatus.open,
+            CommunityMatchStatus.full,
+            CommunityMatchStatus.expired,
+          ],
         },
       },
     });
@@ -641,24 +662,50 @@ export class CommunityService {
       throw new BadRequestException('Ban da tao keo cho booking san nay roi');
     }
 
-    const match = await this.prisma.$transaction(async (tx) => {
+    const totalPlayers = Math.max(2, Number(booking.people || dto.needed_players || 2));
+    const pricePerPerson = Math.round(Number(booking.amount) / totalPlayers);
+
+    const matchId = await this.prisma.$transaction(async (tx) => {
       const created = await tx.communityMatch.create({
         data: {
           hostId: userId,
+          bookingId: booking.id,
           title: dto.title.trim(),
           district,
           level: LEVEL_LABEL_TO_ENUM[dto.level],
           date: bookingDate,
           slotStart: booking.timeStart,
           slotEnd: booking.timeEnd ?? booking.timeStart,
-          neededPlayers: dto.needed_players,
+          neededPlayers: totalPlayers,
           currentPlayers: 1,
-          pricePerPerson: new Prisma.Decimal(dto.price_per_person),
+          pricePerPerson: new Prisma.Decimal(pricePerPerson),
           note: dto.note?.trim() || null,
           branchId: booking.branchId,
           courtId: booking.courtId,
         },
-        include: this.buildMatchInclude(),
+      });
+
+      await tx.communityMatchParticipant.create({
+        data: {
+          matchId: created.id,
+          userId,
+          status: CommunityMatchParticipationStatus.joined,
+        },
+      });
+
+      const room = await tx.communityChatRoom.create({
+        data: {
+          matchId: created.id,
+          title: created.title,
+        },
+      });
+
+      await tx.communityChatMember.create({
+        data: {
+          roomId: room.id,
+          userId,
+          role: CommunityChatRole.owner,
+        },
       });
 
       await tx.communityProfile.update({
@@ -666,7 +713,12 @@ export class CommunityService {
         data: { matchesCount: { increment: 1 } },
       });
 
-      return created;
+      return created.id;
+    });
+
+    const match = await this.prisma.communityMatch.findUniqueOrThrow({
+      where: { id: matchId },
+      include: this.buildMatchInclude(userId),
     });
 
     return this.mapMatch(match, userId);
@@ -675,6 +727,7 @@ export class CommunityService {
   async joinMatch(userId: string, matchId: string) {
 
     await this.ensureProfile(userId);
+    await this.syncExpiredMatches([matchId]);
     const match = await this.prisma.communityMatch.findUnique({
       where: { id: matchId },
       include: this.buildMatchInclude(userId),
@@ -683,7 +736,10 @@ export class CommunityService {
     if (match.hostId === userId) {
       throw new BadRequestException('Bạn đã là chủ kèo này');
     }
-    if (match.status === CommunityMatchStatus.closed || match.status === CommunityMatchStatus.cancelled) {
+    if (
+      match.status !== CommunityMatchStatus.open ||
+      this.hasMatchElapsed(match.date, match.slotEnd)
+    ) {
       throw new ForbiddenException('Kèo đấu không còn mở');
     }
 
@@ -691,33 +747,40 @@ export class CommunityService {
       where: { matchId_userId: { matchId, userId } },
     });
 
-    if (!existing) {
-      await this.prisma.$transaction(async (tx) => {
+    if (existing?.status === CommunityMatchParticipationStatus.joined) {
+      return {
+        joined: true,
+        requested: false,
+        match: this.mapMatch(match, userId),
+      };
+    }
+
+    if (existing?.status === CommunityMatchParticipationStatus.requested) {
+      return {
+        joined: false,
+        requested: true,
+        match: this.mapMatch(match, userId),
+      };
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      if (existing) {
+        await tx.communityMatchParticipant.update({
+          where: { matchId_userId: { matchId, userId } },
+          data: { status: CommunityMatchParticipationStatus.requested },
+        });
+      } else {
         await tx.communityMatchParticipant.create({
           data: {
             matchId,
             userId,
-            status: CommunityMatchParticipationStatus.joined,
+            status: CommunityMatchParticipationStatus.requested,
           },
         });
-
-        const updated = await tx.communityMatch.update({
-          where: { id: matchId },
-          data: {
-            currentPlayers: { increment: 1 },
-          },
-          select: { currentPlayers: true, neededPlayers: true, hostId: true },
-        });
-
-        if (updated.currentPlayers >= updated.neededPlayers) {
-          await tx.communityMatch.update({
-            where: { id: matchId },
-            data: { status: CommunityMatchStatus.full },
-          });
-        }
+      }
 
         await this.createNotification(tx, {
-          userId: updated.hostId,
+          userId: match.hostId,
           actorId: userId,
           kind: CommunityNotificationKind.match,
           text: `đã xin tham gia kèo "${match.title}" của bạn.`,
@@ -725,7 +788,6 @@ export class CommunityService {
           targetId: matchId,
         });
       });
-    }
 
     const fresh = await this.prisma.communityMatch.findUniqueOrThrow({
       where: { id: matchId },
@@ -733,9 +795,206 @@ export class CommunityService {
     });
 
     return {
-      joined: true,
+      joined: false,
+      requested: true,
       match: this.mapMatch(fresh, userId),
     };
+  }
+
+  async getMatchParticipants(hostId: string, matchId: string) {
+    const match = await this.prisma.communityMatch.findUnique({
+      where: { id: matchId },
+      include: {
+        participants: {
+          orderBy: { createdAt: 'asc' },
+          include: { user: { include: { communityProfile: true } } },
+        },
+      },
+    });
+    if (!match) throw new NotFoundException('Khong tim thay keo dau');
+    if (match.hostId !== hostId) throw new ForbiddenException('Chi chu keo moi duoc duyet');
+
+    return {
+      participants: match.participants.map((participant) => ({
+        userId: participant.userId,
+        status: participant.status,
+        requestedAt: participant.createdAt,
+        player: this.mapPlayer(participant.user, participant.user.communityProfile),
+      })),
+    };
+  }
+
+  async approveMatchParticipant(hostId: string, matchId: string, participantUserId: string) {
+    await this.syncExpiredMatches([matchId]);
+
+    const match = await this.prisma.communityMatch.findUnique({
+      where: { id: matchId },
+      include: this.buildMatchInclude(hostId),
+    });
+    if (!match) throw new NotFoundException('Khong tim thay keo dau');
+    if (match.hostId !== hostId) throw new ForbiddenException('Chi chu keo moi duoc duyet');
+    if (
+      match.status !== CommunityMatchStatus.open ||
+      this.hasMatchElapsed(match.date, match.slotEnd)
+    ) {
+      throw new ForbiddenException('Keo nay da qua han hoac khong con nhan nguoi');
+    }
+    if (match.currentPlayers >= match.neededPlayers) {
+      throw new BadRequestException('Keo da du nguoi');
+    }
+
+    const participant = await this.prisma.communityMatchParticipant.findUnique({
+      where: { matchId_userId: { matchId, userId: participantUserId } },
+    });
+    if (!participant || participant.status !== CommunityMatchParticipationStatus.requested) {
+      throw new BadRequestException('Nguoi choi chua gui yeu cau tham gia');
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.communityMatchParticipant.update({
+        where: { matchId_userId: { matchId, userId: participantUserId } },
+        data: { status: CommunityMatchParticipationStatus.joined },
+      });
+
+      const nextPlayers = match.currentPlayers + 1;
+      await tx.communityMatch.update({
+        where: { id: matchId },
+        data: {
+          currentPlayers: { increment: 1 },
+          status:
+            nextPlayers >= match.neededPlayers
+              ? CommunityMatchStatus.full
+              : CommunityMatchStatus.open,
+        },
+      });
+
+      const room = await tx.communityChatRoom.upsert({
+        where: { matchId },
+        update: {},
+        create: { matchId, title: match.title },
+      });
+
+      await tx.communityChatMember.upsert({
+        where: { roomId_userId: { roomId: room.id, userId: hostId } },
+        update: { role: CommunityChatRole.owner },
+        create: {
+          roomId: room.id,
+          userId: hostId,
+          role: CommunityChatRole.owner,
+        },
+      });
+
+      await tx.communityChatMember.upsert({
+        where: { roomId_userId: { roomId: room.id, userId: participantUserId } },
+        update: { role: CommunityChatRole.member },
+        create: {
+          roomId: room.id,
+          userId: participantUserId,
+          role: CommunityChatRole.member,
+        },
+      });
+
+      await this.createNotification(tx, {
+        userId: participantUserId,
+        actorId: hostId,
+        kind: CommunityNotificationKind.match,
+        text: `da duyet ban vao keo "${match.title}".`,
+        targetType: 'match',
+        targetId: matchId,
+      });
+    });
+
+    const fresh = await this.prisma.communityMatch.findUniqueOrThrow({
+      where: { id: matchId },
+      include: this.buildMatchInclude(hostId),
+    });
+
+    return { match: this.mapMatch(fresh, hostId) };
+  }
+
+  async rejectMatchParticipant(hostId: string, matchId: string, participantUserId: string) {
+    const match = await this.prisma.communityMatch.findUnique({
+      where: { id: matchId },
+      select: { id: true, hostId: true, title: true },
+    });
+    if (!match) throw new NotFoundException('Khong tim thay keo dau');
+    if (match.hostId !== hostId) throw new ForbiddenException('Chi chu keo moi duoc duyet');
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.communityMatchParticipant.update({
+        where: { matchId_userId: { matchId, userId: participantUserId } },
+        data: { status: CommunityMatchParticipationStatus.rejected },
+      });
+
+      await this.createNotification(tx, {
+        userId: participantUserId,
+        actorId: hostId,
+        kind: CommunityNotificationKind.match,
+        text: `da tu choi yeu cau vao keo "${match.title}".`,
+        targetType: 'match',
+        targetId: matchId,
+      });
+    });
+
+    return { success: true };
+  }
+
+  async getChatRooms(userId: string) {
+    const memberships = await this.prisma.communityChatMember.findMany({
+      where: { userId },
+      orderBy: { joinedAt: 'desc' },
+      include: {
+        room: {
+          include: {
+            match: {
+              include: {
+                host: { include: { communityProfile: true } },
+                branch: true,
+                court: true,
+              },
+            },
+            members: true,
+            messages: {
+              take: 1,
+              orderBy: { createdAt: 'desc' },
+              include: { sender: { include: { communityProfile: true } } },
+            },
+          },
+        },
+      },
+    });
+
+    return {
+      rooms: memberships.map((membership) => this.mapChatRoom(membership.room)),
+    };
+  }
+
+  async getChatMessages(userId: string, roomId: string) {
+    await this.ensureChatMember(userId, roomId);
+
+    const messages = await this.prisma.communityChatMessage.findMany({
+      where: { roomId },
+      orderBy: { createdAt: 'asc' },
+      take: 200,
+      include: { sender: { include: { communityProfile: true } } },
+    });
+
+    return { messages: messages.map((message) => this.mapChatMessage(message, userId)) };
+  }
+
+  async sendChatMessage(userId: string, roomId: string, dto: SendCommunityChatMessageDto) {
+    await this.ensureChatMember(userId, roomId);
+
+    const message = await this.prisma.communityChatMessage.create({
+      data: {
+        roomId,
+        senderId: userId,
+        body: dto.body.trim(),
+      },
+      include: { sender: { include: { communityProfile: true } } },
+    });
+
+    return { message: this.mapChatMessage(message, userId) };
   }
 
   private async ensureProfile(userId: string) {
@@ -780,24 +1039,81 @@ export class CommunityService {
   }
 
   private buildMatchInclude(currentUserId?: string) {
+    void currentUserId;
+
     return {
       host: { include: { communityProfile: true } },
       branch: true,
       court: true,
+      chatRoom: true,
       participants: {
         include: {
           user: { include: { communityProfile: true } },
         },
       },
-      ...(currentUserId
-        ? {
-            participants: {
-              include: { user: { include: { communityProfile: true } } },
-              where: {},
-            },
-          }
-        : {}),
     };
+  }
+
+  private async syncExpiredMatches(matchIds?: string[]) {
+    const idFilter: Prisma.CommunityMatchWhereInput =
+      matchIds && matchIds.length
+        ? { id: { in: matchIds } }
+        : {};
+    const now = getBusinessNowParts(new Date());
+    const today = normalizeDate(now.dateToken);
+    const activeStatuses = [CommunityMatchStatus.open, CommunityMatchStatus.full];
+
+    await this.prisma.communityMatch.updateMany({
+      where: {
+        ...idFilter,
+        status: { in: activeStatuses },
+        date: { lt: today },
+      },
+      data: { status: CommunityMatchStatus.expired },
+    });
+
+    const todayMatches = await this.prisma.communityMatch.findMany({
+      where: {
+        ...idFilter,
+        status: { in: activeStatuses },
+        date: today,
+      },
+      select: { id: true, slotEnd: true },
+    });
+    const nowMinutes = now.minutes;
+    const expiredTodayIds = todayMatches
+      .filter((match) => this.minutesFromTime(match.slotEnd) <= nowMinutes)
+      .map((match) => match.id);
+
+    if (expiredTodayIds.length) {
+      await this.prisma.communityMatch.updateMany({
+        where: { id: { in: expiredTodayIds } },
+        data: { status: CommunityMatchStatus.expired },
+      });
+    }
+  }
+
+  private hasMatchElapsed(date: Date | string, slotEnd: string) {
+    const now = getBusinessNowParts(new Date());
+    const matchDate = formatDate(new Date(date));
+    if (matchDate < now.dateToken) return true;
+    if (matchDate > now.dateToken) return false;
+    return this.minutesFromTime(slotEnd) <= now.minutes;
+  }
+
+  private minutesFromTime(value: string) {
+    const [hourRaw, minuteRaw] = value.split(':');
+    const hour = Number(hourRaw || 0);
+    const minute = Number(minuteRaw || 0);
+    return hour * 60 + minute;
+  }
+
+  private async ensureChatMember(userId: string, roomId: string) {
+    const member = await this.prisma.communityChatMember.findUnique({
+      where: { roomId_userId: { roomId, userId } },
+    });
+    if (!member) throw new ForbiddenException('Ban chua o trong nhom chat nay');
+    return member;
   }
 
   private async syncPostTags(tx: Prisma.TransactionClient, postId: string, tags: string[]) {
@@ -900,15 +1216,43 @@ export class CommunityService {
   }
 
   private mapMatch(match: any, currentUserId?: string) {
+    const currentParticipant = match.participants?.find(
+      (participant: any) => participant.userId === currentUserId,
+    );
     const joined = !!match.participants?.some(
       (participant: any) =>
         participant.userId === currentUserId &&
         participant.status === CommunityMatchParticipationStatus.joined,
     );
+    const requested =
+      currentParticipant?.status === CommunityMatchParticipationStatus.requested;
+    const isHost = match.hostId === currentUserId;
+    const expired =
+      match.status === CommunityMatchStatus.expired ||
+      this.hasMatchElapsed(match.date, match.slotEnd);
+    const pendingParticipants = (match.participants || []).filter(
+      (participant: any) =>
+        participant.status === CommunityMatchParticipationStatus.requested,
+    );
+    const joinedParticipants = (match.participants || []).filter(
+      (participant: any) =>
+        participant.status === CommunityMatchParticipationStatus.joined,
+    );
+    const canJoin =
+      !!currentUserId &&
+      !isHost &&
+      !joined &&
+      !requested &&
+      !expired &&
+      match.status === CommunityMatchStatus.open;
+    const status = expired ? CommunityMatchStatus.expired : match.status;
+    const roomId = match.chatRoom && (isHost || joined) ? match.chatRoom.id : null;
 
     return {
       id: match.id,
       title: match.title,
+      status,
+      statusLabel: this.getMatchStatusLabel(status),
       district: DISTRICT_ENUM_TO_LABEL[match.district],
       court: this.buildCourtLabel(match.court, match.branch) || DISTRICT_ENUM_TO_LABEL[match.district],
       level: LEVEL_ENUM_TO_LABEL[match.level],
@@ -916,10 +1260,63 @@ export class CommunityService {
       slot: `${match.slotStart} - ${match.slotEnd}`,
       filled: match.currentPlayers,
       needed: match.neededPlayers,
+      pricePerPerson: Number(match.pricePerPerson),
       price: `${this.formatMoney(Number(match.pricePerPerson))} / người`,
       note: match.note || '',
       joined,
+      requested,
+      canJoin,
+      expired,
+      isHost,
+      roomId,
+      pendingParticipants: pendingParticipants.length,
+      participants: joinedParticipants.map((participant: any) => ({
+        userId: participant.userId,
+        status: participant.status,
+        player: this.mapPlayer(participant.user, participant.user?.communityProfile),
+      })),
       host: this.mapPlayer(match.host, match.host?.communityProfile),
+    };
+  }
+
+  private getMatchStatusLabel(status: CommunityMatchStatus) {
+    switch (status) {
+      case CommunityMatchStatus.open:
+        return 'Dang mo';
+      case CommunityMatchStatus.full:
+        return 'Da du';
+      case CommunityMatchStatus.expired:
+        return 'Qua han';
+      case CommunityMatchStatus.completed:
+        return 'Da hoan thanh';
+      case CommunityMatchStatus.cancelled:
+        return 'Da huy';
+      default:
+        return 'Da dong';
+    }
+  }
+
+  private mapChatRoom(room: any) {
+    const latestMessage = room.messages?.[0];
+    return {
+      id: room.id,
+      title: room.title,
+      matchId: room.matchId,
+      memberCount: room.members?.length ?? 0,
+      match: room.match ? this.mapMatch(room.match) : null,
+      latestMessage: latestMessage ? this.mapChatMessage(latestMessage) : null,
+    };
+  }
+
+  private mapChatMessage(message: any, currentUserId?: string) {
+    return {
+      id: message.id,
+      roomId: message.roomId,
+      body: message.body,
+      createdAt: message.createdAt,
+      time: this.formatRelativeTime(message.createdAt),
+      mine: message.senderId === currentUserId,
+      sender: this.mapPlayer(message.sender, message.sender?.communityProfile),
     };
   }
 

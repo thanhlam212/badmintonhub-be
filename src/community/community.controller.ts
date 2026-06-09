@@ -21,6 +21,7 @@ import {
   CreateCommunityCommentDto,
   CreateCommunityMatchDto,
   CreateCommunityPostDto,
+  SendCommunityChatMessageDto,
 } from './dto/community.dto';
 
 @Controller('community')
@@ -117,6 +118,48 @@ export class CommunityController {
   @Post('matches/:id/join')
   joinMatch(@CurrentUser() user: any, @Param('id') id: string) {
     return this.communityService.joinMatch(user.id, id);
+  }
+
+  @Get('matches/:id/participants')
+  getMatchParticipants(@CurrentUser() user: any, @Param('id') id: string) {
+    return this.communityService.getMatchParticipants(user.id, id);
+  }
+
+  @Patch('matches/:id/participants/:userId/approve')
+  approveMatchParticipant(
+    @CurrentUser() user: any,
+    @Param('id') id: string,
+    @Param('userId') userId: string,
+  ) {
+    return this.communityService.approveMatchParticipant(user.id, id, userId);
+  }
+
+  @Patch('matches/:id/participants/:userId/reject')
+  rejectMatchParticipant(
+    @CurrentUser() user: any,
+    @Param('id') id: string,
+    @Param('userId') userId: string,
+  ) {
+    return this.communityService.rejectMatchParticipant(user.id, id, userId);
+  }
+
+  @Get('chat/rooms')
+  getChatRooms(@CurrentUser() user: any) {
+    return this.communityService.getChatRooms(user.id);
+  }
+
+  @Get('chat/rooms/:roomId/messages')
+  getChatMessages(@CurrentUser() user: any, @Param('roomId') roomId: string) {
+    return this.communityService.getChatMessages(user.id, roomId);
+  }
+
+  @Post('chat/rooms/:roomId/messages')
+  sendChatMessage(
+    @CurrentUser() user: any,
+    @Param('roomId') roomId: string,
+    @Body() dto: SendCommunityChatMessageDto,
+  ) {
+    return this.communityService.sendChatMessage(user.id, roomId, dto);
   }
 
   @Post('upload-image')

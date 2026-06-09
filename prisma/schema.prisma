@@ -73,6 +73,8 @@ model User {
   communityFollowing          CommunityFollow[]           @relation("CommunityFollower")
   communityMatchParticipants  CommunityMatchParticipant[]
   communityMatchesHosted      CommunityMatch[]            @relation("CommunityMatchHost")
+  communityChatMembers        CommunityChatMember[]
+  communityChatMessages       CommunityChatMessage[]
   communityNotificationActors CommunityNotification[]     @relation("CommunityNotificationActor")
   communityNotifications      CommunityNotification[]     @relation("CommunityNotificationRecipient")
   communityPostLikes          CommunityPostLike[]
@@ -212,6 +214,7 @@ model Booking {
   customerEmail     String?                  @map("customer_email") @db.VarChar(100)
   createdAt         DateTime                 @default(now()) @map("created_at")
   updatedAt         DateTime                 @default(now()) @updatedAt @map("updated_at")
+  communityMatch    CommunityMatch?
   branch            Branch                   @relation(fields: [branchId], references: [id])
   court             Court                    @relation(fields: [courtId], references: [id])
   fixedSchedule     FixedSchedule?           @relation(fields: [fixedScheduleId], references: [id])
@@ -767,6 +770,7 @@ model CommunityCommentLike {
 model CommunityMatch {
   id             String                      @id @default(uuid()) @db.Uuid
   hostId         String                      @map("host_id") @db.Uuid
+  bookingId      String?                     @unique @map("booking_id") @db.Uuid
   title          String                      @db.VarChar(150)
   district       CommunityDistrict
   level          CommunityLevel
@@ -783,11 +787,14 @@ model CommunityMatch {
   createdAt      DateTime                    @default(now()) @map("created_at")
   updatedAt      DateTime                    @default(now()) @updatedAt @map("updated_at")
   branch         Branch?                     @relation(fields: [branchId], references: [id])
+  booking        Booking?                    @relation(fields: [bookingId], references: [id])
   court          Court?                      @relation(fields: [courtId], references: [id])
   host           User                        @relation("CommunityMatchHost", fields: [hostId], references: [id], onDelete: Cascade)
   participants   CommunityMatchParticipant[]
+  chatRoom       CommunityChatRoom?
 
   @@index([district, level, date], map: "idx_community_matches_filters")
+  @@index([bookingId], map: "idx_community_matches_booking")
   @@index([hostId], map: "idx_community_matches_host")
   @@map("community_matches")
 }
@@ -803,6 +810,45 @@ model CommunityMatchParticipant {
   @@id([matchId, userId])
   @@index([userId], map: "idx_community_match_participants_user")
   @@map("community_match_participants")
+}
+
+model CommunityChatRoom {
+  id        String                 @id @default(uuid()) @db.Uuid
+  matchId   String                 @unique @map("match_id") @db.Uuid
+  title     String                 @db.VarChar(150)
+  createdAt DateTime               @default(now()) @map("created_at")
+  updatedAt DateTime               @default(now()) @updatedAt @map("updated_at")
+  match     CommunityMatch         @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  members   CommunityChatMember[]
+  messages  CommunityChatMessage[]
+
+  @@map("community_chat_rooms")
+}
+
+model CommunityChatMember {
+  roomId   String            @map("room_id") @db.Uuid
+  userId   String            @map("user_id") @db.Uuid
+  role     CommunityChatRole @default(member)
+  joinedAt DateTime          @default(now()) @map("joined_at")
+  room     CommunityChatRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user     User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([roomId, userId])
+  @@index([userId], map: "idx_community_chat_members_user")
+  @@map("community_chat_members")
+}
+
+model CommunityChatMessage {
+  id        String            @id @default(uuid()) @db.Uuid
+  roomId    String            @map("room_id") @db.Uuid
+  senderId  String            @map("sender_id") @db.Uuid
+  body      String
+  createdAt DateTime          @default(now()) @map("created_at")
+  room      CommunityChatRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  sender    User              @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([roomId, createdAt], map: "idx_community_chat_messages_room")
+  @@map("community_chat_messages")
 }
 
 model CommunityNotification {
@@ -869,6 +915,7 @@ enum CommunityMatchStatus {
   closed
   cancelled
   completed
+  expired
 }
 
 enum CommunityMatchParticipationStatus {
@@ -876,6 +923,11 @@ enum CommunityMatchParticipationStatus {
   joined
   rejected
   left
+}
+
+enum CommunityChatRole {
+  owner
+  member
 }
 
 enum CourtType {

@@ -149,3 +149,9 @@ export class MarkNotificationReadDto {
   @IsString({ each: true })
   ids?: string[];
 }
+
+export class SendCommunityChatMessageDto {
+  @IsString()
+  @Length(1, 2000)
+  body: string;
+}
