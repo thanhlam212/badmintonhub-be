@@ -16,6 +16,7 @@ import { extname, join } from 'path';
 import { CurrentUser, Public } from 'src/auth/decorators';
 import { CommunityService } from './community.service';
 import {
+  CommunityChatMessagesQueryDto,
   CommunityFeedQueryDto,
   CommunityMatchesQueryDto,
   CommunityPlayersQueryDto,
@@ -190,8 +191,12 @@ export class CommunityController {
   }
 
   @Get('chat/rooms/:roomId/messages')
-  getChatMessages(@CurrentUser() user: any, @Param('roomId') roomId: string) {
-    return this.communityService.getChatMessages(user.id, roomId);
+  getChatMessages(
+    @CurrentUser() user: any,
+    @Param('roomId') roomId: string,
+    @Query() query: CommunityChatMessagesQueryDto,
+  ) {
+    return this.communityService.getChatMessages(user.id, roomId, query);
   }
 
   @Post('chat/rooms/:roomId/messages')

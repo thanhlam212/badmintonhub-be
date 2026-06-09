@@ -19,6 +19,7 @@ import {
 } from '@prisma/client';
 import { PrismaService } from 'src/prisma/prisma.service';
 import {
+  CommunityChatMessagesQueryDto,
   CommunityFeedQueryDto,
   CommunityMatchesQueryDto,
   CommunityPlayersQueryDto,
@@ -1166,7 +1167,7 @@ export class CommunityService {
   async getChatRooms(userId: string) {
     const memberships = await this.prisma.communityChatMember.findMany({
       where: { userId },
-      orderBy: { joinedAt: 'desc' },
+      orderBy: { room: { updatedAt: 'desc' } },
       include: {
         room: {
           include: this.buildChatRoomInclude(),
@@ -1233,29 +1234,53 @@ export class CommunityService {
     return { room: this.mapChatRoom(fresh, userId) };
   }
 
-  async getChatMessages(userId: string, roomId: string) {
+  async getChatMessages(
+    userId: string,
+    roomId: string,
+    query: CommunityChatMessagesQueryDto = {},
+  ) {
     await this.ensureChatMember(userId, roomId);
 
+    const take = Math.min(Math.max(query.limit ?? 50, 1), 200);
+    const afterDate = query.after ? new Date(query.after) : null;
     const messages = await this.prisma.communityChatMessage.findMany({
-      where: { roomId },
-      orderBy: { createdAt: 'asc' },
-      take: 200,
+      where: {
+        roomId,
+        ...(afterDate ? { createdAt: { gt: afterDate } } : {}),
+      },
+      orderBy: { createdAt: afterDate ? 'asc' : 'desc' },
+      take,
       include: { sender: { include: { communityProfile: true } } },
     });
 
-    return { messages: messages.map((message) => this.mapChatMessage(message, userId)) };
+    const orderedMessages = afterDate ? messages : [...messages].reverse();
+
+    return {
+      messages: orderedMessages.map((message) =>
+        this.mapChatMessage(message, userId),
+      ),
+    };
   }
 
   async sendChatMessage(userId: string, roomId: string, dto: SendCommunityChatMessageDto) {
     await this.ensureChatMember(userId, roomId);
 
-    const message = await this.prisma.communityChatMessage.create({
-      data: {
-        roomId,
-        senderId: userId,
-        body: dto.body.trim(),
-      },
-      include: { sender: { include: { communityProfile: true } } },
+    const message = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.communityChatMessage.create({
+        data: {
+          roomId,
+          senderId: userId,
+          body: dto.body.trim(),
+        },
+        include: { sender: { include: { communityProfile: true } } },
+      });
+
+      await tx.communityChatRoom.update({
+        where: { id: roomId },
+        data: {},
+      });
+
+      return created;
     });
 
     return { message: this.mapChatMessage(message, userId) };

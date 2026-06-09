@@ -2,6 +2,7 @@ import {
   ArrayMaxSize,
   ArrayNotEmpty,
   IsArray,
+  IsDateString,
   IsIn,
   IsInt,
   IsNumber,
@@ -169,6 +170,18 @@ export class SendCommunityChatMessageDto {
   @IsString()
   @Length(1, 2000)
   body: string;
+}
+
+export class CommunityChatMessagesQueryDto {
+  @IsOptional()
+  @IsDateString()
+  after?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(200)
+  limit?: number;
 }
 
 export class UpdateCommunityProfileDto {
