@@ -92,7 +92,11 @@ export class CommunityChatGateway
     await this.communityService.assertChatMember(user.id, roomId);
     await client.join(roomId);
 
-    return { ok: true, roomId };
+    const { messages } = await this.communityService.getChatMessages(user.id, roomId, {
+      limit: 100,
+    });
+
+    return { ok: true, roomId, messages };
   }
 
   @SubscribeMessage('chat:leave_room')
