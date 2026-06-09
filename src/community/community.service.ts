@@ -7,7 +7,9 @@ import {
 import {
   BookingStatus,
   CommunityChatRole,
+  CommunityChatRoomType,
   CommunityDistrict,
+  CommunityFriendshipStatus,
   CommunityLevel,
   CommunityMatchParticipationStatus,
   CommunityMatchStatus,
@@ -19,6 +21,7 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import {
   CommunityFeedQueryDto,
   CommunityMatchesQueryDto,
+  CommunityPlayersQueryDto,
   CreateCommunityCommentDto,
   CreateCommunityMatchDto,
   CreateCommunityPostDto,
@@ -190,6 +193,54 @@ export class CommunityService {
       checkins: posts.filter((post) => post.kind === 'Check-in'),
       hostedMatches: user.communityMatchesHosted.map((match) => this.mapMatch(match)),
       savedPosts: [],
+    };
+  }
+
+  async getPlayers(query: CommunityPlayersQueryDto, currentUserId?: string) {
+    const where: Prisma.UserWhereInput = {
+      role: { not: 'guest' },
+    };
+    const profileWhere: Prisma.CommunityProfileWhereInput = {};
+
+    if (query.q?.trim()) {
+      const keyword = query.q.trim();
+      where.OR = [
+        { username: { contains: keyword, mode: 'insensitive' } },
+        { fullName: { contains: keyword, mode: 'insensitive' } },
+        { email: { contains: keyword, mode: 'insensitive' } },
+      ];
+    }
+    if (query.district) {
+      profileWhere.district = DISTRICT_LABEL_TO_ENUM[query.district];
+    }
+    if (query.level) {
+      profileWhere.level = LEVEL_LABEL_TO_ENUM[query.level];
+    }
+    if (Object.keys(profileWhere).length) {
+      where.communityProfile = { is: profileWhere };
+    }
+
+    const users = await this.prisma.user.findMany({
+      where,
+      take: 30,
+      orderBy: [{ createdAt: 'desc' }],
+      include: { communityProfile: true },
+    });
+    const friendshipMap = currentUserId
+      ? await this.getFriendshipStatusMap(
+          currentUserId,
+          users.map((user) => user.id),
+        )
+      : new Map<string, string>();
+
+    return {
+      players: users.map((user) => ({
+        ...this.mapPlayer(user, user.communityProfile),
+        friendshipStatus:
+          user.id === currentUserId
+            ? 'self'
+            : friendshipMap.get(user.id) || 'none',
+      })),
     };
   }
 
@@ -604,6 +655,179 @@ export class CommunityService {
     };
   }
 
+  async updateProfile(
+    userId: string,
+    dto: { avatar_url?: string; cover_image_url?: string },
+  ) {
+    await this.ensureProfile(userId);
+
+    const profile = await this.prisma.communityProfile.update({
+      where: { userId },
+      data: {
+        ...(dto.avatar_url !== undefined
+          ? { avatar: dto.avatar_url.trim() || null }
+          : {}),
+        ...(dto.cover_image_url !== undefined
+          ? { coverImage: dto.cover_image_url.trim() || null }
+          : {}),
+      },
+      include: {
+        user: true,
+      },
+    });
+
+    return {
+      player: this.mapPlayer(profile.user, profile),
+    };
+  }
+
+  async getFriends(userId: string) {
+    const rows = await this.prisma.communityFriendship.findMany({
+      where: {
+        OR: [{ requesterId: userId }, { addresseeId: userId }],
+      },
+      orderBy: { updatedAt: 'desc' },
+      include: {
+        requester: { include: { communityProfile: true } },
+        addressee: { include: { communityProfile: true } },
+      },
+    });
+
+    const mapFriendship = (row: any) => {
+      const other = row.requesterId === userId ? row.addressee : row.requester;
+      return {
+        id: row.id,
+        status: row.status,
+        direction: row.requesterId === userId ? 'outgoing' : 'incoming',
+        player: this.mapPlayer(other, other.communityProfile),
+      };
+    };
+
+    return {
+      friends: rows
+        .filter((row) => row.status === CommunityFriendshipStatus.accepted)
+        .map(mapFriendship),
+      incomingRequests: rows
+        .filter(
+          (row) =>
+            row.status === CommunityFriendshipStatus.pending &&
+            row.addresseeId === userId,
+        )
+        .map(mapFriendship),
+      outgoingRequests: rows
+        .filter(
+          (row) =>
+            row.status === CommunityFriendshipStatus.pending &&
+            row.requesterId === userId,
+        )
+        .map(mapFriendship),
+    };
+  }
+
+  async sendFriendRequest(userId: string, username: string) {
+    const target = await this.findFriendTarget(userId, username);
+    const existing = await this.findFriendshipBetween(userId, target.id);
+
+    if (existing?.status === CommunityFriendshipStatus.accepted) {
+      return { friendshipStatus: 'friends' };
+    }
+    if (
+      existing?.status === CommunityFriendshipStatus.pending &&
+      existing.requesterId === userId
+    ) {
+      return { friendshipStatus: 'outgoing' };
+    }
+    if (
+      existing?.status === CommunityFriendshipStatus.pending &&
+      existing.addresseeId === userId
+    ) {
+      return this.acceptFriendRequest(userId, username);
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      if (existing) {
+        await tx.communityFriendship.update({
+          where: { id: existing.id },
+          data: {
+            requesterId: userId,
+            addresseeId: target.id,
+            status: CommunityFriendshipStatus.pending,
+          },
+        });
+      } else {
+        await tx.communityFriendship.create({
+          data: {
+            requesterId: userId,
+            addresseeId: target.id,
+            status: CommunityFriendshipStatus.pending,
+          },
+        });
+      }
+
+      await this.createNotification(tx, {
+        userId: target.id,
+        actorId: userId,
+        kind: CommunityNotificationKind.follow,
+        text: 'da gui loi moi ket ban.',
+        targetType: 'profile',
+        targetId: target.username,
+      });
+    });
+
+    return { friendshipStatus: 'outgoing' };
+  }
+
+  async acceptFriendRequest(userId: string, username: string) {
+    const target = await this.findFriendTarget(userId, username);
+    const existing = await this.findFriendshipBetween(userId, target.id);
+    if (!existing || existing.status !== CommunityFriendshipStatus.pending) {
+      throw new BadRequestException('Khong co loi moi ket ban dang cho');
+    }
+    if (existing.addresseeId !== userId) {
+      throw new ForbiddenException('Ban khong phai nguoi nhan loi moi nay');
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.communityFriendship.update({
+        where: { id: existing.id },
+        data: { status: CommunityFriendshipStatus.accepted },
+      });
+      await this.createNotification(tx, {
+        userId: target.id,
+        actorId: userId,
+        kind: CommunityNotificationKind.follow,
+        text: 'da chap nhan loi moi ket ban.',
+        targetType: 'profile',
+        targetId: target.username,
+      });
+    });
+
+    return { friendshipStatus: 'friends' };
+  }
+
+  async rejectFriendRequest(userId: string, username: string) {
+    const target = await this.findFriendTarget(userId, username);
+    const existing = await this.findFriendshipBetween(userId, target.id);
+    if (!existing || existing.status !== CommunityFriendshipStatus.pending) {
+      return { friendshipStatus: 'none' };
+    }
+    if (existing.addresseeId !== userId && existing.requesterId !== userId) {
+      throw new ForbiddenException('Ban khong co quyen cap nhat loi moi nay');
+    }
+
+    await this.prisma.communityFriendship.update({
+      where: { id: existing.id },
+      data: {
+        status:
+          existing.requesterId === userId
+            ? CommunityFriendshipStatus.cancelled
+            : CommunityFriendshipStatus.rejected,
+      },
+    });
+
+    return { friendshipStatus: 'none' };
+  }
+
   async createMatch(userId: string, dto: CreateCommunityMatchDto) {
     await this.ensureProfile(userId);
 
@@ -945,28 +1169,68 @@ export class CommunityService {
       orderBy: { joinedAt: 'desc' },
       include: {
         room: {
-          include: {
-            match: {
-              include: {
-                host: { include: { communityProfile: true } },
-                branch: true,
-                court: true,
-              },
-            },
-            members: true,
-            messages: {
-              take: 1,
-              orderBy: { createdAt: 'desc' },
-              include: { sender: { include: { communityProfile: true } } },
-            },
-          },
+          include: this.buildChatRoomInclude(),
         },
       },
     });
 
     return {
-      rooms: memberships.map((membership) => this.mapChatRoom(membership.room)),
+      rooms: memberships.map((membership) =>
+        this.mapChatRoom(membership.room, userId),
+      ),
     };
+  }
+
+  async startPrivateChat(userId: string, username: string) {
+    await this.ensureProfile(userId);
+
+    const target = await this.prisma.user.findUnique({
+      where: { username },
+      include: { communityProfile: true },
+    });
+    if (!target) throw new NotFoundException('Khong tim thay nguoi choi');
+    if (target.id === userId) {
+      throw new BadRequestException('Ban khong the chat rieng voi chinh minh');
+    }
+    await this.ensureProfile(target.id);
+
+    const [firstId, secondId] = [userId, target.id].sort();
+    const directKey = `${firstId}:${secondId}`;
+    const room = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.communityChatRoom.upsert({
+        where: { directKey },
+        update: {},
+        create: {
+          type: CommunityChatRoomType.private,
+          directKey,
+          title: `Chat rieng`,
+        },
+      });
+
+      await tx.communityChatMember.upsert({
+        where: { roomId_userId: { roomId: created.id, userId } },
+        update: {},
+        create: { roomId: created.id, userId, role: CommunityChatRole.member },
+      });
+      await tx.communityChatMember.upsert({
+        where: { roomId_userId: { roomId: created.id, userId: target.id } },
+        update: {},
+        create: {
+          roomId: created.id,
+          userId: target.id,
+          role: CommunityChatRole.member,
+        },
+      });
+
+      return created;
+    });
+
+    const fresh = await this.prisma.communityChatRoom.findUniqueOrThrow({
+      where: { id: room.id },
+      include: this.buildChatRoomInclude(),
+    });
+
+    return { room: this.mapChatRoom(fresh, userId) };
   }
 
   async getChatMessages(userId: string, roomId: string) {
@@ -1012,7 +1276,7 @@ export class CommunityService {
         bio: `${user.fullName} đang tham gia cộng đồng cầu lông BadmintonHub.`,
         level: CommunityLevel.intermediate,
         avatar: null,
-        coverImage: '/community/hero.png',
+        coverImage: null,
       },
     });
   }
@@ -1116,6 +1380,80 @@ export class CommunityService {
     return member;
   }
 
+  private async findFriendTarget(userId: string, username: string) {
+    const target = await this.prisma.user.findUnique({
+      where: { username },
+      include: { communityProfile: true },
+    });
+    if (!target) throw new NotFoundException('Khong tim thay nguoi choi');
+    if (target.id === userId) {
+      throw new BadRequestException('Khong the ket ban voi chinh minh');
+    }
+    await this.ensureProfile(userId);
+    await this.ensureProfile(target.id);
+    return target;
+  }
+
+  private findFriendshipBetween(userId: string, targetUserId: string) {
+    return this.prisma.communityFriendship.findFirst({
+      where: {
+        OR: [
+          { requesterId: userId, addresseeId: targetUserId },
+          { requesterId: targetUserId, addresseeId: userId },
+        ],
+      },
+    });
+  }
+
+  private async getFriendshipStatusMap(userId: string, targetUserIds: string[]) {
+    const map = new Map<string, string>();
+    const ids = targetUserIds.filter((id) => id !== userId);
+    if (!ids.length) return map;
+
+    const rows = await this.prisma.communityFriendship.findMany({
+      where: {
+        OR: [
+          { requesterId: userId, addresseeId: { in: ids } },
+          { requesterId: { in: ids }, addresseeId: userId },
+        ],
+      },
+    });
+
+    for (const row of rows) {
+      const otherId = row.requesterId === userId ? row.addresseeId : row.requesterId;
+      if (row.status === CommunityFriendshipStatus.accepted) {
+        map.set(otherId, 'friends');
+      } else if (row.status === CommunityFriendshipStatus.pending) {
+        map.set(otherId, row.requesterId === userId ? 'outgoing' : 'incoming');
+      }
+    }
+    return map;
+  }
+
+  private buildChatRoomInclude() {
+    return {
+      match: {
+        include: {
+          host: { include: { communityProfile: true } },
+          branch: true,
+          court: true,
+          chatRoom: true,
+          participants: {
+            include: { user: { include: { communityProfile: true } } },
+          },
+        },
+      },
+      members: {
+        include: { user: { include: { communityProfile: true } } },
+      },
+      messages: {
+        take: 1,
+        orderBy: { createdAt: 'desc' as const },
+        include: { sender: { include: { communityProfile: true } } },
+      },
+    };
+  }
+
   private async syncPostTags(tx: Prisma.TransactionClient, postId: string, tags: string[]) {
     const normalizedTags = Array.from(
       new Set(
@@ -1181,7 +1519,7 @@ export class CommunityService {
       matches: profile?.matchesCount ?? 0,
       checkins: profile?.checkinsCount ?? 0,
       postsCount: undefined,
-      cover: profile?.coverImage || '/community/hero.png',
+      cover: profile?.coverImage || '',
     };
   }
 
@@ -1296,14 +1634,27 @@ export class CommunityService {
     }
   }
 
-  private mapChatRoom(room: any) {
+  private mapChatRoom(room: any, currentUserId?: string) {
     const latestMessage = room.messages?.[0];
+    const otherMember = room.members?.find(
+      (member: any) => member.userId !== currentUserId,
+    );
+    const otherPlayer = otherMember
+      ? this.mapPlayer(otherMember.user, otherMember.user?.communityProfile)
+      : null;
+    const title =
+      room.type === CommunityChatRoomType.private && otherPlayer
+        ? otherPlayer.name
+        : room.title;
+
     return {
       id: room.id,
-      title: room.title,
+      type: room.type,
+      title,
       matchId: room.matchId,
       memberCount: room.members?.length ?? 0,
-      match: room.match ? this.mapMatch(room.match) : null,
+      match: room.match ? this.mapMatch(room.match, currentUserId) : null,
+      otherPlayer,
       latestMessage: latestMessage ? this.mapChatMessage(latestMessage) : null,
     };
   }

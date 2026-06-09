@@ -71,6 +71,8 @@ model User {
   communityComments           CommunityComment[]          @relation("CommunityCommentAuthor")
   communityFollowers          CommunityFollow[]           @relation("CommunityFollowing")
   communityFollowing          CommunityFollow[]           @relation("CommunityFollower")
+  communityFriendRequestsSent     CommunityFriendship[]       @relation("CommunityFriendRequester")
+  communityFriendRequestsReceived CommunityFriendship[]       @relation("CommunityFriendAddressee")
   communityMatchParticipants  CommunityMatchParticipant[]
   communityMatchesHosted      CommunityMatch[]            @relation("CommunityMatchHost")
   communityChatMembers        CommunityChatMember[]
@@ -656,6 +658,22 @@ model CommunityFollow {
   @@map("community_follows")
 }
 
+model CommunityFriendship {
+  id          String                    @id @default(uuid()) @db.Uuid
+  requesterId String                    @map("requester_id") @db.Uuid
+  addresseeId String                    @map("addressee_id") @db.Uuid
+  status      CommunityFriendshipStatus @default(pending)
+  createdAt   DateTime                  @default(now()) @map("created_at")
+  updatedAt   DateTime                  @default(now()) @updatedAt @map("updated_at")
+  requester   User                      @relation("CommunityFriendRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  addressee   User                      @relation("CommunityFriendAddressee", fields: [addresseeId], references: [id], onDelete: Cascade)
+
+  @@unique([requesterId, addresseeId], map: "community_friendships_requester_addressee_key")
+  @@index([requesterId, status], map: "idx_community_friendships_requester")
+  @@index([addresseeId, status], map: "idx_community_friendships_addressee")
+  @@map("community_friendships")
+}
+
 model CommunityPost {
   id        String                 @id @default(uuid()) @db.Uuid
   authorId  String                 @map("author_id") @db.Uuid
@@ -813,12 +831,14 @@ model CommunityMatchParticipant {
 }
 
 model CommunityChatRoom {
-  id        String                 @id @default(uuid()) @db.Uuid
-  matchId   String                 @unique @map("match_id") @db.Uuid
-  title     String                 @db.VarChar(150)
-  createdAt DateTime               @default(now()) @map("created_at")
-  updatedAt DateTime               @default(now()) @updatedAt @map("updated_at")
-  match     CommunityMatch         @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  id        String                @id @default(uuid()) @db.Uuid
+  matchId   String?               @unique @map("match_id") @db.Uuid
+  type      CommunityChatRoomType @default(match)
+  directKey String?               @unique @map("direct_key") @db.VarChar(80)
+  title     String                @db.VarChar(150)
+  createdAt DateTime              @default(now()) @map("created_at")
+  updatedAt DateTime              @default(now()) @updatedAt @map("updated_at")
+  match     CommunityMatch?       @relation(fields: [matchId], references: [id], onDelete: Cascade)
   members   CommunityChatMember[]
   messages  CommunityChatMessage[]
 
@@ -928,6 +948,18 @@ enum CommunityMatchParticipationStatus {
 enum CommunityChatRole {
   owner
   member
+}
+
+enum CommunityChatRoomType {
+  match
+  private
+}
+
+enum CommunityFriendshipStatus {
+  pending
+  accepted
+  rejected
+  cancelled
 }
 
 enum CourtType {

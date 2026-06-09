@@ -18,10 +18,12 @@ import { CommunityService } from './community.service';
 import {
   CommunityFeedQueryDto,
   CommunityMatchesQueryDto,
+  CommunityPlayersQueryDto,
   CreateCommunityCommentDto,
   CreateCommunityMatchDto,
   CreateCommunityPostDto,
   SendCommunityChatMessageDto,
+  UpdateCommunityProfileDto,
 } from './dto/community.dto';
 
 @Controller('community')
@@ -38,6 +40,15 @@ export class CommunityController {
   @Get('feed')
   getFeed(@Query() query: CommunityFeedQueryDto) {
     return this.communityService.getFeed(query);
+  }
+
+  @Public()
+  @Get('players')
+  getPlayers(
+    @Query() query: CommunityPlayersQueryDto,
+    @CurrentUser() user?: any,
+  ) {
+    return this.communityService.getPlayers(query, user?.id);
   }
 
   @Public()
@@ -64,6 +75,11 @@ export class CommunityController {
   @Get('notifications')
   getNotifications(@CurrentUser() user: any) {
     return this.communityService.getNotifications(user.id);
+  }
+
+  @Patch('profile')
+  updateProfile(@CurrentUser() user: any, @Body() dto: UpdateCommunityProfileDto) {
+    return this.communityService.updateProfile(user.id, dto);
   }
 
   @Patch('notifications/read-all')
@@ -110,6 +126,26 @@ export class CommunityController {
     return this.communityService.toggleFollow(user.id, username);
   }
 
+  @Get('friends')
+  getFriends(@CurrentUser() user: any) {
+    return this.communityService.getFriends(user.id);
+  }
+
+  @Post('friends/:username/request')
+  sendFriendRequest(@CurrentUser() user: any, @Param('username') username: string) {
+    return this.communityService.sendFriendRequest(user.id, username);
+  }
+
+  @Patch('friends/:username/accept')
+  acceptFriendRequest(@CurrentUser() user: any, @Param('username') username: string) {
+    return this.communityService.acceptFriendRequest(user.id, username);
+  }
+
+  @Patch('friends/:username/reject')
+  rejectFriendRequest(@CurrentUser() user: any, @Param('username') username: string) {
+    return this.communityService.rejectFriendRequest(user.id, username);
+  }
+
   @Post('matches')
   createMatch(@CurrentUser() user: any, @Body() dto: CreateCommunityMatchDto) {
     return this.communityService.createMatch(user.id, dto);
@@ -146,6 +182,11 @@ export class CommunityController {
   @Get('chat/rooms')
   getChatRooms(@CurrentUser() user: any) {
     return this.communityService.getChatRooms(user.id);
+  }
+
+  @Post('chat/private/:username')
+  startPrivateChat(@CurrentUser() user: any, @Param('username') username: string) {
+    return this.communityService.startPrivateChat(user.id, username);
   }
 
   @Get('chat/rooms/:roomId/messages')

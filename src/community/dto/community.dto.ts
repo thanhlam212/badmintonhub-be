@@ -67,6 +67,21 @@ export class CommunityMatchesQueryDto {
   slot?: (typeof SLOT_FILTER_LABELS)[number];
 }
 
+export class CommunityPlayersQueryDto {
+  @IsOptional()
+  @IsString()
+  @Length(0, 80)
+  q?: string;
+
+  @IsOptional()
+  @IsIn(COMMUNITY_DISTRICT_LABELS)
+  district?: (typeof COMMUNITY_DISTRICT_LABELS)[number];
+
+  @IsOptional()
+  @IsIn(COMMUNITY_LEVEL_LABELS)
+  level?: (typeof COMMUNITY_LEVEL_LABELS)[number];
+}
+
 export class CreateCommunityPostDto {
   @IsIn(COMMUNITY_POST_KIND_LABELS)
   kind: (typeof COMMUNITY_POST_KIND_LABELS)[number];
@@ -154,4 +169,16 @@ export class SendCommunityChatMessageDto {
   @IsString()
   @Length(1, 2000)
   body: string;
+}
+
+export class UpdateCommunityProfileDto {
+  @IsOptional()
+  @IsString()
+  @Length(0, 255)
+  avatar_url?: string;
+
+  @IsOptional()
+  @IsString()
+  @Length(0, 255)
+  cover_image_url?: string;
 }
