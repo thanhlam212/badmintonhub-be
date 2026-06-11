@@ -33,20 +33,20 @@ export class PaymentService {
     // Kiểm tra nếu đã có payment đang pending
     await this.cancelExpiredPendingOrder(invoice)
 
-    const existingPending = await this.prisma.payment.findFirst({
+    // Hủy tất cả payment pending cũ trước khi tạo mới (cho phép đổi phương thức thanh toán)
+    await this.prisma.payment.updateMany({
       where: { invoiceId: dto.invoiceId, status: 'pending' },
+      data:  { status: 'failed' },
     })
 
-    // Tạo Payment record
+    // Tạo Payment record mới với transactionRef mới
     const payment = await this.prisma.payment.create({
       data: {
-        invoiceId:     dto.invoiceId,
-        method:        dto.method,
-        amount:        invoice.totalSnapshot,
-        status:        'pending',
-        transactionRef: existingPending
-          ? existingPending.transactionRef   // reuse ref nếu đã có
-          : `${dto.method.toUpperCase()}-${Date.now()}-${randomUUID().slice(0, 8).toUpperCase()}`,
+        invoiceId:      dto.invoiceId,
+        method:         dto.method,
+        amount:         invoice.totalSnapshot,
+        status:         'pending',
+        transactionRef: `${dto.method.toUpperCase()}-${Date.now()}-${randomUUID().slice(0, 8).toUpperCase()}`,
       },
     })
 
@@ -282,7 +282,7 @@ export class PaymentService {
         },
       })
 
-      if (!success) return
+      if (!success) return  // Booking vẫn pending — user có thể thử lại thanh toán
 
       // Cập nhật Invoice → paid
       await tx.invoice.update({

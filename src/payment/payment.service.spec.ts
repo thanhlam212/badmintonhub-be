@@ -5,6 +5,7 @@ import { VnpayProvider } from './vnpay.provider'
 import { MomoProvider } from './momo.provider'
 import { SepayProvider } from './sepay.provider'
 import { PrismaService } from '../prisma/prisma.service'
+import { EmailService } from '../email/email.service'
 
 // ─── Mock factories ──────────────────────────────────────────
 
@@ -54,6 +55,7 @@ function makePrismaMock() {
       findFirst:  jest.fn(),
       findUnique: jest.fn(),
       update:     jest.fn(),
+      updateMany: jest.fn(),
     },
     order:          { update: jest.fn() },
     booking: {
@@ -99,6 +101,10 @@ const mockSepay = {
   isCheckoutConfigured:  jest.fn().mockReturnValue(true),
 }
 
+const mockEmail = {
+  sendBookingConfirmed: jest.fn().mockResolvedValue({}),
+}
+
 // ─── Tests ───────────────────────────────────────────────────
 
 describe('PaymentService', () => {
@@ -113,6 +119,7 @@ describe('PaymentService', () => {
       providers: [
         PaymentService,
         { provide: PrismaService,  useValue: prisma },
+        { provide: EmailService,   useValue: mockEmail },
         { provide: VnpayProvider,  useValue: mockVnpay },
         { provide: MomoProvider,   useValue: mockMomo },
         { provide: SepayProvider,  useValue: mockSepay },
@@ -206,20 +213,34 @@ describe('PaymentService', () => {
       ).rejects.toThrow(BadRequestException)
     })
 
-    it('should reuse transactionRef if there is an existing pending payment', async () => {
+    it('should cancel existing pending payment and create a new payment with a new transactionRef', async () => {
       const existing = makePayment({ transactionRef: 'EXISTING-REF-123' })
       prisma.invoice.findUnique.mockResolvedValue(makeInvoice())
       prisma.payment.findFirst.mockResolvedValue(existing)
-      prisma.payment.create.mockResolvedValue(makePayment({ transactionRef: 'EXISTING-REF-123' }))
+      prisma.payment.updateMany.mockResolvedValue({ count: 1 })
+      prisma.payment.create.mockResolvedValue(makePayment({ transactionRef: 'NEW-REF-999' }))
       mockVnpay.createPaymentUrl.mockReturnValue('https://sandbox.vnpay.vn/pay')
 
       await service.createPayment(dto, ip)
 
+      // Verify that existing pending payments are updated to failed
+      expect(prisma.payment.updateMany).toHaveBeenCalledWith({
+        where: { invoiceId: dto.invoiceId, status: 'pending' },
+        data: { status: 'failed' },
+      })
+
+      // Verify that prisma.payment.create is called without reusing the old transactionRef
       expect(prisma.payment.create).toHaveBeenCalledWith(
         expect.objectContaining({
-          data: expect.objectContaining({ transactionRef: 'EXISTING-REF-123' }),
+          data: expect.objectContaining({
+            invoiceId: 'inv-uuid-001',
+            method: 'vnpay',
+          }),
         })
       )
+      
+      const createCall = prisma.payment.create.mock.calls[0][0];
+      expect(createCall.data.transactionRef).not.toBe('EXISTING-REF-123')
     })
   })
 
