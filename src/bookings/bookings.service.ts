@@ -37,6 +37,7 @@ import {
 
 /** Thời gian giữ chỗ (ms) — 5 phút */
 const HOLD_DURATION_MS = 5 * 60 * 1000;
+const CHECKIN_EARLY_MINUTES = 15;
 
 @Injectable()
 export class BookingsService implements OnModuleInit {
@@ -128,6 +129,41 @@ export class BookingsService implements OnModuleInit {
   private timeToMinutes(time: string) {
     const [hour, minute] = time.split(':').map(Number)
     return hour * 60 + minute
+  }
+
+  private formatMinutesAsTime(totalMinutes: number) {
+    const normalized = Math.max(0, totalMinutes)
+    const hour = Math.floor(normalized / 60)
+    const minute = normalized % 60
+    return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`
+  }
+
+  private assertCanCheckinNow(
+    booking: { bookingDate: Date; timeStart?: string | null; timeEnd?: string | null },
+    current = getBusinessNowParts(new Date()),
+  ) {
+    if (!booking.timeStart) {
+      throw new BadRequestException('Booking chưa có giờ bắt đầu để check-in')
+    }
+
+    const bookingDate = formatDate(booking.bookingDate)
+    if (bookingDate !== current.dateToken) {
+      throw new BadRequestException(
+        `Booking này dành cho ngày ${bookingDate}, hôm nay là ${current.dateToken}`,
+      )
+    }
+
+    const startTotal = this.timeToMinutes(booking.timeStart)
+    const earliestCheckin = startTotal - CHECKIN_EARLY_MINUTES
+    if (current.minutes < earliestCheckin) {
+      throw new BadRequestException(
+        `Chỉ được check-in sớm tối đa ${CHECKIN_EARLY_MINUTES} phút. Vui lòng quay lại lúc ${this.formatMinutesAsTime(earliestCheckin)}.`,
+      )
+    }
+
+    if (booking.timeEnd && current.minutes >= this.timeToMinutes(booking.timeEnd)) {
+      throw new BadRequestException('Booking đã hết giờ, không thể check-in')
+    }
   }
 
   private hasBookingElapsed(
@@ -462,6 +498,9 @@ export class BookingsService implements OnModuleInit {
         `Không thể check-in booking ${booking.status}`,
       );
     }
+
+    this.assertCanCheckinNow(booking)
+
     const updated = await this.prisma.booking.update({
       where: { id },
       data: { status: 'playing' },
@@ -734,24 +773,7 @@ export class BookingsService implements OnModuleInit {
       throw new BadRequestException('Booking chưa được xác nhận thanh toán');
     }
 
-    const current = getBusinessNowParts(new Date());
-    const today = current.dateToken;
-    const bookingDate = formatDate(booking.bookingDate);
-    const nowTotal = current.minutes;
-    const startTotal =
-      parseInt(booking.timeStart.split(':')[0]) * 60 +
-      parseInt(booking.timeStart.split(':')[1]);
-
-    if (bookingDate !== today) {
-      throw new BadRequestException(
-        `Booking này dành cho ngày ${bookingDate}, hôm nay là ${today}`,
-      );
-    }
-    if (nowTotal < startTotal - 30) {
-      throw new BadRequestException(
-        `Chưa đến giờ check-in. Giờ chơi: ${booking.timeStart}`,
-      );
-    }
+    this.assertCanCheckinNow(booking)
 
     const updated = await this.prisma.booking.update({
       where: { id: realBookingId },
