@@ -6,6 +6,7 @@ import { AuthModule } from './auth/auth.module';
 import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { RolesGuard } from './auth/guards/roles.guard';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 import { BranchesModule } from './branches/branches.module';
 import { CourtsModule } from './courts/courts.module';
@@ -34,6 +35,8 @@ import { CommunityModule } from './community/community.module';
 @Module({
   imports: [
             ConfigModule.forRoot({ isGlobal: true }),
+            // Rate Limiting: tối đa 5 requests / 1 giây mỗi IP
+            ThrottlerModule.forRoot([{ ttl: 1000, limit: 5 }]),
             PrismaModule,
             AuthModule,
             BranchesModule,
@@ -50,6 +53,10 @@ import { CommunityModule } from './community/community.module';
     {
       provide: APP_GUARD,
       useClass: RolesGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
     },
     ProductsService,
     StatsService,

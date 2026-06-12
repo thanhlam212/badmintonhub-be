@@ -219,6 +219,12 @@ export class UpdateServicesDto {
   paid_at?: string | null;
 }
 
+export class CancelBookingDto {
+  @IsString()
+  @IsOptional()
+  reason?: string;
+}
+
 // ═══════════════════════════════════════════════════════════════
 // SECTION 3: FIXED SCHEDULE - PREVIEW
 // ═══════════════════════════════════════════════════════════════

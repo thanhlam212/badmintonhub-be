@@ -2,8 +2,10 @@ import {
   Controller, Get, Post, Patch, Delete,
   Body, Param, Query,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { BookingsService } from './bookings.service';
 import {
+  CancelBookingDto,
   CreateBookingDto,
   CreateRecurringDto,
   UpdateServicesDto,
@@ -56,6 +58,11 @@ function mapBooking(b: any) {
     status:             b.status,
     payment_method:     b.paymentMethod ?? null,
     note:               b.note ?? null,
+    customer_email:     b.customerEmail ?? b.user?.email ?? null,
+    cancellation_reason: b.cancellationReason ?? null,
+    cancelled_at:       b.cancelledAt ?? null,
+    cancelled_by_name:  b.cancelledByName ?? null,
+    cancelled_by_role:  b.cancelledByRole ?? null,
     service_lines:      b.serviceLines ?? null,
     service_paid_hash:  b.servicePaidHash ?? null,
     service_paid_at:    b.servicePaidAt ?? null,
@@ -93,6 +100,7 @@ export class BookingsController {
   // POST /api/bookings — Đặt sân thường
   // ─────────────────────────────────────────────────────
   @Public()
+  @Throttle({ default: { ttl: 60000, limit: 10 } })  // 10 req / 60s — chống spam tạo booking
   @Post()
   async create(@Body() dto: CreateBookingDto) {
     const booking = await this.bookingsService.create(dto)
@@ -104,12 +112,14 @@ export class BookingsController {
   // POST /api/bookings/fixed/confirm
   // ─────────────────────────────────────────────────────
   @Public()
+  @Throttle({ default: { ttl: 60000, limit: 5 } })  // 5 req / 60s — chống spam đăng ký lịch cố định
   @Post('fixed/preview')
   previewFixed(@Body() dto: FixedSchedulePreviewDto) {
     return this.bookingsService.previewFixedSchedule(dto)
   }
 
   @Public()
+  @Throttle({ default: { ttl: 60000, limit: 5 } })  // 5 req / 60s
   @Post('fixed/confirm')
   confirmFixed(@Body() dto: FixedScheduleConfirmDto) {
     return this.bookingsService.confirmFixedSchedule(dto)
@@ -129,6 +139,7 @@ export class BookingsController {
   // Cùng luồng create nhưng FE dùng endpoint riêng
   // ─────────────────────────────────────────────────────
   @Public()
+  @Throttle({ default: { ttl: 60000, limit: 10 } })  // 10 req / 60s — chống spam lock slot
   @Post('hold')
   async createHold(@Body() dto: CreateBookingDto) {
     const booking = await this.bookingsService.create(dto);
@@ -262,8 +273,12 @@ export class BookingsController {
   // PATCH /api/bookings/:id/cancel
   // ─────────────────────────────────────────────────────
   @Patch(':id/cancel')
-  async cancel(@Param('id') id: string, @CurrentUser() user: any) {
-    const result = await this.bookingsService.cancelForUser(id, user)
+  async cancel(
+    @Param('id') id: string,
+    @Body() dto: CancelBookingDto,
+    @CurrentUser() user: any,
+  ) {
+    const result = await this.bookingsService.cancelForUser(id, user, dto)
     return { success: true, data: mapBooking(extractBooking(result)) }
   }
 

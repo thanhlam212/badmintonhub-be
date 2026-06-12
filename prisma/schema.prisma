@@ -215,6 +215,10 @@ model Booking {
   customerName      String                   @map("customer_name") @db.VarChar(100)
   customerPhone     String                   @map("customer_phone") @db.VarChar(15)
   customerEmail     String?                  @map("customer_email") @db.VarChar(100)
+  cancellationReason String?                 @map("cancellation_reason")
+  cancelledAt       DateTime?                @map("cancelled_at")
+  cancelledByName   String?                  @map("cancelled_by_name") @db.VarChar(100)
+  cancelledByRole   String?                  @map("cancelled_by_role") @db.VarChar(30)
   createdAt         DateTime                 @default(now()) @map("created_at")
   updatedAt         DateTime                 @default(now()) @updatedAt @map("updated_at")
   communityMatch    CommunityMatch?

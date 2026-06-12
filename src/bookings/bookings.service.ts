@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import {
+  CancelBookingDto,
   CreateBookingDto,
   CreateRecurringDto,
   UpdateServicesDto,
@@ -38,6 +39,14 @@ import {
 /** Thời gian giữ chỗ (ms) — 5 phút */
 const HOLD_DURATION_MS = 5 * 60 * 1000;
 const CHECKIN_EARLY_MINUTES = 15;
+
+type CancelBookingOptions = {
+  reason?: string | null;
+  cancelledByName?: string | null;
+  cancelledByRole?: string | null;
+  cancelledAt?: Date;
+  notify?: boolean;
+};
 
 @Injectable()
 export class BookingsService implements OnModuleInit {
@@ -177,6 +186,81 @@ export class BookingsService implements OnModuleInit {
     if (bookingDate > current.dateToken) return false
 
     return current.minutes >= this.timeToMinutes(booking.timeEnd)
+  }
+
+  private normalizeCancellationReason(reason?: string | null) {
+    const trimmed = reason?.trim()
+    return trimmed ? trimmed : null
+  }
+
+  private getCancellerRoleLabel(role?: string | null) {
+    switch (role) {
+      case 'admin':
+        return 'Admin'
+      case 'employee':
+        return 'Nhân viên'
+      case 'user':
+        return 'Khách hàng'
+      default:
+        return 'Hệ thống'
+    }
+  }
+
+  private async sendBookingCancellationNotifications(booking: {
+    id: string
+    customerName?: string | null
+    customerPhone?: string | null
+    customerEmail?: string | null
+    bookingDate: Date
+    timeStart?: string | null
+    timeEnd?: string | null
+    amount: unknown
+    cancellationReason?: string | null
+    cancelledAt?: Date | null
+    cancelledByName?: string | null
+    cancelledByRole?: string | null
+    court?: { name?: string | null; branch?: { name?: string | null } | null } | null
+    branch?: { name?: string | null } | null
+    user?: { email?: string | null } | null
+  }) {
+    const payload = {
+      id: booking.id,
+      customerName: booking.customerName || 'Quý khách',
+      customerEmail: booking.customerEmail || booking.user?.email || '',
+      customerPhone: booking.customerPhone || '',
+      courtName: booking.court?.name || 'Sân cầu lông',
+      branchName: booking.court?.branch?.name || booking.branch?.name || '',
+      bookingDate: booking.bookingDate.toISOString(),
+      timeStart: booking.timeStart || '',
+      timeEnd: booking.timeEnd || '',
+      amount: parseFloat(String(booking.amount ?? 0)),
+      reason: this.normalizeCancellationReason(booking.cancellationReason),
+      cancelledAt: booking.cancelledAt?.toISOString() || new Date().toISOString(),
+      cancelledByName: booking.cancelledByName || 'Hệ thống',
+      cancelledByRole: this.getCancellerRoleLabel(booking.cancelledByRole),
+    }
+
+    if (payload.customerEmail) {
+      await this.emailService.sendBookingCancelledCustomer(payload)
+    }
+
+    const admins = await this.prisma.user.findMany({
+      where: { role: 'admin' },
+      select: { email: true },
+    })
+
+    const recipients = [...new Set(
+      admins
+        .map((admin) => admin.email?.trim())
+        .filter((email): email is string => Boolean(email)),
+    )]
+
+    if (recipients.length > 0) {
+      await this.emailService.sendBookingCancelledAdmin({
+        ...payload,
+        recipients,
+      })
+    }
   }
 
   private async autoCompleteElapsedPlayingBookings(filters?: {
@@ -524,23 +608,42 @@ export class BookingsService implements OnModuleInit {
     return { success: true, booking: updated };
   }
 
-  async cancel(id: string) {
+  async cancel(id: string, options: CancelBookingOptions = {}) {
     const booking = await this.findOne(id);
     if (['completed', 'cancelled'].includes(booking.status)) {
       throw new BadRequestException('Không thể hủy booking này');
     }
 
+    const cancellationReason = this.normalizeCancellationReason(options.reason)
+
     const updated = await this.prisma.booking.update({
       where: { id },
       data: {
         status: 'cancelled',
+        cancellationReason,
+        cancelledAt: options.cancelledAt ?? new Date(),
+        cancelledByName: options.cancelledByName ?? null,
+        cancelledByRole: options.cancelledByRole ?? null,
         slots: { deleteMany: {} },
         ...(booking.fixedOccurrenceId
           ? { fixedOccurrence: { update: { status: 'cancelled' } } }
           : {}),
       },
-      include: { court: { include: { branch: true } }, user: true },
+      include: {
+        court: { include: { branch: true } },
+        branch: true,
+        user: { select: { fullName: true, email: true, phone: true } },
+      },
     });
+    if (options.notify !== false) {
+      try {
+        await this.sendBookingCancellationNotifications(updated)
+      } catch (error) {
+        this.logger.warn(
+          `Failed to send cancellation notifications for booking ${id}: ${error instanceof Error ? error.message : 'unknown error'}`,
+        )
+      }
+    }
     return { success: true, booking: updated };
   }
 
@@ -575,7 +678,10 @@ export class BookingsService implements OnModuleInit {
       case 'completed':
         return this.complete(id);
       case 'cancelled':
-        return this.cancel(id);
+        return this.cancel(id, {
+          cancelledByName: 'Hệ thống',
+          cancelledByRole: 'system',
+        });
     }
   }
 
@@ -645,7 +751,7 @@ export class BookingsService implements OnModuleInit {
     throw new ForbiddenException('Bạn không có quyền xem booking này');
   }
 
-  async cancelForUser(id: string, user: any) {
+  async cancelForUser(id: string, user: any, dto?: CancelBookingDto) {
     const booking = await this.findOne(id);
     if (
       !(
@@ -656,7 +762,18 @@ export class BookingsService implements OnModuleInit {
     ) {
       throw new ForbiddenException('Bạn không có quyền hủy booking này');
     }
-    return this.cancel(id);
+    const fallbackReason =
+      user.role === 'user'
+        ? 'Khách hàng tự hủy booking'
+        : user.role === 'admin'
+          ? 'Admin hủy booking'
+          : 'Nhân viên hủy booking'
+
+    return this.cancel(id, {
+      reason: dto?.reason ?? fallbackReason,
+      cancelledByName: user.fullName || user.username || this.getCancellerRoleLabel(user.role),
+      cancelledByRole: user.role || 'system',
+    });
   }
 
   // ═══════════════════════════════════════════════════════════════
@@ -720,7 +837,7 @@ export class BookingsService implements OnModuleInit {
     }
     // Hủy trước rồi xóa (để cascade slot)
     if (!['cancelled', 'completed'].includes(booking.status)) {
-      await this.cancel(id);
+      await this.cancel(id, { notify: false });
     }
     await this.prisma.booking.delete({ where: { id } });
     return { message: 'Đã xóa booking' };

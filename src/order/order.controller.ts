@@ -1,4 +1,5 @@
 import { Controller, Get, Post, Patch, Body, Param, Query, Request } from '@nestjs/common'
+import { Throttle } from '@nestjs/throttler'
 import { CreateOrderDto } from './dto/order.dto'
 import { Public, Roles, CurrentUser } from '../auth/decorators/index'
 import { OrderService } from './order.service'
@@ -13,6 +14,7 @@ export class OrderController {
 
   // POST /api/orders — Tạo đơn hàng (public)
   @Public()
+  @Throttle({ default: { ttl: 60000, limit: 10 } })  // 10 req / 60s — chống spam tạo đơn hàng
   @Post()
   create(@Body() dto: CreateOrderDto, @Request() req: any) {
     let userId: string | null = null
