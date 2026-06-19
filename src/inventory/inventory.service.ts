@@ -161,6 +161,7 @@ export class InventoryService {
           operatorId:  user.id ?? null,
         },
       })
+      await this.prisma.syncProductInStock(tx, dto.sku)
     })
 
     return { success: true, message: 'Nhập kho thành công' }
@@ -179,15 +180,15 @@ export class InventoryService {
       throw new BadRequestException(`Không đủ hàng: còn ${item.available}, cần ${dto.qty}`)
     }
 
-    await this.prisma.$transaction([
-      this.prisma.inventory.update({
+    await this.prisma.$transaction(async (tx) => {
+      await tx.inventory.update({
         where: { sku_warehouseId: { sku: dto.sku, warehouseId: dto.warehouseId } },
         data: {
           onHand:    { decrement: dto.qty },
           available: { decrement: dto.qty },
         },
-      }),
-      this.prisma.inventoryTransaction.create({
+      })
+      await tx.inventoryTransaction.create({
         data: {
           type:        'export',
           date:        new Date(),
@@ -198,8 +199,9 @@ export class InventoryService {
           note:        dto.note ?? null,
           operatorId:  user.id ?? null,
         },
-      }),
-    ])
+      })
+      await this.prisma.syncProductInStock(tx, dto.sku)
+    })
 
     return { success: true, message: 'Xuất kho thành công' }
   }

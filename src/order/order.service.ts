@@ -337,6 +337,7 @@ export class OrderService {
               operatorId: user?.id || null,
             }
           });
+          await this.prisma.syncProductInStock(tx, sku);
         }
       }
 
@@ -366,6 +367,7 @@ export class OrderService {
               operatorId: user?.id || null,
             }
           });
+          await this.prisma.syncProductInStock(tx, sku);
         }
       }
 

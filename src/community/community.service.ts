@@ -887,7 +887,11 @@ export class CommunityService {
       throw new BadRequestException('Ban da tao keo cho booking san nay roi');
     }
 
-    const totalPlayers = Math.max(2, Number(booking.people || dto.needed_players || 2));
+    const totalPlayers = Math.min(8, Math.max(2, Number(dto.needed_players || 2)));
+    const currentPlayers = Math.min(8, Math.max(1, Number(dto.current_players || 1)));
+    if (currentPlayers > totalPlayers) {
+      throw new BadRequestException('So nguoi hien tai khong duoc lon hon so nguoi can du');
+    }
     const pricePerPerson = Math.round(Number(booking.amount) / totalPlayers);
 
     const matchId = await this.prisma.$transaction(async (tx) => {
@@ -902,7 +906,11 @@ export class CommunityService {
           slotStart: booking.timeStart,
           slotEnd: booking.timeEnd ?? booking.timeStart,
           neededPlayers: totalPlayers,
-          currentPlayers: 1,
+          currentPlayers,
+          status:
+            currentPlayers >= totalPlayers
+              ? CommunityMatchStatus.full
+              : CommunityMatchStatus.open,
           pricePerPerson: new Prisma.Decimal(pricePerPerson),
           note: dto.note?.trim() || null,
           branchId: booking.branchId,

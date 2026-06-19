@@ -61,7 +61,7 @@ async function bootstrap() {
   ];
 
   app.enableCors({
-    origin: isProd ? productionOrigins : devOrigins,
+    origin: isProd ? productionOrigins : true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true,
@@ -70,8 +70,8 @@ async function bootstrap() {
   app.setGlobalPrefix('api');
 
   const port = process.env.PORT || 3001;
-  await app.listen(port);
-  console.log(`🚀 BadmintonHub API running on http://localhost:${port}/api`);
+  await app.listen(port, '0.0.0.0');
+  console.log(`🚀 BadmintonHub API running on http://localhost:${port}/api and network interfaces`);
   console.log(`🛡️  Security: Helmet enabled, Rate limiting active, CORS ${isProd ? 'production' : 'development'} mode`);
 }
 bootstrap();

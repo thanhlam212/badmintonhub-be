@@ -145,8 +145,13 @@ export class CreateCommunityMatchDto {
 
   @IsInt()
   @Min(2)
-  @Max(20)
+  @Max(8)
   needed_players: number;
+
+  @IsInt()
+  @Min(1)
+  @Max(8)
+  current_players: number;
 
   @IsNumber()
   @Min(0)

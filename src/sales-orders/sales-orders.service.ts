@@ -383,6 +383,8 @@ export class SalesOrdersService {
             operatorId:  order.createdBy || null,
           },
         })
+
+        await this.prisma.syncProductInStock(tx, sku)
       }
 
       return tx.salesOrder.update({

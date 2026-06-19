@@ -170,6 +170,8 @@ export class PurchaseOrdersService {
               operatorId:  user.id,
             },
           })
+
+          await this.prisma.syncProductInStock(tx, item.sku)
         }
 
         // Cập nhật trạng thái PO

@@ -198,6 +198,8 @@ export class TransfersService {
               },
             ],
           })
+
+          await this.prisma.syncProductInStock(tx, item.sku)
         }
 
         // Cập nhật trạng thái
