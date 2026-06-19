@@ -128,6 +128,13 @@ export class PurchaseOrdersService {
       await this.prisma.$transaction(async (tx) => {
         const now     = new Date()
         const shortId = id.slice(0, 8).toUpperCase()
+        const statusUpdate = await tx.purchaseOrder.updateMany({
+          where: { id, status: 'shipping' },
+          data:  { status: 'received' },
+        })
+        if (statusUpdate.count === 0) {
+          throw new BadRequestException('PO da duoc nhan hoac khong con o trang thai van chuyen')
+        }
 
         for (const item of po.items) {
           // Tra cứu thông tin sản phẩm để lấy category và productId
@@ -173,12 +180,6 @@ export class PurchaseOrdersService {
 
           await this.prisma.syncProductInStock(tx, item.sku)
         }
-
-        // Cập nhật trạng thái PO
-        await tx.purchaseOrder.update({
-          where: { id },
-          data:  { status: 'received' },
-        })
       })
 
       return { success: true, message: 'Đã nhận hàng và cập nhật tồn kho thành công' }
