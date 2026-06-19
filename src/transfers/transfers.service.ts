@@ -130,10 +130,65 @@ export class TransfersService {
     }
 
     // ── Hoàn thành điều chuyển: di chuyển tồn kho ─────────────
+    if (dto.status === 'in_transit') {
+      await this.prisma.$transaction(async (tx) => {
+        const now = new Date()
+        const shortId = id.slice(0, 8).toUpperCase()
+        const statusUpdate = await tx.transferRequest.updateMany({
+          where: { id, status: 'approved' },
+          data: { status: 'in_transit' },
+        })
+        if (statusUpdate.count === 0) {
+          throw new BadRequestException('Phieu dieu chuyen da duoc xuat hoac khong con o trang thai da duyet')
+        }
+
+        for (const item of transfer.items) {
+          const srcInv = await tx.inventory.findUnique({
+            where: { sku_warehouseId: { sku: item.sku, warehouseId: transfer.fromWarehouseId } },
+          })
+          if (!srcInv) throw new BadRequestException(`SKU "${item.sku}" khong ton tai trong kho nguon`)
+          if (srcInv.available < item.qty) {
+            throw new BadRequestException(
+              `SKU "${item.sku}": ton kho kha dung ${srcInv.available}, yeu cau ${item.qty}`
+            )
+          }
+
+          await tx.inventory.update({
+            where: { sku_warehouseId: { sku: item.sku, warehouseId: transfer.fromWarehouseId } },
+            data: { onHand: { decrement: item.qty }, available: { decrement: item.qty } },
+          })
+
+          await tx.inventoryTransaction.create({
+            data: {
+              type:        'transfer_out',
+              date:        now,
+              sku:         item.sku,
+              warehouseId: transfer.fromWarehouseId,
+              qty:         item.qty,
+              cost:        Number(srcInv.unitCost),
+              note:        `Xuat dieu chuyen [${shortId}] -> Kho ${transfer.toWarehouseId}`,
+              operatorId:  user.id,
+            },
+          })
+
+          await this.prisma.syncProductInStock(tx, item.sku)
+        }
+      })
+
+      return { success: true, message: 'Da xuat hang dieu chuyen va cap nhat ton kho nguon' }
+    }
+
     if (dto.status === 'completed') {
       await this.prisma.$transaction(async (tx) => {
         const now = new Date()
         const shortId = id.slice(0, 8).toUpperCase()
+        const statusUpdate = await tx.transferRequest.updateMany({
+          where: { id, status: 'in_transit' },
+          data: { status: 'completed', completedAt: now },
+        })
+        if (statusUpdate.count === 0) {
+          throw new BadRequestException('Phieu dieu chuyen da duoc nhan hoac khong con o trang thai dang van chuyen')
+        }
 
         for (const item of transfer.items) {
           // Lấy metadata từ kho nguồn
@@ -141,18 +196,6 @@ export class TransfersService {
             where: { sku_warehouseId: { sku: item.sku, warehouseId: transfer.fromWarehouseId } },
           })
           if (!srcInv) throw new BadRequestException(`SKU "${item.sku}" không tồn tại trong kho nguồn`)
-          if (srcInv.available < item.qty) {
-            throw new BadRequestException(
-              `SKU "${item.sku}": tồn kho khả dụng ${srcInv.available}, yêu cầu ${item.qty}`
-            )
-          }
-
-          // Trừ kho nguồn
-          await tx.inventory.update({
-            where: { sku_warehouseId: { sku: item.sku, warehouseId: transfer.fromWarehouseId } },
-            data: { onHand: { decrement: item.qty }, available: { decrement: item.qty } },
-          })
-
           // Cộng kho đích (tạo mới nếu SKU chưa có)
           await tx.inventory.upsert({
             where: { sku_warehouseId: { sku: item.sku, warehouseId: transfer.toWarehouseId } },
@@ -173,40 +216,21 @@ export class TransfersService {
             },
           })
 
-          // Tạo phiếu giao dịch kho
-          await tx.inventoryTransaction.createMany({
-            data: [
-              {
-                type:        'transfer_out',
-                date:        now,
-                sku:         item.sku,
-                warehouseId: transfer.fromWarehouseId,
-                qty:         item.qty,
-                cost:        Number(srcInv.unitCost),
-                note:        `Xuất điều chuyển [${shortId}] → Kho ${transfer.toWarehouseId}`,
-                operatorId:  user.id,
-              },
-              {
-                type:        'transfer_in',
-                date:        now,
-                sku:         item.sku,
-                warehouseId: transfer.toWarehouseId,
-                qty:         item.qty,
-                cost:        Number(srcInv.unitCost),
-                note:        `Nhận điều chuyển [${shortId}] từ Kho ${transfer.fromWarehouseId}`,
-                operatorId:  user.id,
-              },
-            ],
+          await tx.inventoryTransaction.create({
+            data: {
+              type:        'transfer_in',
+              date:        now,
+              sku:         item.sku,
+              warehouseId: transfer.toWarehouseId,
+              qty:         item.qty,
+              cost:        Number(srcInv.unitCost),
+              note:        `Nhan dieu chuyen [${shortId}] tu Kho ${transfer.fromWarehouseId}`,
+              operatorId:  user.id,
+            },
           })
 
           await this.prisma.syncProductInStock(tx, item.sku)
         }
-
-        // Cập nhật trạng thái
-        await tx.transferRequest.update({
-          where: { id },
-          data: { status: 'completed', completedAt: now },
-        })
       })
 
       return { success: true, message: 'Điều chuyển hoàn thành – tồn kho đã được cập nhật' }
