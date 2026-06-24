@@ -3,10 +3,13 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
+  OnModuleInit,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import {
+  CancelBookingDto,
   CreateBookingDto,
   CreateRecurringDto,
   UpdateServicesDto,
@@ -24,17 +27,297 @@ import {
   formatDate,
   dayLabel,
   buildHourSlots,
-  invoiceCode,
+  nextInvoiceCode,
   checkSlotConflict,
+  getBusinessNowParts,
 } from './booking.helpers';
+import {
+  isAutoConfirmedGateway,
+  normalizePaymentMethod,
+} from '../common/payment-methods';
+
+/** Thời gian giữ chỗ (ms) — 5 phút */
+const HOLD_DURATION_MS = 5 * 60 * 1000;
+const CHECKIN_EARLY_MINUTES = 15;
+
+type CancelBookingOptions = {
+  reason?: string | null;
+  cancelledByName?: string | null;
+  cancelledByRole?: string | null;
+  cancelledAt?: Date;
+  notify?: boolean;
+};
 
 @Injectable()
-export class BookingsService {
+export class BookingsService implements OnModuleInit {
+  private readonly logger = new Logger(BookingsService.name);
+
   constructor(
     private prisma: PrismaService,
     private emailService: EmailService,
     private fixedScheduleService: FixedScheduleService,
   ) {}
+
+  // ═══════════════════════════════════════════════════════════════
+  // AUTO-RELEASE: chạy mỗi 60 giây để giải phóng chỗ hết hạn
+  // ═══════════════════════════════════════════════════════════════
+  onModuleInit() {
+    // Dọn dẹp ngay khi khởi động, sau đó mỗi 60 giây
+    this.releaseAllExpiredBookings().catch(() => {})
+    this.autoCompleteElapsedPlayingBookings().catch(() => {})
+    setInterval(() => {
+      this.releaseAllExpiredBookings().catch(() => {})
+      this.autoCompleteElapsedPlayingBookings().catch(() => {})
+    }, 60_000)
+  }
+
+  /** Giải phóng tất cả booking pending quá 5 phút chưa thanh toán */
+  async releaseAllExpiredBookings() {
+    const cutoff = new Date(Date.now() - HOLD_DURATION_MS)
+    // Chỉ hủy các booking online payment (vnpay/momo) vì cash/bank do nhân viên xác nhận
+    const expired = await this.prisma.booking.findMany({
+      where: {
+        status:        'pending',
+        paymentMethod: { in: ['vnpay', 'momo'] },
+        createdAt:     { lt: cutoff },
+      },
+      select: { id: true },
+    })
+
+    if (expired.length === 0) return
+
+    const ids = expired.map(b => b.id)
+    await this.prisma.$transaction([
+      // Xóa CourtSlot (giải phóng giờ)
+      this.prisma.courtSlot.deleteMany({ where: { bookingId: { in: ids } } }),
+      // Hủy invoice
+      this.prisma.invoice.updateMany({ where: { bookingId: { in: ids }, status: 'unpaid' }, data: { status: 'cancelled' } }),
+      // Hủy booking
+      this.prisma.booking.updateMany({ where: { id: { in: ids } }, data: { status: 'cancelled' } }),
+    ])
+
+    this.logger.log(`🗑️  Released ${ids.length} expired pending booking(s)`)
+  }
+
+  /**
+   * Giải phóng chỗ hết hạn cho 1 sân + ngày + danh sách giờ cụ thể.
+   * Gọi trước khi tạo booking mới để tránh false conflict.
+   */
+  private async releaseExpiredForSlots(courtId: number, date: Date, hours: string[]) {
+    const cutoff = new Date(Date.now() - HOLD_DURATION_MS)
+
+    // Tìm CourtSlots thuộc các booking pending quá hạn ở cùng sân/ngày/giờ
+    const expiredSlots = await this.prisma.courtSlot.findMany({
+      where: {
+        courtId,
+        slotDate: date,
+        time:     { in: hours },
+        booking:  {
+          status:        'pending',
+          paymentMethod: { in: ['vnpay', 'momo'] },
+          createdAt:     { lt: cutoff },
+        },
+      },
+      select: { bookingId: true },
+    })
+
+    if (expiredSlots.length === 0) return
+
+    const bookingIds = [...new Set(expiredSlots.map(s => s.bookingId).filter(Boolean))] as string[]
+    if (bookingIds.length === 0) return
+
+    await this.prisma.$transaction([
+      this.prisma.courtSlot.deleteMany({ where: { bookingId: { in: bookingIds } } }),
+      this.prisma.invoice.updateMany({ where: { bookingId: { in: bookingIds }, status: 'unpaid' }, data: { status: 'cancelled' } }),
+      this.prisma.booking.updateMany({ where: { id: { in: bookingIds } }, data: { status: 'cancelled' } }),
+    ])
+
+    this.logger.log(`🗑️  Released ${bookingIds.length} expired slot(s) for court ${courtId}`)
+  }
+
+  private timeToMinutes(time: string) {
+    const [hour, minute] = time.split(':').map(Number)
+    return hour * 60 + minute
+  }
+
+  private formatMinutesAsTime(totalMinutes: number) {
+    const normalized = Math.max(0, totalMinutes)
+    const hour = Math.floor(normalized / 60)
+    const minute = normalized % 60
+    return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`
+  }
+
+  private assertCanCheckinNow(
+    booking: { bookingDate: Date; timeStart?: string | null; timeEnd?: string | null },
+    current = getBusinessNowParts(new Date()),
+  ) {
+    if (!booking.timeStart) {
+      throw new BadRequestException('Booking chưa có giờ bắt đầu để check-in')
+    }
+
+    const bookingDate = formatDate(booking.bookingDate)
+    if (bookingDate !== current.dateToken) {
+      throw new BadRequestException(
+        `Booking này dành cho ngày ${bookingDate}, hôm nay là ${current.dateToken}`,
+      )
+    }
+
+    const startTotal = this.timeToMinutes(booking.timeStart)
+    const earliestCheckin = startTotal - CHECKIN_EARLY_MINUTES
+    if (current.minutes < earliestCheckin) {
+      throw new BadRequestException(
+        `Chỉ được check-in sớm tối đa ${CHECKIN_EARLY_MINUTES} phút. Vui lòng quay lại lúc ${this.formatMinutesAsTime(earliestCheckin)}.`,
+      )
+    }
+
+    if (booking.timeEnd && current.minutes >= this.timeToMinutes(booking.timeEnd)) {
+      throw new BadRequestException('Booking đã hết giờ, không thể check-in')
+    }
+  }
+
+  private hasBookingElapsed(
+    booking: { bookingDate: Date; timeEnd?: string | null },
+    current: { dateToken: string; minutes: number },
+  ) {
+    if (!booking.timeEnd) return false
+
+    const bookingDate = formatDate(booking.bookingDate)
+    if (bookingDate < current.dateToken) return true
+    if (bookingDate > current.dateToken) return false
+
+    return current.minutes >= this.timeToMinutes(booking.timeEnd)
+  }
+
+  private normalizeCancellationReason(reason?: string | null) {
+    const trimmed = reason?.trim()
+    return trimmed ? trimmed : null
+  }
+
+  private getCancellerRoleLabel(role?: string | null) {
+    switch (role) {
+      case 'admin':
+        return 'Admin'
+      case 'employee':
+        return 'Nhân viên'
+      case 'user':
+        return 'Khách hàng'
+      default:
+        return 'Hệ thống'
+    }
+  }
+
+  private async sendBookingCancellationNotifications(booking: {
+    id: string
+    customerName?: string | null
+    customerPhone?: string | null
+    customerEmail?: string | null
+    bookingDate: Date
+    timeStart?: string | null
+    timeEnd?: string | null
+    amount: unknown
+    cancellationReason?: string | null
+    cancelledAt?: Date | null
+    cancelledByName?: string | null
+    cancelledByRole?: string | null
+    court?: { name?: string | null; branch?: { name?: string | null } | null } | null
+    branch?: { name?: string | null } | null
+    user?: { email?: string | null } | null
+  }) {
+    const payload = {
+      id: booking.id,
+      customerName: booking.customerName || 'Quý khách',
+      customerEmail: booking.customerEmail || booking.user?.email || '',
+      customerPhone: booking.customerPhone || '',
+      courtName: booking.court?.name || 'Sân cầu lông',
+      branchName: booking.court?.branch?.name || booking.branch?.name || '',
+      bookingDate: booking.bookingDate.toISOString(),
+      timeStart: booking.timeStart || '',
+      timeEnd: booking.timeEnd || '',
+      amount: parseFloat(String(booking.amount ?? 0)),
+      reason: this.normalizeCancellationReason(booking.cancellationReason),
+      cancelledAt: booking.cancelledAt?.toISOString() || new Date().toISOString(),
+      cancelledByName: booking.cancelledByName || 'Hệ thống',
+      cancelledByRole: this.getCancellerRoleLabel(booking.cancelledByRole),
+    }
+
+    if (payload.customerEmail) {
+      await this.emailService.sendBookingCancelledCustomer(payload)
+    }
+
+    const admins = await this.prisma.user.findMany({
+      where: { role: 'admin' },
+      select: { email: true },
+    })
+
+    const recipients = [...new Set(
+      admins
+        .map((admin) => admin.email?.trim())
+        .filter((email): email is string => Boolean(email)),
+    )]
+
+    if (recipients.length > 0) {
+      await this.emailService.sendBookingCancelledAdmin({
+        ...payload,
+        recipients,
+      })
+    }
+  }
+
+  private async autoCompleteElapsedPlayingBookings(filters?: {
+    userId?: string
+    bookingIds?: string[]
+  }) {
+    if (filters?.bookingIds && filters.bookingIds.length === 0) return new Set<string>()
+
+    const current = getBusinessNowParts(new Date())
+    const playingBookings = await this.prisma.booking.findMany({
+      where: {
+        status: 'playing',
+        ...(filters?.userId ? { userId: filters.userId } : {}),
+        ...(filters?.bookingIds ? { id: { in: filters.bookingIds } } : {}),
+      },
+      select: {
+        id: true,
+        bookingDate: true,
+        timeEnd: true,
+        fixedOccurrenceId: true,
+      },
+    })
+
+    const elapsedBookings = playingBookings.filter((booking) =>
+      this.hasBookingElapsed(booking, current),
+    )
+
+    if (elapsedBookings.length === 0) return new Set<string>()
+
+    const bookingIds = elapsedBookings.map((booking) => booking.id)
+    const fixedOccurrenceIds = elapsedBookings
+      .map((booking) => booking.fixedOccurrenceId)
+      .filter(Boolean) as string[]
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.booking.updateMany({
+        where: { id: { in: bookingIds } },
+        data: { status: 'completed' },
+      })
+
+      if (fixedOccurrenceIds.length > 0) {
+        await tx.fixedScheduleOccurrence.updateMany({
+          where: {
+            id: { in: fixedOccurrenceIds },
+            status: { notIn: ['cancelled', 'completed', 'skipped'] },
+          },
+          data: { status: 'completed' },
+        })
+      }
+    })
+
+    this.logger.log(
+      `✅ Auto-completed ${bookingIds.length} elapsed playing booking(s)`,
+    )
+
+    return new Set(bookingIds)
+  }
 
   // ═══════════════════════════════════════════════════════════════
   // BOOKING THƯỜNG: CREATE
@@ -44,6 +327,11 @@ export class BookingsService {
     // FE gửi snake_case — đọc trực tiếp từ DTO
     const hours = buildHourSlots(dto.time_start, dto.time_end);
     const dateObj = normalizeDate(dto.booking_date);
+    const paymentMethod = normalizePaymentMethod(dto.payment_method, 'cash');
+    const autoConfirmed = isAutoConfirmedGateway(paymentMethod);
+
+    // Giải phóng chỗ hết hạn TRƯỚC khi vào transaction để tránh conflict giả
+    await this.releaseExpiredForSlots(dto.court_id, dateObj, hours).catch(() => {})
 
     const result = await this.prisma.$transaction(async (tx) => {
       const court = await tx.court.findUnique({
@@ -79,12 +367,12 @@ export class BookingsService {
           amount,
           pricePerHour:  court.price,
           people:        dto.slots ?? dto.people ?? 2,
-          paymentMethod: dto.payment_method ?? 'cash',
+          paymentMethod,
           customerName:  dto.customer_name,
           customerPhone: dto.customer_phone,
           customerEmail: dto.customer_email || null,
           userId:        dto.user_id || null,
-          status: 'pending',
+          status: autoConfirmed ? 'confirmed' : 'pending',
         },
       });
 
@@ -94,7 +382,7 @@ export class BookingsService {
           slotDate:  dateObj,
           dateLabel: dayLabel(dateObj),
           time,
-          status:    'hold',
+          status:    autoConfirmed ? 'booked' : 'hold',
           bookedBy:  dto.customer_name,
           phone:     dto.customer_phone,
           bookingId: booking.id,
@@ -103,16 +391,15 @@ export class BookingsService {
 
       const invoice = await tx.invoice.create({
         data: {
-          code:             invoiceCode('BK'),
+          code:             await nextInvoiceCode(tx, 'MB'),
           bookingId:        booking.id,
           customerName:     dto.customer_name,
           customerPhone:    dto.customer_phone,
           customerEmail:    dto.customer_email || null,
           subtotalSnapshot: amount,
           totalSnapshot:    amount,
-          paymentMethod:    dto.payment_method ?? 'cash',
-          // For all methods: start as 'unpaid'. Payment gateway callbacks will mark it 'paid'.
-          status:           'unpaid',
+          paymentMethod,
+          status:           autoConfirmed ? 'paid' : 'unpaid',
           items: {
             create: [
               {
@@ -130,6 +417,7 @@ export class BookingsService {
         ...booking,
         invoiceId:   invoice.id,
         invoiceCode: invoice.code,
+        invoiceStatus: invoice.status,
         slots:       hours,
         amount,
         court:       { name: court.name },
@@ -151,7 +439,7 @@ export class BookingsService {
         timeEnd:       dto.time_end,
         amount:        result.amount,
         invoiceCode:   result.invoiceCode,
-        paymentMethod: dto.payment_method,
+        paymentMethod,
       }).catch(() => {/* fire-and-forget */});
     }
 
@@ -292,6 +580,9 @@ export class BookingsService {
         `Không thể check-in booking ${booking.status}`,
       );
     }
+
+    this.assertCanCheckinNow(booking)
+
     const updated = await this.prisma.booking.update({
       where: { id },
       data: { status: 'playing' },
@@ -315,23 +606,42 @@ export class BookingsService {
     return { success: true, booking: updated };
   }
 
-  async cancel(id: string) {
+  async cancel(id: string, options: CancelBookingOptions = {}) {
     const booking = await this.findOne(id);
     if (['completed', 'cancelled'].includes(booking.status)) {
       throw new BadRequestException('Không thể hủy booking này');
     }
 
+    const cancellationReason = this.normalizeCancellationReason(options.reason)
+
     const updated = await this.prisma.booking.update({
       where: { id },
       data: {
         status: 'cancelled',
+        cancellationReason,
+        cancelledAt: options.cancelledAt ?? new Date(),
+        cancelledByName: options.cancelledByName ?? null,
+        cancelledByRole: options.cancelledByRole ?? null,
         slots: { deleteMany: {} },
         ...(booking.fixedOccurrenceId
           ? { fixedOccurrence: { update: { status: 'cancelled' } } }
           : {}),
       },
-      include: { court: { include: { branch: true } }, user: true },
+      include: {
+        court: { include: { branch: true } },
+        branch: true,
+        user: { select: { fullName: true, email: true, phone: true } },
+      },
     });
+    if (options.notify !== false) {
+      try {
+        await this.sendBookingCancellationNotifications(updated)
+      } catch (error) {
+        this.logger.warn(
+          `Failed to send cancellation notifications for booking ${id}: ${error instanceof Error ? error.message : 'unknown error'}`,
+        )
+      }
+    }
     return { success: true, booking: updated };
   }
 
@@ -366,7 +676,10 @@ export class BookingsService {
       case 'completed':
         return this.complete(id);
       case 'cancelled':
-        return this.cancel(id);
+        return this.cancel(id, {
+          cancelledByName: 'Hệ thống',
+          cancelledByRole: 'system',
+        });
     }
   }
 
@@ -393,20 +706,21 @@ export class BookingsService {
         court: { select: { name: true, type: true } },
         branch: { select: { name: true } },
         user: { select: { fullName: true, phone: true } },
-        invoices: { select: { id: true, status: true }, take: 1 },
+        invoices: { select: { id: true, code: true, status: true }, take: 1 },
       },
       orderBy: [{ bookingDate: 'desc' }, { timeStart: 'asc' }],
     });
   }
 
   async findByUser(userId: string) {
+    await this.autoCompleteElapsedPlayingBookings({ userId }).catch(() => {})
     return this.prisma.booking.findMany({
       where: { userId },
       include: {
         court: { select: { name: true, image: true, type: true, price: true } },
         branch: { select: { name: true, address: true } },
         slots: { select: { time: true, status: true } },
-        invoices: { select: { id: true, status: true }, take: 1 },
+        invoices: { select: { id: true, code: true, status: true }, take: 1 },
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -428,13 +742,14 @@ export class BookingsService {
   }
 
   async findOneForUser(id: string, user: any) {
+    await this.autoCompleteElapsedPlayingBookings({ bookingIds: [id] }).catch(() => {})
     const booking = await this.findOne(id);
     if (user.role === 'admin' || user.role === 'employee') return booking;
     if (booking.userId && booking.userId === user.id) return booking;
     throw new ForbiddenException('Bạn không có quyền xem booking này');
   }
 
-  async cancelForUser(id: string, user: any) {
+  async cancelForUser(id: string, user: any, dto?: CancelBookingDto) {
     const booking = await this.findOne(id);
     if (
       !(
@@ -445,7 +760,18 @@ export class BookingsService {
     ) {
       throw new ForbiddenException('Bạn không có quyền hủy booking này');
     }
-    return this.cancel(id);
+    const fallbackReason =
+      user.role === 'user'
+        ? 'Khách hàng tự hủy booking'
+        : user.role === 'admin'
+          ? 'Admin hủy booking'
+          : 'Nhân viên hủy booking'
+
+    return this.cancel(id, {
+      reason: dto?.reason ?? fallbackReason,
+      cancelledByName: user.fullName || user.username || this.getCancellerRoleLabel(user.role),
+      cancelledByRole: user.role || 'system',
+    });
   }
 
   // ═══════════════════════════════════════════════════════════════
@@ -509,7 +835,7 @@ export class BookingsService {
     }
     // Hủy trước rồi xóa (để cascade slot)
     if (!['cancelled', 'completed'].includes(booking.status)) {
-      await this.cancel(id);
+      await this.cancel(id, { notify: false });
     }
     await this.prisma.booking.delete({ where: { id } });
     return { message: 'Đã xóa booking' };
@@ -532,8 +858,20 @@ export class BookingsService {
   }
 
   async checkin(bookingId: string) {
+    let realBookingId = bookingId;
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(bookingId)) {
+      const invoice = await this.prisma.invoice.findUnique({
+        where: { code: bookingId },
+        select: { bookingId: true },
+      });
+      if (!invoice || !invoice.bookingId) {
+        throw new NotFoundException('Không tìm thấy booking theo mã này');
+      }
+      realBookingId = invoice.bookingId;
+    }
+
     const booking = await this.prisma.booking.findUnique({
-      where: { id: bookingId },
+      where: { id: realBookingId },
       include: { court: { include: { branch: true } }, user: true },
     });
     if (!booking) throw new NotFoundException('Không tìm thấy booking');
@@ -550,27 +888,10 @@ export class BookingsService {
       throw new BadRequestException('Booking chưa được xác nhận thanh toán');
     }
 
-    const today = formatDate(new Date());
-    const bookingDate = formatDate(booking.bookingDate);
-    const now = new Date();
-    const nowTotal = now.getHours() * 60 + now.getMinutes();
-    const startTotal =
-      parseInt(booking.timeStart.split(':')[0]) * 60 +
-      parseInt(booking.timeStart.split(':')[1]);
-
-    if (bookingDate !== today) {
-      throw new BadRequestException(
-        `Booking này dành cho ngày ${bookingDate}, hôm nay là ${today}`,
-      );
-    }
-    if (nowTotal < startTotal - 30) {
-      throw new BadRequestException(
-        `Chưa đến giờ check-in. Giờ chơi: ${booking.timeStart}`,
-      );
-    }
+    this.assertCanCheckinNow(booking)
 
     const updated = await this.prisma.booking.update({
-      where: { id: bookingId },
+      where: { id: realBookingId },
       data: { status: 'playing', updatedAt: new Date() },
       include: { court: { include: { branch: true } }, user: true },
     });

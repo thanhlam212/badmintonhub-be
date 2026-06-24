@@ -35,6 +35,10 @@ export class EmailService {
     paymentMethod?: string
   }) {
     if (!booking.customerEmail) return
+    if (!process.env.MAIL_USER || !process.env.MAIL_PASS) {
+      this.logger.warn(`⚠️ Email credentials are not configured. Skipping sending email to ${booking.customerEmail} for booking ${booking.id}.`)
+      return
+    }
 
     const dateStr = new Date(booking.bookingDate).toLocaleDateString('vi-VN', {
       weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric',
@@ -185,6 +189,178 @@ export class EmailService {
   }
 
   // ─── Gửi email xác nhận đặt hàng online ─────────────────────
+  async sendBookingCancelledCustomer(booking: {
+    id: string
+    customerName: string
+    customerEmail: string
+    customerPhone?: string
+    courtName: string
+    branchName: string
+    bookingDate: string
+    timeStart: string
+    timeEnd: string
+    amount: number
+    reason?: string | null
+    cancelledAt: string
+    cancelledByName: string
+    cancelledByRole: string
+  }) {
+    if (!booking.customerEmail) return
+    if (!process.env.MAIL_USER || !process.env.MAIL_PASS) {
+      this.logger.warn(`⚠️ Email credentials are not configured. Skipping cancellation email to ${booking.customerEmail} for booking ${booking.id}.`)
+      return
+    }
+
+    const dateStr = new Date(booking.bookingDate).toLocaleDateString('vi-VN', {
+      weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric',
+    })
+    const cancelledAtStr = new Date(booking.cancelledAt).toLocaleString('vi-VN')
+    const amountStr = new Intl.NumberFormat('vi-VN').format(booking.amount)
+    const reasonText = booking.reason || 'Không có lý do cụ thể.'
+
+    const html = `
+<!DOCTYPE html>
+<html lang="vi">
+<head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/></head>
+<body style="margin:0;padding:0;background:#f3f4f6;font-family:Arial,Helvetica,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f3f4f6;padding:32px 16px;">
+  <tr><td align="center">
+    <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
+      <tr>
+        <td style="background:linear-gradient(135deg,#7f1d1d 0%,#dc2626 100%);padding:28px 32px;text-align:center;">
+          <p style="margin:0;color:#fecaca;font-size:12px;letter-spacing:2px;text-transform:uppercase;">BadmintonHub</p>
+          <h1 style="margin:8px 0 0;color:#ffffff;font-size:26px;">Booking đã được hủy</h1>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding:32px;">
+          <p style="margin:0 0 20px;color:#374151;font-size:16px;">
+            Xin chào <strong>${booking.customerName}</strong>, booking của bạn đã được hủy.
+          </p>
+          <table width="100%" cellpadding="0" cellspacing="0" style="background:#fef2f2;border:1px solid #fecaca;border-radius:12px;padding:20px;margin-bottom:24px;">
+            <tr><td style="padding:6px 0;color:#6b7280;font-size:14px;width:42%;">Mã booking</td><td style="padding:6px 0;font-weight:bold;font-family:monospace;font-size:13px;color:#991b1b;">${booking.id}</td></tr>
+            <tr><td style="padding:6px 0;color:#6b7280;font-size:14px;">Sân</td><td style="padding:6px 0;font-weight:bold;font-size:14px;">${booking.courtName}</td></tr>
+            <tr><td style="padding:6px 0;color:#6b7280;font-size:14px;">Chi nhánh</td><td style="padding:6px 0;font-size:14px;">${booking.branchName}</td></tr>
+            <tr><td style="padding:6px 0;color:#6b7280;font-size:14px;">Ngày chơi</td><td style="padding:6px 0;font-weight:bold;font-size:14px;">${dateStr}</td></tr>
+            <tr><td style="padding:6px 0;color:#6b7280;font-size:14px;">Khung giờ</td><td style="padding:6px 0;font-weight:bold;font-size:14px;">${booking.timeStart} - ${booking.timeEnd}</td></tr>
+            <tr><td style="padding:6px 0;color:#6b7280;font-size:14px;">Tổng tiền</td><td style="padding:6px 0;font-weight:bold;font-size:18px;color:#b91c1c;">${amountStr}đ</td></tr>
+            <tr><td style="padding:6px 0;color:#6b7280;font-size:14px;">Hủy bởi</td><td style="padding:6px 0;font-size:14px;">${booking.cancelledByRole} - ${booking.cancelledByName}</td></tr>
+            <tr><td style="padding:6px 0;color:#6b7280;font-size:14px;">Thời gian hủy</td><td style="padding:6px 0;font-size:14px;">${cancelledAtStr}</td></tr>
+          </table>
+          <table width="100%" cellpadding="0" cellspacing="0" style="background:#fff7ed;border:1px solid #fdba74;border-radius:12px;padding:16px;margin-bottom:24px;">
+            <tr>
+              <td style="color:#9a3412;font-size:14px;">
+                <strong>Lý do hủy:</strong><br/>
+                ${reasonText}
+              </td>
+            </tr>
+          </table>
+          <p style="margin:0;color:#6b7280;font-size:13px;line-height:1.7;">
+            Nếu cần hỗ trợ đặt lại sân hoặc giải đáp thêm, vui lòng liên hệ BadmintonHub.
+          </p>
+        </td>
+      </tr>
+    </table>
+  </td></tr>
+</table>
+</body>
+</html>`
+
+    try {
+      await this.transporter.sendMail({
+        from: `"BadmintonHub" <${process.env.MAIL_USER}>`,
+        to: booking.customerEmail,
+        subject: `❌ [BadmintonHub] Booking ${booking.courtName} ngày ${dateStr} đã bị hủy`,
+        html,
+      })
+      this.logger.log(`✅ Cancellation email sent to ${booking.customerEmail} for booking ${booking.id}`)
+    } catch (err) {
+      this.logger.error(`❌ Failed to send cancellation email for booking ${booking.id}:`, err)
+    }
+  }
+
+  async sendBookingCancelledAdmin(params: {
+    recipients: string[]
+    id: string
+    customerName: string
+    customerEmail: string
+    customerPhone?: string
+    courtName: string
+    branchName: string
+    bookingDate: string
+    timeStart: string
+    timeEnd: string
+    amount: number
+    reason?: string | null
+    cancelledAt: string
+    cancelledByName: string
+    cancelledByRole: string
+  }) {
+    if (!params.recipients.length) return
+    if (!process.env.MAIL_USER || !process.env.MAIL_PASS) {
+      this.logger.warn(`⚠️ Email credentials are not configured. Skipping admin cancellation email for booking ${params.id}.`)
+      return
+    }
+
+    const dateStr = new Date(params.bookingDate).toLocaleDateString('vi-VN', {
+      weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric',
+    })
+    const cancelledAtStr = new Date(params.cancelledAt).toLocaleString('vi-VN')
+    const amountStr = new Intl.NumberFormat('vi-VN').format(params.amount)
+    const reasonText = params.reason || 'Không có lý do cụ thể.'
+
+    const html = `
+<!DOCTYPE html>
+<html lang="vi">
+<head><meta charset="UTF-8"/></head>
+<body style="margin:0;padding:0;background:#f8fafc;font-family:Arial,Helvetica,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;padding:24px 12px;">
+  <tr><td align="center">
+    <table width="620" cellpadding="0" cellspacing="0" style="max-width:620px;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #e2e8f0;">
+      <tr>
+        <td style="background:#0f172a;padding:24px 28px;">
+          <p style="margin:0;color:#93c5fd;font-size:12px;letter-spacing:2px;text-transform:uppercase;">Thông báo Admin</p>
+          <h1 style="margin:8px 0 0;color:#ffffff;font-size:24px;">Có booking vừa bị hủy</h1>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding:28px;">
+          <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
+            <tr><td style="padding:7px 0;color:#64748b;font-size:14px;width:38%;">Mã booking</td><td style="padding:7px 0;font-weight:bold;font-family:monospace;">${params.id}</td></tr>
+            <tr><td style="padding:7px 0;color:#64748b;font-size:14px;">Khách hàng</td><td style="padding:7px 0;">${params.customerName}${params.customerPhone ? ` - ${params.customerPhone}` : ''}</td></tr>
+            <tr><td style="padding:7px 0;color:#64748b;font-size:14px;">Email khách</td><td style="padding:7px 0;">${params.customerEmail || 'Không có'}</td></tr>
+            <tr><td style="padding:7px 0;color:#64748b;font-size:14px;">Sân</td><td style="padding:7px 0;">${params.courtName}</td></tr>
+            <tr><td style="padding:7px 0;color:#64748b;font-size:14px;">Chi nhánh</td><td style="padding:7px 0;">${params.branchName}</td></tr>
+            <tr><td style="padding:7px 0;color:#64748b;font-size:14px;">Lịch chơi</td><td style="padding:7px 0;">${dateStr} - ${params.timeStart} đến ${params.timeEnd}</td></tr>
+            <tr><td style="padding:7px 0;color:#64748b;font-size:14px;">Giá trị booking</td><td style="padding:7px 0;font-weight:bold;">${amountStr}đ</td></tr>
+            <tr><td style="padding:7px 0;color:#64748b;font-size:14px;">Hủy bởi</td><td style="padding:7px 0;">${params.cancelledByRole} - ${params.cancelledByName}</td></tr>
+            <tr><td style="padding:7px 0;color:#64748b;font-size:14px;">Thời gian hủy</td><td style="padding:7px 0;">${cancelledAtStr}</td></tr>
+          </table>
+          <div style="margin-top:20px;padding:16px;border-radius:12px;background:#fff7ed;border:1px solid #fdba74;color:#9a3412;font-size:14px;">
+            <strong>Lý do hủy:</strong><br/>
+            ${reasonText}
+          </div>
+        </td>
+      </tr>
+    </table>
+  </td></tr>
+</table>
+</body>
+</html>`
+
+    try {
+      await this.transporter.sendMail({
+        from: `"BadmintonHub" <${process.env.MAIL_USER}>`,
+        to: params.recipients.join(','),
+        subject: `⚠️ [BadmintonHub] Booking ${params.id.slice(0, 8)} đã bị hủy`,
+        html,
+      })
+      this.logger.log(`✅ Admin cancellation email sent for booking ${params.id}`)
+    } catch (err) {
+      this.logger.error(`❌ Failed to send admin cancellation email for booking ${params.id}:`, err)
+    }
+  }
+
   async sendOrderConfirmed(order: {
     id: string
     customerName: string
@@ -194,6 +370,10 @@ export class EmailService {
     paymentMethod?: string
   }) {
     if (!order.customerEmail) return
+    if (!process.env.MAIL_USER || !process.env.MAIL_PASS) {
+      this.logger.warn(`⚠️ Email credentials are not configured. Skipping sending email to ${order.customerEmail} for order ${order.id}.`)
+      return
+    }
 
     const itemRows = order.items.map(i => `
       <tr style="border-top:1px solid #f3f4f6;">
@@ -255,6 +435,89 @@ export class EmailService {
       this.logger.log(`✅ Order email sent to ${order.customerEmail}`)
     } catch (err) {
       this.logger.error(`❌ Failed to send order email:`, err)
+    }
+  }
+
+  // ─── Gửi OTP quên mật khẩu ──────────────────────────────────
+  async sendOtpEmail(params: {
+    to: string
+    fullName: string
+    otp: string
+    username: string
+  }) {
+    const html = `
+<!DOCTYPE html>
+<html lang="vi">
+<head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/></head>
+<body style="margin:0;padding:0;background:#f3f4f6;font-family:Arial,Helvetica,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f3f4f6;padding:32px 16px;">
+  <tr><td align="center">
+    <table width="520" cellpadding="0" cellspacing="0" style="max-width:520px;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
+      <!-- Header -->
+      <tr>
+        <td style="background:linear-gradient(135deg,#0a2416 0%,#1a5c32 100%);padding:28px 32px;text-align:center;">
+          <p style="margin:0;color:#86efac;font-size:12px;letter-spacing:2px;text-transform:uppercase;">BadmintonHub</p>
+          <h1 style="margin:8px 0 0;color:#ffffff;font-size:24px;">🔐 Đặt lại mật khẩu</h1>
+        </td>
+      </tr>
+      <!-- Body -->
+      <tr>
+        <td style="padding:32px;">
+          <p style="margin:0 0 16px;color:#374151;font-size:16px;">
+            Xin chào <strong>${params.fullName}</strong>,
+          </p>
+          <p style="margin:0 0 20px;color:#6b7280;font-size:14px;">
+            Bạn vừa yêu cầu đặt lại mật khẩu cho tài khoản <strong style="color:#0a2416;">${params.username}</strong>.<br/>
+            Nhập mã OTP bên dưới để tiếp tục:
+          </p>
+
+          <!-- OTP Box -->
+          <div style="background:#f0fdf4;border:2px solid #86efac;border-radius:16px;padding:28px;text-align:center;margin:0 0 24px;">
+            <p style="margin:0 0 8px;color:#166534;font-size:13px;letter-spacing:1px;text-transform:uppercase;font-weight:bold;">Mã xác minh OTP</p>
+            <p style="margin:0;font-family:monospace;font-size:48px;font-weight:bold;letter-spacing:12px;color:#15803d;">
+              ${params.otp}
+            </p>
+            <p style="margin:12px 0 0;color:#6b7280;font-size:13px;">Mã có hiệu lực trong <strong>5 phút</strong></p>
+          </div>
+
+          <table width="100%" cellpadding="0" cellspacing="0"
+            style="background:#fefce8;border:1px solid #fef08a;border-radius:12px;padding:14px;margin-bottom:24px;">
+            <tr>
+              <td style="color:#854d0e;font-size:13px;">
+                ⚠️ <strong>Lưu ý bảo mật:</strong> Không chia sẻ mã này với bất kỳ ai.
+                Nếu bạn không yêu cầu đặt lại mật khẩu, hãy bỏ qua email này.
+              </td>
+            </tr>
+          </table>
+
+          <p style="color:#9ca3af;font-size:13px;text-align:center;margin:0;">
+            Đội ngũ <strong>BadmintonHub</strong> 🏸
+          </p>
+        </td>
+      </tr>
+      <!-- Footer -->
+      <tr>
+        <td style="background:#f9fafb;padding:16px 32px;text-align:center;border-top:1px solid #e5e7eb;">
+          <p style="margin:0;color:#9ca3af;font-size:12px;">© 2025 BadmintonHub · All rights reserved</p>
+        </td>
+      </tr>
+    </table>
+  </td></tr>
+</table>
+</body>
+</html>`
+
+    try {
+      await this.transporter.sendMail({
+        from:    `"BadmintonHub" <${process.env.MAIL_USER}>`,
+        to:      params.to,
+        subject: `🔐 [BadmintonHub] Mã OTP đặt lại mật khẩu: ${params.otp}`,
+        html,
+      })
+      this.logger.log(`✅ OTP email sent to ${params.to}`)
+    } catch (err) {
+      this.logger.error(`❌ Failed to send OTP email to ${params.to}:`, err)
+      throw new Error('Không thể gửi email. Vui lòng thử lại.')
     }
   }
 

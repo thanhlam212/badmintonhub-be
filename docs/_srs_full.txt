@@ -1,0 +1,2635 @@
+
+### Heading 1 ### 1. Problem Definition (Phiên bản Tiếng Việt)
+
+### Heading 2 ### 1.1. Problem Abstraction
+
+### Heading 3 ### Giới thiệu chung về dự án Quản lý Bãi đỗ xe thông minh
+P: Trong bối cảnh đô thị hóa mạnh mẽ tại các thành phố lớn của Việt Nam, nhu cầu đỗ xe ngày càng tăng cao trong khi quỹ đất dành cho giao thông
+P: Dự án “Hệ thống Quản lý Bãi đỗ xe Thông minh” được xây dựng nhằm mang đến một giải pháp công nghệ toàn diện, tự động hóa quy trình nhận diện
+
+### Heading 3 ### Xuất xứ của Dự án
+P: Dự án xuất phát từ thực tế nhu cầu cấp thiết của các tòa nhà văn phòng, chung cư, trung tâm thương mại và khu đô thị tại Việt Nam. Hiện nay,
+P: Nhận thấy những bất cập đó, nhóm chúng tôi quyết định phát triển Hệ thống Quản lý Bãi đỗ xe Thông minh – một giải pháp tích hợp công nghệ nh
+
+### Heading 3 ### Lý do cần thiết xây dựng Dự án
+P: Tự động hóa quy trình vận hành, giảm phụ thuộc vào con người Phương thức quản lý thủ công đòi hỏi nhiều nhân sự tại cổng, dễ dẫn đến sai sót
+P: Giải quyết bài toán quản lý khách thuê bao phức tạp Một hộ gia đình hoặc doanh nghiệp thường sở hữu nhiều phương tiện. Hệ thống cho phép tạo
+P: Tăng tính minh bạch và chính xác trong tính phí & doanh thu Hệ thống tự động tính phí theo biểu giá động (theo loại xe, khung giờ, ngày lễ),
+P: Nâng cao trải nghiệm người dùng Khách hàng có thể thanh toán nhanh chóng qua QR Code tại Kiosk hoặc trên ứng dụng di động, nhận thông báo nh
+P: Tăng cường an ninh và giám sát thông minh Hệ thống sử dụng AI để phát hiện xe đỗ sai vị trí, chắn lối đi hoặc có hành vi bất thường, đồng th
+P: Hỗ trợ quản lý linh hoạt và dự báo thông minh Ban quản lý có thể cấu hình động các thông số vận hành, dự báo tỷ lệ lấp đầy bãi đỗ và tối ưu 
+
+### Heading 3 ### Thực trạng
+P: Hiện nay, hầu hết các bãi đỗ xe tại Việt Nam vẫn đang sử dụng phương thức quản lý thủ công hoặc hệ thống barrier cơ bản không tích hợp trí t
+
+### Heading 3 ### Tầm quan trọng của Dự án
+P: Hệ thống Quản lý Bãi đỗ xe Thông minh không chỉ là công cụ hỗ trợ vận hành mà còn là nền tảng giúp các chủ đầu tư và Ban quản lý nâng tầm ch
+
+### Heading 2 ### 1.2. The Current System
+P: Hiện nay, hầu hết các bãi đỗ xe tại Việt Nam vẫn chủ yếu áp dụng phương thức quản lý truyền thống hoặc sử dụng các phần mềm quản lý bãi đỗ x
+
+### Heading 3 ### Thực trạng và những bất cập của các phần mềm quản lý bãi đỗ xe hiện nay
+P: Phần lớn các bãi đỗ xe vẫn đang sử dụng cách quản lý thủ công kết hợp với một số hệ thống điều khiển barrier thủ công. Các phần mềm quản lý 
+P: Quy trình nhận diện và kiểm soát phương tiện ra vào còn chậm, chủ yếu phụ thuộc vào bảo vệ nhập liệu thủ công, dễ gây ùn tắc giao thông vào 
+P: Hệ thống tính phí thiếu linh hoạt, chưa hỗ trợ tốt biểu giá động theo khung giờ, loại phương tiện hay ngày lễ, Tết.
+P: Khó khăn trong việc quản lý khách thuê bao dài hạn, đặc biệt khi một tài khoản cần quản lý nhiều phương tiện (hộ gia đình hoặc doanh nghiệp)
+P: Thanh toán chủ yếu bằng tiền mặt, thiếu các giải pháp thanh toán không tiền mặt tiện lợi và hiện đại.
+P: Hệ thống giám sát an ninh và phát hiện vi phạm còn yếu, chủ yếu dựa vào con người nên hiệu quả thấp và dễ bỏ sót.
+P: Báo cáo doanh thu thiếu chính xác, khó tra cứu lịch sử đỗ xe chi tiết của từng phương tiện.
+P: Giao diện phần mềm thường phức tạp, không thân thiện với người dùng, gây khó khăn cho cả bảo vệ lẫn Ban quản lý.
+P: Những hạn chế trên dẫn đến hiệu quả vận hành thấp, mất nhiều thời gian, dễ xảy ra sai sót, thất thoát doanh thu và làm giảm trải nghiệm của 
+
+### Heading 3 ### Lợi ích khi áp dụng mô hình Scrum Agile
+P: Trong thời đại công nghệ số bùng nổ và thị trường biến đổi không ngừng, các dự án phát triển phần mềm đang chịu áp lực phải thích ứng nhanh 
+P: Scrum Agile không chỉ đáp ứng hoàn hảo những yêu cầu trên mà còn trở thành phương pháp được hàng nghìn doanh nghiệp và nhóm phát triển trên 
+P: 1. Tăng khả năng thích ứng và linh hoạt trong mọi tình huống
+P: Một trong những đặc điểm nổi bật của Scrum là khả năng thích ứng nhanh chóng với sự thay đổi. Dự án Quản lý Bãi đỗ xe Thông minh có tính phứ
+P: 2. Tăng tính minh bạch và cải thiện giao tiếp trong đội ngũ
+P: Scrum thúc đẩy môi trường làm việc minh bạch và cộng tác cao thông qua các cuộc họp định kỳ:
+P: Daily Standup: Cuộc họp ngắn 15 phút mỗi ngày để cập nhật tiến độ công việc, đặc biệt là tiến độ tích hợp AI Camera và xử lý ngoại lệ.
+P: Sprint Review: Đánh giá sản phẩm đã hoàn thành và nhận phản hồi trực tiếp từ Ban quản lý bãi đỗ xe.
+P: Sprint Retrospective: Nhìn lại những gì đã làm tốt, chưa tốt để cải tiến quy trình làm việc.
+P: Các buổi họp này giúp đội ngũ luôn nắm rõ tiến độ và kịp thời hỗ trợ lẫn nhau khi gặp khó khăn kỹ thuật.
+P: 3. Giao sản phẩm sớm và liên tục, mang lại giá trị thực tế ngay từ đầu
+P: Thay vì phải chờ đến cuối dự án mới có sản phẩm hoàn chỉnh, Scrum cho phép đội ngũ giao từng phần sản phẩm có giá trị sau mỗi Sprint. Ví dụ:
+P: 4. Cải thiện chất lượng sản phẩm thông qua phản hồi liên tục
+P: Chất lượng là yếu tố then chốt của hệ thống quản lý bãi đỗ xe. Thông qua Sprint Review, đội ngũ liên tục nhận phản hồi từ người dùng thực tế
+P: 5. Tối ưu năng suất và hiệu quả công việc
+P: Scrum tập trung vào việc hoàn thành những công việc có giá trị cao nhất thông qua Product Backlog được sắp xếp ưu tiên rõ ràng. Trong dự án 
+P: 6. Tăng sự hài lòng và sự tham gia của khách hàng
+P: Ban quản lý bãi đỗ xe được khuyến khích tham gia sâu vào dự án thông qua các buổi Sprint Review. Họ có cơ hội xem trực tiếp sản phẩm đang ph
+P: 7. Quản lý rủi ro hiệu quả hơn
+P: Dự án Quản lý Bãi đỗ xe Thông minh có nhiều rủi ro kỹ thuật (tích hợp AI Camera, xử lý ngoại lệ, hiệu năng hệ thống thời gian thực…). Scrum 
+
+### Heading 3 ### Quy trình làm việc của Scrum Agile
+P: Scrum Agile hoạt động theo chu kỳ lặp lại (Iterative), cho phép đội ngũ phát triển sản phẩm một cách linh hoạt, minh bạch và tập trung vào g
+
+### Heading 4 ### Product Backlog – Tạo lập và quản lý danh sách công việc
+P: Product Backlog là “trái tim” của quy trình Scrum, chứa tất cả các yêu cầu, tính năng, cải tiến và công việc cần thiết để phát triển Hệ thốn
+P: Product Owner chịu trách nhiệm chính trong việc xây dựng và quản lý Product Backlog. Họ sẽ làm việc chặt chẽ với Ban quản lý để xác định các
+P: Các mục trong Product Backlog được gọi là Product Backlog Items (PBIs) và có thể ở dạng: tính năng mới, yêu cầu cải tiến, sửa lỗi, hoặc tối 
+P: Mục tiêu: Xác định rõ ràng tất cả những gì cần làm để đội ngũ phát triển có thể bắt tay vào công việc một cách có hệ thống và ưu tiên đúng đ
+
+### Heading 4 ### 2. Sprint Planning – Lập kế hoạch Sprint
+P: Trước khi mỗi Sprint bắt đầu, toàn đội ngũ sẽ tham gia buổi Sprint Planning để lập kế hoạch cụ thể cho Sprint sắp tới. Đây là bước khởi đầu 
+P: Từ Product Backlog, đội ngũ chọn ra các công việc ưu tiên để tạo thành Sprint Backlog.
+P: Xác định Sprint Goal – mục tiêu quan trọng nhất của Sprint (ví dụ: “Hoàn thành module nhận diện biển số xe tự động và tích hợp mở barie”).
+P: Các thành viên cùng thảo luận, phân tích và chia nhỏ công việc để dễ thực hiện.
+P: Kết quả: Đội ngũ bước vào Sprint với một kế hoạch rõ ràng, cụ thể và cam kết hoàn thành.
+
+### Heading 4 ### 3. Development Work – Thực hiện công việc trong Sprint
+P: Đây là giai đoạn đội ngũ thực thi các công việc đã cam kết trong Sprint Backlog. Thời gian Sprint thường kéo dài từ 1 đến 4 tuần.
+P: Daily Scrum – Họp hàng ngày Mỗi ngày, đội ngũ tổ chức một cuộc họp ngắn chỉ kéo dài khoảng 15 phút. Mục đích là để mỗi thành viên báo cáo ti
+P: Tự tổ chức và phối hợp Đội ngũ Scrum có tính tự tổ chức cao. Các thành viên sẽ tự phân công công việc, phối hợp chặt chẽ giữa các mảng (AI, 
+P: Kết quả: Công việc được thực hiện mượt mà, có sự hỗ trợ lẫn nhau và không ngừng tiến gần hơn đến Sprint Goal.
+
+### Heading 4 ### 4. Sprint Review – Trình bày kết quả và nhận phản hồi
+P: Vào cuối mỗi Sprint, đội ngũ tổ chức buổi Sprint Review để trình bày những gì đã hoàn thành cho Product Owner và Ban quản lý bãi đỗ xe.
+P: Demo sản phẩm: Đội ngũ trình diễn các tính năng đã hoàn thành (ví dụ: demo hệ thống nhận diện biển số tự động và thanh toán QR Code tại Kios
+P: Nhận phản hồi: Ban quản lý và các bên liên quan đưa ra ý kiến, góp ý thực tế về trải nghiệm người dùng, tốc độ xử lý, giao diện…
+P: Cập nhật Product Backlog: Những yêu cầu mới hoặc điều chỉnh sẽ được bổ sung và sắp xếp lại ưu tiên trong Product Backlog.
+P: Mục tiêu: Đảm bảo sản phẩm đang phát triển đúng hướng và mang lại giá trị thực sự cho việc quản lý bãi đỗ xe.
+
+### Heading 4 ### 5. Sprint Retrospective – Nhìn lại và cải tiến
+P: Sau Sprint Review, đội ngũ tổ chức buổi Sprint Retrospective để đánh giá quy trình làm việc của Sprint vừa qua. Đây là khoảng thời gian để đ
+P: Những gì đã làm tốt?
+P: Những gì chưa hiệu quả?
+P: Cần thay đổi hoặc cải tiến điều gì trong Sprint tiếp theo?
+P: Buổi Retrospective giúp đội ngũ ngày càng hoàn thiện hơn, giảm thiểu sai sót và nâng cao hiệu suất làm việc, đặc biệt trong việc xử lý các v
+
+### Heading 4 ### 6. Increment – Sản phẩm tăng trưởng
+P: Sau mỗi Sprint, đội ngũ bàn giao một phần sản phẩm đã hoàn thiện gọi là Increment. Phần Increment này phải đáp ứng được tiêu chuẩn “Definiti
+P: Increment có thể được sử dụng ngay (ví dụ: module thanh toán QR Code có thể triển khai thử nghiệm tại một khu vực của bãi đỗ), mang lại giá 
+P: 7. Chu kỳ lặp lại – Scrum là vòng lặp liên tục
+P: Quy trình Scrum không dừng lại sau một Sprint mà tiếp tục lặp lại theo chu kỳ:
+P: Cập nhật và sắp xếp lại Product Backlog
+P: Sprint Planning cho Sprint mới
+P: Thực hiện công việc và họp Daily Scrum
+P: Sprint Review và Sprint Retrospective
+P: Qua mỗi Sprint, hệ thống Quản lý Bãi đỗ xe Thông minh sẽ ngày càng hoàn thiện, ổn định và gần hơn với nhu cầu thực tế của Ban quản lý và ngư
+
+### Heading 2 ### 1.3. The Proposed System
+P: Hệ thống Quản lý Bãi đỗ xe Thông minh là giải pháp tích hợp đa nền tảng, sử dụng công nghệ AI và IoT nhằm tự động hóa toàn bộ quy trình ra v
+P: Hệ thống phục vụ ba nhóm người dùng chính: Khách hàng, Bảo vệ và Ban Quản Lý. Dưới đây là các chức năng chi tiết được thiết kế dành riêng ch
+
+### Heading 3 ### Chức năng của Khách hàng (Customer)
+P: Đối với khách hàng (bao gồm khách vãng lai và khách lâu dài), hệ thống cung cấp các chức năng sau:
+
+### Heading 4 ### Đăng nhập vào hệ thống
+P: ○ Phương thức đăng nhập linh hoạt: Khách hàng có thể đăng nhập dễ dàng qua ứng dụng di động bằng số điện thoại hoặc email đã đăng ký.
+P: ○ Xác thực sinh trắc học: Giao diện đăng nhập được thiết kế tối giản, thân thiện, hỗ trợ đăng nhập nhanh bằng vân tay hoặc khuôn mặt trên cá
+P: ○ Bảo mật hai lớp (2FA): Hệ thống áp dụng xác thực hai lớp (2FA) bằng mật khẩu kết hợp mã OTP gửi qua SMS hoặc email.
+P: ➔ Tính năng này đảm bảo khách hàng có thể truy cập an toàn, nhanh chóng vào hệ thống để quản lý thông tin cá nhân và hoạt động đỗ xe của mìn
+
+### Heading 4 ### Quản lý thông tin cá nhân và nhóm khách hàng
+P: ○ Cập nhật hồ sơ cá nhân: Khách hàng có thể xem, chỉnh sửa thông tin cá nhân (họ tên, số điện thoại, email, CCCD).
+P: ○ Mô hình Nhóm khách hàng (Group Customer): Khách lâu dài có thể tạo và quản lý Nhóm khách hàng (Group Customer), cho phép một tài khoản đại
+P: ○ Quản lý danh sách phương tiện: Hỗ trợ thêm/xóa biển số xe vào nhóm và thiết lập vai trò chủ sở hữu (Owner) hoặc thành viên.
+P: ➔ Tính năng này mang lại sự linh hoạt cao, giúp một tài khoản có thể quản lý nhiều phương tiện một cách tiện lợi và tập trung.
+
+### Heading 4 ### Quản lý Booking và Booking Details
+P: ○ Danh sách gói đăng ký: Xem danh sách tất cả các gói đăng ký (Booking) đang hoạt động và đã hết hạn.
+P: ○ Xem chi tiết Booking Details: biển số xe thuộc gói nào, thời hạn hiệu lực, loại gói cước, số tiền đã thanh toán, ngày gia hạn.
+P: ○ Gia hạn trực tuyến: Hỗ trợ gia hạn gói đăng ký trực tiếp trên ứng dụng.
+P: ➔ Khách hàng có thể chủ động theo dõi và quản lý tình trạng các gói thuê chỗ đỗ xe dài hạn một cách dễ dàng và minh bạch.
+
+### Heading 4 ### Xem lịch sử đỗ xe (Parking Session)
+P: ○ Lịch sử chi tiết: Khách hàng tra cứu toàn bộ lịch sử ra vào của từng phương tiện thuộc tài khoản.
+P: ○ Bằng chứng hình ảnh: Mỗi phiên đỗ xe hiển thị đầy đủ thông tin: thời gian vào/ra, thời lượng đỗ, chi phí phát sinh (nếu có), hình ảnh log 
+P: ○ Bộ lọc thông minh: Hỗ trợ lọc theo khoảng thời gian hoặc theo từng biển số xe.
+P: ➔ Tính năng này giúp khách hàng dễ dàng kiểm tra, đối chiếu và lưu trữ lịch sử đỗ xe một cách chính xác và tiện lợi.
+
+### Heading 4 ### Quản lý thanh toán và lịch sử giao dịch
+P: ○ Chi tiết hóa đơn: Xem chi tiết các khoản thanh toán theo từng phiên đỗ xe (vãng lai) hoặc theo gói đăng ký (lâu dài).
+P: ○ Thanh toán QR động (VietQR): Hỗ trợ thanh toán nhanh qua mã QR động (VietQR).
+P: ○ Trạng thái thanh toán minh bạch: Lưu trữ đầy đủ lịch sử thanh toán với trạng thái (Đã thanh toán / Chưa thanh toán / Quá hạn).
+P: ➔ Khách hàng có thể quản lý tài chính cá nhân liên quan đến đỗ xe một cách khoa học, minh bạch và chủ động.
+
+### Heading 4 ### Gửi khiếu nại / phản hồi
+P: ○ Khởi tạo khiếu nại: Khách hàng có thể tạo khiếu nại trực tiếp trên ứng dụng kèm theo mô tả vấn đề, hình ảnh minh họa và vị trí xe.
+P: ○ Theo dõi tiến độ: Theo dõi trạng thái xử lý khiếu nại (Đã tiếp nhận, Đang xử lý, Đã hoàn tất).
+P: ➔ Tạo kênh phản hồi nhanh chóng, giúp khách hàng dễ dàng gửi góp ý hoặc khiếu nại đến Ban quản lý một cách chuyên nghiệp.
+
+### Heading 3 ### Chức năng của Bảo vệ (Security / Guard)
+P: Đối với bảo vệ hiện trường, hệ thống cung cấp ứng dụng Guard App với các chức năng hỗ trợ công việc tại chỗ như sau:
+
+### Heading 4 ### Đăng nhập vào Guard App
+P: ○ Bảo vệ đăng nhập bằng tài khoản được cấp để truy cập các chức năng vận hành thực địa.
+
+### Heading 4 ### Quản lý và xử lý Parking Session
+P: ○ Giám sát thời gian thực: Xem danh sách các phiên đỗ xe đang hoạt động thời gian thực.
+P: ○ Xử lý ngoại lệ (Manual Override): Hỗ trợ cập nhật thủ công khi AI không nhận diện được biển số (Manual Override), kèm theo chụp ảnh hiện t
+P: ○ Ghi log can thiệp: Ghi log đầy đủ mọi thao tác can thiệp thủ công.
+
+### Heading 4 ### Xử lý thanh toán tiền mặt
+P: ○ Ghi nhận thu phí: Bảo vệ ghi nhận thanh toán tiền mặt từ khách vãng lai.
+P: ○ Điều khiển Barie: Bấm nút “Đã thu tiền” trên ứng dụng để mở barie tự động.
+P: ○ Đối soát cuối ca: Hệ thống tự động ghi nhận và lưu log giao dịch để đối soát cuối ca.
+
+### Heading 4 ### Tra cứu thông tin Booking và Booking detail
+P: ○ Tra cứu bookings: Tra cứu nhanh danh sách và chi tiết Booking của khách lâu dài.
+P: ○ Tra cứu booking details: Xem Booking Details để kiểm tra thông tin gói đăng ký, biển số xe và thời hạn sử dụng khi hỗ trợ tại cổng.
+
+### Heading 4 ### Tra cứu thông tin thiết bị phần cứng
+P: ○ Quản lý danh sách thiết bị: Xem danh sách và tình trạng hoạt động của các thiết bị IoT (Camera, Barrier, LED Dashboard) tại bãi đỗ.
+P: ○ Xử lý sự cố: Hỗ trợ báo cáo sự cố thiết bị khi phát hiện thiết bị bị lỗi hoặc mất kết nối.
+
+### Heading 4 ### Nhận và xử lý khiếu nại thời gian thực
+P: ○ Hệ thống đẩy thông báo (Push Notification): Nhận thông báo tức thì khi có phát sinh khiếu nại.
+P: ○ Xác thực vị trí vi phạm: Xem hình ảnh và thông tin vị trí xe vi phạm trực tiếp trên ứng dụng.
+P: ○ Đánh dấu trạng thái xử lý (Đã giải quyết).
+P: ➔ Tăng cường khả năng phản ứng nhanh với các sự cố phát sinh, đảm bảo trật tự và an toàn cho bãi đỗ xe.
+P: ➔ Guard App giúp bảo vệ làm việc chuyên nghiệp hơn, giảm thời gian xử lý thủ công, tăng tốc độ phản ứng với sự cố và đảm bảo lưu thông thông
+
+### Heading 3 ### Chức năng của Ban Quản Lý (Admin)
+P: Ban Quản Lý sử dụng Admin Portal (Web) để thực hiện công việc quản trị tổng thể với các chức năng chi tiết sau:
+
+### Heading 4 ### Quản lý Khách hàng và Nhóm Khách hàng (Group Customer & Group Profile)
+P: ○ Quản trị danh sách: Quản lý toàn bộ danh sách khách hàng cá nhân và nhóm khách hang, tạo mới, chỉnh sửa, xóa khách hàng và nhóm khách hàng
+P: ○ Quản lý Group Profile: Quản lý chi tiết Group Profile (thông tin nhóm, chủ sở hữu, hạn mức, trạng thái).
+P: ○ Phân quyền chủ nhóm: Thêm/xóa phương tiện vào nhóm và phân quyền chủ sở hữu.
+
+### Heading 4 ### Quản lý Booking và Booking Details
+P: ○ Quản lý danh sách: Xem danh sách, tìm kiếm Booking và Booking Details.
+P: ○ Quản lý chi tiết Booking: Tạo, chỉnh sửa, gia hạn và hủy các gói đăng ký thuê chỗ đỗ xe.
+P: ○ Quản lý chi tiết Booking Details: biển số xe, thời hạn gói, loại phương tiện, trạng thái thanh toán
+
+### Heading 4 ### Quản lý Gói cước (Package) và Biểu giá
+P: ○ Thiết lập gói dịch vụ: Thiết lập và quản lý các gói cước theo tháng/quý/năm.
+P: ○ Cấu hình biểu giá động: Tạo mới, chỉnh sửa và xóa gói cước.
+P: ○ Quản lý loại xe: Cấu hình biểu giá động cho khách vãng lai theo loại xe, khung giờ, ngày lễ, giờ cao điểm.
+
+### Heading 4 ### Quản lý Loại xe (Vehicle Type)
+P: ○ Quản lý danh sách: Quản lý danh sách các loại xe (xe máy, ô tô con, ô tô tải…).
+P: ○ Quản lý chi tiết loại xe: Thêm, sửa, xóa loại xe và cấu hình hệ số tính phí tương ứng.
+
+### Heading 4 ### Quản lý Parking Session
+P: ○ Quản lý danh sách Parking session: Xem danh sách, tìm kiếm và theo dõi các phiên đỗ xe (Parking Session).
+P: ○ Cập nhật thông tin: Hỗ trợ cập nhật thủ công một số thông tin khi cần thiết (Ban quản lý không được phép tạo mới Parking Session – hệ thốn
+
+### Heading 4 ### Quản lý Không gian và Zone
+P: ○ Số hóa bãi đỗ: Phân chia bãi đỗ thành các khu vực (Zone) theo tầng, vị trí và loại phương tiện.
+P: ○ Giám sát tỷ lệ lấp đầy: Giám sát số chỗ trống theo thời gian thực tại từng Zone.
+P: ○ Điều hướng thông minh: Cấu hình thông tin hiển thị trên các bảng LED dựa trên số chỗ trống thực tế để phân luồng xe hiệu quả.
+
+### Heading 4 ### Quản lý Thiết bị IoT và Phần cứng
+P: ○ Quản lý danh sách thiết bị: Giám sát tình trạng hoạt động (Online/Offline) của toàn bộ Camera AI, Barrier, LED Dashboard.
+P: ○ Cấu hình thiết bị: Cấu hình và gán thiết bị vào các Zone cụ thể.
+
+### Heading 4 ### Quản lý Thanh toán và Doanh thu
+P: ○ Báo cáo tổng hợp: Xuất báo cáo doanh thu chi tiết theo nhiều tiêu chí (theo ngày, theo loại khách hàng, theo phương thức thanh toán).
+P: ○ Theo dõi nợ đọng: Quản lý danh sách các khách hàng chưa thanh toán hoặc các gói cước sắp hết hạn để hệ thống tự động nhắc nợ.
+P: ○ Đối soát tài chính: Cung cấp dữ liệu chính xác để đối chiếu giữa tiền mặt bảo vệ thu và các giao dịch chuyển khoản qua hệ thống.
+
+### Heading 4 ### Quản lý Khiếu nại
+P: ○ Xử lý khiếu nại: Xem, phân công, cập nhật và theo dõi tình trạng xử lý toàn bộ khiếu nại từ khách hàng.
+
+### Heading 4 ### Quản lý Nhân viên và Phân quyền
+P: ○ Quản lý tài khoản nhân sự: Quản lý tài khoản nhân viên bảo vệ.
+P: ○ Phân quyền chi tiết (RBAC): Thiết lập vai trò (Role) và phân quyền chi tiết cho từng chức năng trong hệ thống.
+
+### Heading 4 ### Cấu hình Tham số Hệ thống Động
+P: ○ Thời gian ân hạn (Grace Period): Thiết lập khoảng thời gian khách được phép ở lại bãi sau khi thanh toán mà không bị tính thêm phí.
+P: ○ Hệ số an toàn (Safety Buffer): Cấu hình tỷ lệ chỗ trống dự phòng dành riêng cho khách thuê bao để đảm bảo luôn có chỗ cho khách ký hợp đồn
+P: ○ Quy tắc vận hành: Cập nhật các thông số hệ thống mà không cần tắt máy chủ, giúp bãi xe vận hành liên tục 24/7.
+
+### Heading 4 ### Quản lý Thiết lập AI và Buffer Dự phòng
+P: ○ Thiết lập AI: Cấu hình ngưỡng dự báo lấp đầy và quản lý vùng đệm an toàn.
+P: ○ Hiệu suất AI: Giám sát hiệu suất mô hình AI nhận diện biển số.
+P: ➔ Thông qua Admin Portal, Ban Quản Lý có thể kiểm soát toàn diện hoạt động của bãi đỗ xe, tối ưu hóa nguồn lực, tăng doanh thu bền vững và n
+
+### Heading 3 ### AI & Automatic System Functions
+
+### Heading 4 ### Tạo phiên đỗ xe tự động
+P: Hệ thống tự động tạo Phiên đỗ xe mới khi có xe vào bãi đỗ bằng AI Camera để nhận dạng biển số và phân loại xe. Quá trình này yêu cầu sự can 
+
+### Heading 4 ### Hệ thống thông báo và nhắc nợ tự động
+P: Hệ thống tự động gửi thông báo đẩy và lời nhắc tới khách hàng về việc hết hạn đăng ký, hóa đơn chưa thanh toán và các sự kiện quan trọng khá
+
+### Heading 4 ### Hệ thống Module Camera AI
+P: Phân hệ thông minh cốt lõi chịu trách nhiệm nhận diện phương tiện theo thời gian thực thông qua phát hiện và nhận dạng biển số xe tự động, h
+
+### Heading 3 ### 1.3.1. Boundaries of the System
+P: Hệ thống Quản lý Bãi đỗ xe Thông minh là giải pháp công nghệ toàn diện, được xây dựng nhằm giải quyết các hạn chế của mô hình quản lý bãi đỗ
+P: Phạm vi của hệ thống tập trung vào việc quản lý một hoặc nhiều bãi đỗ xe thuộc cùng một đơn vị quản lý (chung cư, tòa nhà văn phòng, trung t
+P: Hệ thống hỗ trợ hai hình thức sử dụng chính:
+P: Khách vãng lai (pay-per-use): Thanh toán theo thời gian đỗ xe thực tế.
+P: Khách thuê bao dài hạn (monthly/quarterly package): Đăng ký gói cước theo tháng hoặc quý, cho phép quản lý nhiều phương tiện trong cùng một 
+P: Công nghệ cốt lõi được sử dụng trong hệ thống bao gồm:
+P: Nhận diện biển số xe tự động bằng AI Camera
+P: Xử lý hình ảnh và phân loại phương tiện (xe máy, ô tô con, ô tô tải…)
+P: Hệ thống Barrier tự động tích hợp IoT
+P: Thanh toán không tiền mặt qua QR Code (VietQR)
+P: Bảng LED hiển thị thông tin chỗ trống thời gian thực
+P: Kiến trúc Microservices kết hợp với cơ sở dữ liệu thời gian thực
+P: Giới hạn rõ ràng của hệ thống:
+P: Hệ thống không quản lý việc tìm kiếm chỗ đỗ xe bên ngoài bãi đỗ (không phải hệ thống đỗ xe thông minh toàn thành phố).
+P: Hệ thống không tự động thực thi các hình thức phạt vật lý như khóa bánh xe hay chặn xe. Tất cả các trường hợp vi phạm chỉ dừng ở mức cảnh bá
+P: Hệ thống vẫn yêu cầu sự hiện diện của bảo vệ tại hiện trường để xử lý ngoại lệ, thu tiền mặt và giải quyết các tình huống thực tế phát sinh.
+P: Phạm vi hiện tại tập trung vào bãi đỗ xe cố định có lắp đặt hạ tầng Camera AI và Barrier, chưa hỗ trợ mô hình đỗ xe lưu động hoặc đỗ xe đườn
+P: Lợi ích tổng quát của việc triển khai hệ thống:
+P: Việc áp dụng Hệ thống Quản lý Bãi đỗ xe Thông minh mang lại nhiều lợi ích thiết thực cho các bên liên quan. Đối với Ban quản lý, hệ thống gi
+P: Các đối tượng sử dụng chính trong hệ thống:
+P: Khách hàng: Sử dụng Customer App để quản lý phương tiện, thanh toán, theo dõi lịch sử đỗ xe và nhận thông báo.
+P: Bảo vệ (Guard): Sử dụng Guard App để hỗ trợ xử lý ngoại lệ, thu tiền mặt, nhận cảnh báo và ghi log sự cố.
+P: Ban Quản Lý (Admin): Sử dụng Admin Portal để quản trị tổng thể hệ thống, cấu hình giá cả, quản lý khách hàng, theo dõi doanh thu và giám sát
+P: Hệ thống được xây dựng với nguyên tắc cân bằng giữa mức độ tự động hóa cao và sự linh hoạt cần thiết trong thực tế vận hành của các bãi đỗ x
+
+### Heading 3 ### 1.3.2. Hardware and Software Requirements
+P: 1. Hardware
+P: Client-Side Requirements
+P: Mobile Devices:
+P: CPU: Any dual-core 1.0 GHz or higher
+P: RAM: 1 GB
+P: Storage: 8 GB (just for OS and browser cache)
+P: Display: 480×800 or higher
+P: Operating System: Android 6.0+ or iOS 10+
+P: Browser: Any modern browser (Chrome, Firefox, Safari, Edge)
+P: Desktop / Laptop:
+P: CPU: Any dual-core 1.5 GHz or higher
+P: RAM: 2 GB
+P: Storage: 20 GB (for OS, browser, and temporary files)
+P: GPU: Integrated graphics
+P: Display: 1024×768 or higher
+P: Operating System: Windows 7+, macOS 10.12+, or Linux (any modern distribution)
+P: Browser: Modern browser with HTML5/CSS3/JS support
+P: ________________________________________
+P: Server-Side Requirements
+P: Minimum CPU: Intel Xeon E-2236 / AMD EPYC 7302
+P: Recommended CPU: Intel Xeon Gold 6248R / AMD EPYC 7742
+P: Minimum RAM: 16 GB
+P: Recommended RAM: 64 GB
+P: Minimum Storage: SSD 100 GB
+P: Recommended Storage: SSD 1 TB
+P: Network (Minimum): 1 Gbps Ethernet
+P: Network (Recommended): 10 Gbps Ethernet
+P: 2. Software
+P: IDE: PyCharm
+P: Thư viện: Flet, Ultralytics, EasyOCR, OpenCV, PyTorch, TorchVision, Requests, Pillow, NumPy
+P: 2.1. Programming Languages
+P: 2.1.1. Java
+P: Mô tả
+P: Java là ngôn ngữ lập trình hướng đối tượng, đa nền tảng và ổn định hàng đầu hiện nay. Được phát triển bởi Sun Microsystems (nay thuộc Oracle
+P: Mục đích sử dụng trong dự án:
+P: Java được chọn làm ngôn ngữ chính cho phần Backend của Hệ thống Quản lý Bãi đỗ xe Thông minh. Toàn bộ logic nghiệp vụ, API RESTful, tích hợp
+P: Ưu điểm:
+P: Độ ổn định và hiệu năng cao, phù hợp với hệ thống yêu cầu thời gian thực và độ tin cậy cao.
+P: Hệ sinh thái phong phú với Spring Boot giúp rút ngắn thời gian phát triển.
+P: Hỗ trợ xuất sắc cho kiến trúc Microservices và tích hợp với các công nghệ IoT, AI.
+P: Bảo mật mạnh mẽ, rất quan trọng trong việc xử lý dữ liệu cá nhân và giao dịch thanh toán.
+P: 2.1.2. Dart
+P: Mô tả
+P: Dart là ngôn ngữ lập trình hiện đại được Google phát triển, được tối ưu hóa cho việc xây dựng giao diện người dùng mượt mà và hiệu suất cao.
+P: Mục đích sử dụng:
+P: Sử dụng kết hợp với Flutter để phát triển ứng dụng di động: Customer App, chạy trên cả nền tảng iOS và Android.
+P: Ưu điểm:
+P: Hỗ trợ Hot Reload giúp tăng tốc độ phát triển giao diện.
+P: Hiệu suất gần với native, mang lại trải nghiệm người dùng mượt mà.
+P: Một codebase duy nhất cho cả hai nền tảng di động, giảm chi phí bảo trì.
+P: 2.1.3. Python
+P: Mô tả
+P: Python là ngôn ngữ hàng đầu trong lĩnh vực trí tuệ nhân tạo và xử lý hình ảnh.
+P: Mục đích sử dụng:
+P: Xây dựng module camera AI nhận diện biển số xe (License Plate Recognition), phân loại phương tiện và xử lý hình ảnh từ camera. Module AI đượ
+P: Ưu điểm:
+P: Thư viện AI phong phú (OpenCV, YOLO, EasyOCR, TensorFlow/PyTorch).
+P: Dễ phát triển, bảo trì và mở rộng mô hình AI.
+P: 2.2. Database Connection
+P: 2.2.1. Spring Data JPA & Hibernate
+P: Mô tả
+P: Spring Data JPA cung cấp lớp trừu tượng mạnh mẽ trên nền Hibernate - một ORM (Object-Relational Mapping) tiêu chuẩn cho Java.
+P: Mục đích sử dụng:
+P: Ánh xạ các entity Java với bảng trong cơ sở dữ liệu, thực hiện các thao tác CRUD, quản lý quan hệ giữa các bảng (Customer, Booking, Parking 
+P: Ưu điểm:
+P: Giảm đáng kể lượng code SQL thủ công.
+P: Hỗ trợ Query Method, Pagination, Sorting và Dynamic Query.
+P: Tích hợp tốt với Spring Boot và HikariCP.
+P: 2.2.2. HikariCP
+P: Mô tả
+P: HikariCP là connection pool có hiệu suất cao nhất hiện nay, được tích hợp mặc định trong Spring Boot.
+P: Mục đích sử dụng:
+P: Quản lý và tối ưu hóa kết nối đến cơ sở dữ liệu PostgreSQL, đặc biệt trong môi trường có nhiều yêu cầu đồng thời từ camera, ứng dụng di động
+P: Ưu điểm:
+P: Tốc độ lấy và trả kết nối rất nhanh.
+P: Tiêu tốn ít tài nguyên bộ nhớ.
+P: Hỗ trợ failover và monitoring tốt.
+P: 2.3. Frameworks and Libraries
+P: 2.3.1. Spring Boot 3.3.0
+P: Mô tả
+P: Spring Boot là một framework mã nguồn mở dựa trên Spring Framework, được thiết kế để giúp lập trình viên xây dựng các ứng dụng Java nhanh ch
+P: Mục đích sử dụng:
+P: Làm framework cốt lõi cho toàn bộ phần Backend của Hệ thống Quản lý Bãi đỗ xe Thông minh. Spring Boot được sử dụng để xây dựng RESTful APIs,
+P: Ưu điểm:
+P: Tốc độ phát triển nhanh nhờ tự động cấu hình và starter dependencies.
+P: Hỗ trợ mạnh mẽ cho kiến trúc Microservices.
+P: Dễ dàng tích hợp với các công nghệ khác (JPA, Security, Kafka, WebSocket…).
+P: Có sẵn công cụ monitoring, health check và production-ready features.
+P: 2.3.2. Spring Security + JWT (JSON Web Token)
+P: Mô tả
+P: Spring Security là module cung cấp giải pháp bảo mật toàn diện cho ứng dụng Spring, kết hợp với JWT để thực hiện xác thực không trạng thái (
+P: Mục đích sử dụng:
+P: Xây dựng hệ thống Authentication và Authorization theo mô hình RBAC (Role-Based Access Control) cho ba nhóm người dùng: Customer, Guard và A
+P: Ưu điểm:
+P: Hỗ trợ xác thực mạnh mẽ, an toàn và linh hoạt.
+P: Stateless authentication phù hợp với ứng dụng di động và microservices.
+P: Dễ dàng triển khai phân quyền chi tiết cho từng chức năng của hệ thống.
+P: 2.3.3. Spring Kafka
+P: Mô tả
+P: Spring Kafka là thư viện hỗ trợ tích hợp Apache Kafka vào ứng dụng Spring Boot, cho phép xử lý message theo mô hình publish-subscribe.
+P: Mục đích sử dụng:
+P: Xử lý các sự kiện bất đồng bộ trong hệ thống như: tạo Parking Session từ AI Camera, gửi thông báo đẩy, đồng bộ dữ liệu giữa các module, và x
+P: Ưu điểm:
+P: Hỗ trợ xử lý sự kiện thời gian thực với độ tin cậy cao.
+P: Khả năng mở rộng tốt khi hệ thống có lưu lượng lớn.
+P: Tách biệt các module, tăng tính bền vững và khả năng chịu lỗi của hệ thống.
+P: 2.3.4. Spring WebSocket
+P: Mô tả
+P: Spring WebSocket cho phép xây dựng kết nối hai chiều (full-duplex) giữa client và server qua giao thức WebSocket.
+P: Mục đích sử dụng:
+P: Cung cấp thông báo thời gian thực (real-time notification) cho Guard App (cảnh báo vi phạm, xe vào/ra) và giám sát trạng thái thiết bị IoT.
+P: Ưu điểm:
+P: Độ trễ thấp, phù hợp với yêu cầu thời gian thực.
+P: Tiết kiệm tài nguyên so với polling truyền thống.
+P: 2.3.5. Lombok
+P: Mô tả
+P: Lombok là một thư viện annotation-based giúp tự động sinh code boilerplate (Getter, Setter, Constructor, toString, equals…).
+P: Mục đích sử dụng:
+P: Làm sạch và rút gọn mã nguồn Java trong toàn bộ dự án.
+P: Ưu điểm:
+P: Giảm đáng kể số dòng code, tăng tính đọc và bảo trì.
+P: Giảm lỗi do code thủ công.
+P: 2.3.6. Flutter
+P: Mô tả
+P: Flutter là SDK phát triển ứng dụng di động mã nguồn mở của Google, cho phép viết một codebase duy nhất chạy trên cả iOS và Android.
+P: Mục đích sử dụng:
+P: Phát triển hai ứng dụng di động chính là Customer App và Guard App.
+P: Ưu điểm:
+P: Giao diện đẹp, mượt mà và đồng nhất trên nhiều nền tảng.
+P: Tốc độ phát triển nhanh nhờ Hot Reload.
+P: Hiệu năng gần native.
+P: Các thư viện chính được sử dụng trong Flutter:
+--- TABLE#1 (11x3) ---
+  | Nhóm chức năng | Tên thư viện | Công dụng chính
+  | Quản lý trạng thái | provider | Quản lý trạng thái toàn cục và cục bộ thông qua NotifyL
+  | Điều hướng & Routing | go_router | Hỗ trợ routing declarative, Deep Linking, Nested Naviga
+  | Dependency Injection | get_it | Service Locator để quản lý các Service, Repository và V
+  | Lưu trữ dữ liệu cục bộ | shared_preferences | Lưu trữ key-value đơn giản (token, cài đặt người dùng, 
+  | Giao diện & Biểu đồ | fl_chart | Vẽ biểu đồ chuyên nghiệp (cột, đường, tròn, radar…) cho
+  | Phông chữ | google_fonts | Tích hợp dễ dàng các font Google Fonts mà không cần tải
+  | Icons | cupertino_icons | Bộ icon theo phong cách iOS Cupertino.
+  | Xử lý dữ liệu & Định dạng | intl | Hỗ trợ định dạng ngày tháng, số tiền, tiền tệ và đa ngô
+  ...(more rows)
+P: 2.3.7. Flet
+P: Mô tả:
+P: Flet là framework mã nguồn mở cho phép xây dựng giao diện web, desktop và mobile bằng ngôn ngữ Python với cú pháp gần giống Flutter.
+P: Mục đích sử dụng:
+P: Phát triển các công cụ quản trị nội bộ, dashboard giám sát thời gian thực cho Ban quản lý và một số trang web frontend bằng Python.
+P: Ưu điểm:
+P: Phát triển nhanh nhờ sử dụng Python – ngôn ngữ quen thuộc của đội ngũ.
+P: Không cần học thêm framework frontend phức tạp (HTML, CSS, JavaScript).
+P: Dễ dàng tích hợp trực tiếp với logic Python và module AI.
+P: Hỗ trợ đa nền tảng (Web, Desktop, Mobile).
+P: 2.3.8. Python AI & Computer Vision Libraries
+P: Mô tả:
+P: Các thư viện chuyên sâu được sử dụng để xây dựng Module Camera AI.
+P: Danh sách các thư viện chính:
+P: 2.4. Development Tools
+P: 2.4.1. IntelliJ IDEA
+P: Mô tả
+P: IntelliJ IDEA là IDE mạnh mẽ và thông minh nhất dành cho Java và Spring Boot.
+P: Mục đích sử dụng:
+P: Phát triển, debug, test, refactor code và tích hợp với các công cụ khác (Maven, Git, Database Tools).
+P: Ưu điểm:
+P: Hỗ trợ Spring Boot cực tốt với code completion, navigation và inspection.
+P: Tích hợp Git, terminal và Docker.
+P: 2.4.2. PyCharm
+P: Mô tả
+P: PyCharm là IDE chuyên dụng mạnh mẽ của JetBrains dành cho Python, được thiết kế tối ưu cho phát triển khoa học dữ liệu, AI và web developmen
+P: Mục đích sử dụng:
+P: Phát triển và debug Module Camera AI, huấn luyện mô hình YOLOv11, tích hợp EasyOCR, OpenCV và các thư viện xử lý hình ảnh.
+P: Ưu điểm:
+P: Hỗ trợ xuất sắc cho Python và các thư viện AI (code completion, debugging, refactoring).
+P: Tích hợp tốt với Git, virtual environment và công cụ khoa học dữ liệu.
+P: Cung cấp công cụ profiling và visualization mạnh mẽ cho mô hình AI.
+P: 2.4.3. Maven
+P: Mô tả
+P: Công cụ quản lý dự án và dependency cho Java.
+P: Mục đích sử dụng:
+P: Quản lý thư viện, build dự án, chạy test và đóng gói ứng dụng thành file jar/executable.
+P: 2.5. Database
+P: PostgreSQL (Supabase Cloud)
+P: Mô tả
+P: PostgreSQL là một trong những hệ quản trị cơ sở dữ liệu quan hệ mã nguồn mở mạnh mẽ và đáng tin cậy nhất hiện nay. Dự án sử dụng phiên bản P
+P: Mục đích sử dụng:
+P: Lưu trữ toàn bộ dữ liệu của hệ thống bao gồm thông tin khách hàng, booking, parking session, lịch sử giao dịch, thiết bị IoT, logs hệ thống…
+P: Ưu điểm:
+P: Hỗ trợ JSONB xuất sắc, phù hợp với dữ liệu linh hoạt.
+P: Tính năng realtime qua Supabase.
+P: Bảo mật cao, hỗ trợ Row Level Security.
+P: Dễ mở rộng và có chi phí hợp lý trên cloud.
+P: 2.6. UI/UX Design Tool
+P: Figma
+P: Mô tả
+P: Figma là công cụ thiết kế giao diện và trải nghiệm người dùng (UI/UX) dựa trên đám mây hàng đầu hiện nay.
+P: Mục đích sử dụng:
+P: Thiết kế toàn bộ giao diện cho Customer App, Guard App và Admin Portal; tạo prototype tương tác để kiểm tra luồng người dùng trước khi phát 
+P: Ưu điểm:
+P: Cộng tác thời gian thực giữa Designer và Developer.
+P: Dễ dàng tạo component system và design system.
+P: Hỗ trợ export assets và chuyển giao thiết kế mượt mà.
+
+### Heading 3 ### 2.7. Other Supporting Tools
+P: 2.7.1. Git
+P: Mô tả:
+P: Git là hệ thống quản lý phiên bản mã nguồn phân tán (Distributed Version Control System) phổ biến nhất hiện nay, được phát triển bởi Linus T
+P: Mục đích sử dụng:
+P: Quản lý toàn bộ mã nguồn của dự án, theo dõi lịch sử thay đổi, hỗ trợ làm việc nhóm và tích hợp quy trình CI/CD.
+P: Ưu điểm:
+P: Hỗ trợ làm việc offline hiệu quả.
+P: Dễ dàng tạo nhánh (branching) để phát triển tính năng mới.
+P: Hỗ trợ merge code và giải quyết xung đột tốt.
+P: Tích hợp mạnh mẽ với GitHub/GitLab.
+P: 2.7.2. Postman
+P: Mô tả:
+P: Postman là công cụ kiểm thử API phổ biến và mạnh mẽ, cho phép tạo, gửi và quản lý các HTTP requests.
+P: Mục đích sử dụng:
+P: Kiểm tra, debug, test và tạo tài liệu cho tất cả các RESTful APIs của backend.
+P: Ưu điểm:
+P: Giao diện trực quan, dễ sử dụng.
+P: Hỗ trợ collection, environment, scripting test tự động.
+P: Dễ dàng chia sẻ và cộng tác trong đội ngũ.
+P: 2.7.3. Supabase Studio
+P: Mô tả:
+P: Supabase Studio là giao diện web quản trị của nền tảng Supabase, cung cấp công cụ trực quan để quản lý cơ sở dữ liệu PostgreSQL.
+P: Mục đích sử dụng:
+P: Quản trị cơ sở dữ liệu, thiết kế bảng, quản lý Authentication, Realtime subscription và xem log hệ thống.
+P: Ưu điểm:
+P: Giao diện thân thiện, không cần dùng command line nhiều.
+P: Hỗ trợ realtime database monitoring.
+P: Tích hợp tốt với Row Level Security.
+P: 2.7.4. Docker
+P: Mô tả:
+P: Docker là nền tảng container hóa ứng dụng, cho phép đóng gói ứng dụng cùng môi trường chạy của nó.
+P: Mục đích sử dụng:
+P: Container hóa các module backend, AI và database để triển khai nhất quán giữa môi trường development, testing và production.
+P: Ưu điểm:
+P: Đảm bảo “chạy được ở mọi nơi”.
+P: Dễ dàng scale và quản lý hạ tầng.
+P: Hỗ trợ CI/CD và DevOps hiệu quả.
+
+### Heading 1 ### 2. Customer Requirements Specification
+
+### Heading 2 ### 2.1. Users of the System
+P: Hệ thống Quản lý Bãi đỗ xe Thông minh được thiết kế để phục vụ đa dạng đối tượng người dùng với các nhu cầu và mức độ tương tác khác nhau. V
+P: Hệ thống xác định ba nhóm người dùng chính sau:
+P: Khách hàng (Customer) Đây là nhóm người dùng cuối cùng và cũng là nhóm đông đảo nhất của hệ thống, bao gồm hai loại hình chính:
+P: Khách vãng lai: Những người sử dụng dịch vụ đỗ xe theo lượt, thanh toán dựa trên thời gian đỗ xe thực tế. Họ thường chỉ sử dụng hệ thống tro
+P: Khách lâu dài (Long-term Customer): Những cá nhân, hộ gia đình hoặc doanh nghiệp đăng ký gói thuê chỗ đỗ xe theo tháng hoặc quý. Một tài kho
+P: Khách hàng tương tác chủ yếu qua Customer App trên điện thoại di động. Họ cần giao diện đơn giản, dễ sử dụng, tính năng thanh toán nhanh và 
+P: Bảo vệ (Guard) Bảo vệ là lực lượng vận hành trực tiếp tại hiện trường. Họ chịu trách nhiệm hỗ trợ xử lý các tình huống ngoại lệ, thu tiền mặ
+P: Bảo vệ sử dụng Guard App trên điện thoại hoặc máy tính bảng. Họ cần một giao diện đơn giản, tốc độ xử lý nhanh, khả năng nhận thông báo thời
+P: Ban Quản Lý (Admin) Đây là nhóm người dùng có quyền hạn cao nhất trong hệ thống. Ban Quản Lý bao gồm các cá nhân hoặc bộ phận chịu trách nhi
+P: Ban Quản Lý sử dụng Admin Portal qua giao diện web trên máy tính. Họ cần công cụ quản trị mạnh mẽ, khả năng xem báo cáo chi tiết, cấu hình t
+P: Mối quan hệ giữa các nhóm người dùng:
+P: Khách hàng tương tác trực tiếp với hệ thống qua ứng dụng di động và gián tiếp qua bảo vệ khi cần hỗ trợ tại chỗ.
+P: Bảo vệ đóng vai trò cầu nối giữa khách hàng và hệ thống, xử lý các tình huống thực tế mà AI chưa thể tự xử lý hoàn toàn.
+P: Ban Quản Lý đứng ở vị trí trung tâm, quản trị toàn bộ hệ thống, giám sát hoạt động của bảo vệ và đảm bảo trải nghiệm tốt nhất cho khách hàng
+P: Việc phân loại rõ ràng ba nhóm người dùng này giúp hệ thống được thiết kế với giao diện và chức năng phù hợp, đảm bảo tính dễ sử dụng, an to
+
+### Heading 2 ### 2.2. System functions
+
+### Heading 3 ### 2.2.1. Chức năng khách hàng
+P: 1.1. Chức năng Đăng nhập (Login)
+P: Thông tin đầu vào: Tên đăng nhập (Email/Số điện thoại) và Mật khẩu.
+P: Thông tin đầu ra: Access Token (JWT), Refresh Token và thông tin cơ bản của User.
+P: Cách thức xử lý:
+P: Người dùng nhập thông tin đăng nhập tại Client.
+P: Client gửi request xác thực trực tiếp lên hệ thống Supabase Auth.
+P: Supabase kiểm tra tính hợp lệ. Nếu thành công, khởi tạo phiên làm việc (session) và trả về bộ token bảo mật.
+P: Client lưu trữ token (tại LocalStorage/Secure Storage) để đính kèm vào Header cho các tác vụ tiếp theo gọi xuống Backend.
+P: 1.2. Chức năng Đăng xuất (Logout)
+P: Thông tin đầu vào: Session/Token hiện tại của người dùng.
+P: Thông tin đầu ra: Chuyển hướng người dùng về trang đăng nhập.
+P: Cách thức xử lý:
+P: Gửi yêu cầu hủy phiên làm việc (Session) hiện tại lên hệ thống Supabase Auth.
+P: Xóa toàn bộ Access Token và Refresh Token đang được lưu trữ ở phía Client.
+P: Đăng xuất tài khoản hoàn toàn khỏi hệ thống.
+P: 1.3. Chức năng Quên mật khẩu (Forget Password)
+P: Thông tin đầu vào: Email hoặc Số điện thoại đã đăng ký.
+P: Thông tin đầu ra: Trạng thái đặt lại mật khẩu thành công.
+P: Cách thức xử lý:
+P: Người dùng nhập Email/Số điện thoại vào hệ thống.
+P: Hệ thống kiểm tra tính tồn tại và hợp lệ của thông tin.
+P: Trigger hệ thống Supabase Auth gửi mã xác thực OTP (hoặc Magic Link) qua Email/SMS.
+P: Người dùng nhập mã OTP để xác minh danh tính.
+P: Hệ thống cho phép người dùng đặt lại mật khẩu mới.
+P: Dữ liệu cập nhật: Mật khẩu mới (Được băm và lưu trữ bảo mật trên cơ sở dữ liệu của Supabase).
+P: 1.4. Chức năng Đổi mật khẩu (Change Password)
+P: Thông tin đầu vào: Mật khẩu cũ và Mật khẩu mới.
+P: Thông tin đầu ra: Trạng thái thay đổi mật khẩu thành công.
+P: Cách thức xử lý:
+P: Người dùng nhập mật khẩu hiện tại và mật khẩu mới mong muốn.
+P: Hệ thống kiểm tra định dạng và độ mạnh của mật khẩu mới.
+P: Xác thực mật khẩu cũ khớp với cơ sở dữ liệu hiện tại.
+P: Tiến hành cập nhật thông tin mật khẩu thông qua API của Supabase Auth.
+P: Dữ liệu cập nhật: Mật khẩu mới.
+P: 1.5. Cơ chế Phân quyền và Kiểm soát truy cập (Authorization)
+P: Thông tin đầu vào: Access Token (JWT) được đính kèm trong Header của API Request.
+P: Thông tin đầu ra: Quyền truy cập vào các tài nguyên/API của Backend.
+P: Cách thức xử lý:
+P: Mọi yêu cầu (Request) từ Client gửi xuống Spring Boot Backend đều phải đi qua bộ lọc bảo mật (Security Filter).
+P: Hệ thống bóc tách, giải mã JWT để lấy định danh người dùng (accountId).
+P: Backend truy xuất cơ sở dữ liệu để lấy danh sách quyền hạn (Permissions) tương ứng với vai trò của người dùng tại bãi đỗ.
+P: Nạp thông tin vào Security Context.
+P: Kiểm tra quyền hợp lệ tại từng điểm cuối (API Endpoint). Nếu người dùng không có quyền thực thi, hệ thống từ chối và trả về lỗi 403 Forbidde
+P: 2. Quản lý Customers, Groups Customers
+P: View Detail Customer by ID
+--- TABLE#2 (3x2) ---
+  | Thông tin đầu vào | Customer ID
+  | Thông tin đầu ra | Thông tin chi tiết của khách hàng bao gồm Username, Ful
+  | Cách thức xử lý | ·  Hệ thống truy vấn dữ liệu khách hang, lọc bằng Custo
+P: Update Customer
+--- TABLE#3 (4x2) ---
+  | Thông tin đầu vào | Customer ID, thông tin cần chỉnh sửa
+  | Thông tin đầu ra | Customer đã được cập nhật, thông báo thành công
+  | Cách thức xử lý | ·  Hệ thống truy vấn dữ liệu khách hang, lọc bằng Custo
+  | Dữ liệu cần lưu trữ | Lịch sử chỉnh sửa thông tin customer, thông tin các trư
+P: View Detail Groups Customer by Customer ID
+--- TABLE#4 (3x2) ---
+  | Thông tin đầu vào | Customer ID
+  | Thông tin đầu ra | Thông tin chi tiết của nhóm khách hàng bao gồm Tên nhóm
+  | Cách thức xử lý | ·  Hệ thống truy vấn dữ liệu, lọc bằng Customer ID / · 
+P: Update Group Customer, áp dụng đối với customer là owner của group
+--- TABLE#5 (4x2) ---
+  | Thông tin đầu vào | Customer ID, danh sách customer trong group cần chỉnh s
+  | Thông tin đầu ra | Danh sách Group Customer đã được cập nhật, thông báo th
+  | Cách thức xử lý | ·  Hệ thống truy vấn dữ liệu, lọc bằng Customer ID / · 
+  | Dữ liệu cần lưu trữ | Lịch sử chỉnh sửa group customer, danh sách customers đ
+P: 3. Quản lý Bookings và Booking Details
+P: View List Bookings
+--- TABLE#6 (3x2) ---
+  | Thông tin đầu vào | Customer ID
+  | Thông tin đầu ra | Danh sách các booking, bao gồm các thông tin: khách hàn
+  | Cách thức xử lý | ·  Hệ thống truy vấn cơ sở dữ liệu, lọc bằng Customer I
+P: View Detail Booking by ID
+--- TABLE#7 (3x2) ---
+  | Thông tin đầu vào | Booking ID
+  | Thông tin đầu ra | Thông tin chi tiết của booking bao gồm danh sách Bookin
+  | Cách thức xử lý | ·  Customer chọn một Booking từ danh sách hoặc nhập trự
+P: View List Booking Details
+--- TABLE#8 (3x2) ---
+  | Thông tin đầu vào | Customer ID
+  | Thông tin đầu ra | Danh sách các booking details, bao gồm các thông tin: t
+  | Cách thức xử lý | ·  Hệ thống truy vấn cơ sở dữ liệu, lọc bằng Customer I
+P: View Detail Booking Details by ID
+--- TABLE#9 (3x2) ---
+  | Thông tin đầu vào | Booking detail ID
+  | Thông tin đầu ra | Thông tin chi tiết của booking detail bao gồm khách hàn
+  | Cách thức xử lý | ·  Customer chọn một booking detail từ danh sách hoặc n
+P: Create Booking detail, áp dụng khi khách hang gia hạn đăng ký gói
+--- TABLE#10 (4x2) ---
+  | Thông tin đầu vào | Booking ID, Customer ID, loại xe, biển số xe, giá cước,
+  | Thông tin đầu ra | Booking detail ID mới được tạo, thông báo thành công
+  | Cách thức xử lý | ·  Customer chọn Booking detail cần gia hạn / ·  Hệ thố
+  | Dữ liệu cần lưu trữ | Mã booking, ID khách hàng, loại xe, biển số xe, giá cướ
+P: 4. Quản lý Parking Sessions
+P: View List Parking Sessions
+--- TABLE#11 (3x2) ---
+  | Thông tin đầu vào | Customer ID
+  | Thông tin đầu ra | Danh sách các Parking Sessions dưới dạng bảng, bao gồm 
+  | Cách thức xử lý | ·  Hệ thống truy vấn cơ sở dữ liệu, lọc bằng Customer I
+P: View Detail Parking Session by ID
+--- TABLE#12 (3x2) ---
+  | Thông tin đầu vào | Parking Session ID
+  | Thông tin đầu ra | Thông tin chi tiết của Parking Session bao gồm Parking 
+  | Cách thức xử lý | ·  Customer chọn một Parking Session từ danh sách hoặc 
+P: 5. Quản lý thanh toán
+P: View List Payment History (Xem danh sách lịch sử thanh toán)
+--- TABLE#13 (4x2) ---
+  | Thông tin đầu vào | Customer ID, tiêu chí lọc (khoảng thời gian, trạng thái
+  | Thông tin đầu ra | Danh sách các giao dịch thanh toán bao gồm: Mã giao dịc
+  | Cách thức xử lý | • Hệ thống truy vấn cơ sở dữ liệu các giao dịch thanh t
+  | Dữ liệu cần lưu trữ | Không phát sinh dữ liệu mới cần lưu trữ (chỉ truy vấn đ
+
+### Heading 3 ### View Detail Payment (Xem chi tiết giao dịch)
+--- TABLE#14 (4x2) ---
+  | Thông tin đầu vào | Payment ID (Mã ID của giao dịch)
+  | Thông tin đầu ra | Thông tin chi tiết của hóa đơn thanh toán bao gồm: Mã g
+  | Cách thức xử lý | • Khách hàng chọn một giao dịch cụ thể từ danh sách lịc
+  | Dữ liệu cần lưu trữ | Không phát sinh dữ liệu mới cần lưu trữ (chỉ truy vấn đ
+
+### Heading 3 ### Pay Parking Fee (Thanh toán phí đỗ xe vãng lai qua Kiosk/App)
+--- TABLE#15 (4x2) ---
+  | Thông tin đầu vào | Biển số xe (hoặc Plate_ID nhập từ màn hình Kiosk)
+  | Thông tin đầu ra | Chi tiết hóa đơn (thời gian vào, tổng thời gian đỗ, thà
+  | Cách thức xử lý | • Hệ thống truy vấn Phiên đỗ xe (Parking Session) đang 
+  | Dữ liệu cần lưu trữ | • Thông tin giao dịch trong bảng Payments (số tiền, trạ
+
+### Heading 3 ### Pay Subscription Package (Thanh toán đăng ký mới hoặc gia hạn vé tháng)
+--- TABLE#16 (4x2) ---
+  | Thông tin đầu vào | Customer ID, Danh sách xe (Booking Details ID) cần gia 
+  | Thông tin đầu ra | Mã QR thanh toán tổng hợp, thông báo giao dịch thành cô
+  | Cách thức xử lý | • Khách hàng chọn gói cước cho xe đăng ký mới hoặc tích
+  | Dữ liệu cần lưu trữ | • ID hóa đơn tổng (Payment ID), các khoản chia nhỏ theo
+P: 6. Quản lý Complaints
+P: View List Complaints
+--- TABLE#17 (3x2) ---
+  | Thông tin đầu vào | Customer ID
+  | Thông tin đầu ra | Danh sách các Complaints dưới dạng bảng
+  | Cách thức xử lý | ·  Hệ thống truy vấn dữ liệu, lọc bằng Customer ID / · 
+P: View Detail Complaint by ID
+--- TABLE#18 (3x2) ---
+  | Thông tin đầu vào | Complaint ID
+  | Thông tin đầu ra | Thông tin chi tiết của Complaint bao gồm nội dung khiếu
+  | Cách thức xử lý | ·  Customer chọn một Complaint từ danh sách / ·  Hệ thố
+P: Create Complaint
+--- TABLE#19 (4x2) ---
+  | Thông tin đầu vào | Nội dung Complaint, hình ảnh/video
+  | Thông tin đầu ra | Complaint ID mới được tạo, thông báo thành công
+  | Cách thức xử lý | ·  Guard nhập thông tin complaint / ·  Hệ thống kiểm tr
+  | Dữ liệu cần lưu trữ | Complaint ID, thông tin Complaint
+P: Update Complaint
+--- TABLE#20 (4x2) ---
+  | Thông tin đầu vào | Complaint ID, thông tin cần chỉnh sửa
+  | Thông tin đầu ra | Complaint đã được cập nhật, thông báo thành công
+  | Cách thức xử lý | ·  Guard chọn Complaint cần chỉnh sửa. / ·  Chỉnh sửa c
+  | Dữ liệu cần lưu trữ | Lịch sử chỉnh sửa Complaint, thông tin các trường đã th
+
+### Heading 3 ### 2.2.2. Chức năng của bảo vệ
+P: 1. Authentication & Authorization
+P: Login
+--- TABLE#21 (2x2) ---
+  | Thông tin đầu vào | Tên đăng nhập (username, phone, email), password
+  | Cách thức xử lý | Xác thực thông tin và cấp session/token
+P: Logout
+--- TABLE#22 (2x2) ---
+  | Thông tin đầu vào | Session hiện tại
+  | Cách thức xử lý | Hủy session hiện tại, đăng xuất tài khoản ra khỏi hệ th
+P: Forget password
+--- TABLE#23 (4x2) ---
+  | Thông tin đầu vào | Email/phone
+  | Thông tin đầu ra | Password mới đã được cập nhật
+  | Cách thức xử lý | ·  Nhập email/phone / ·  Xác thực email/phone có tồn tạ
+  | Dữ liệu cần lưu trữ | Password mới
+P: Change password
+--- TABLE#24 (4x2) ---
+  | Thông tin đầu vào | Password cũ
+  | Thông tin đầu ra | Password mới đã được cập nhật
+  | Cách thức xử lý | ·  Nhập password cũ và password mới / ·  Xác thực tính 
+  | Dữ liệu cần lưu trữ | Password mới
+P: 2. Quản lý Parking Sessions
+P: View List Parking Sessions
+--- TABLE#25 (3x2) ---
+  | Thông tin đầu vào | Tiêu chí tìm kiếm
+  | Thông tin đầu ra | Danh sách các Parking Sessions dưới dạng bảng, bao gồm 
+  | Cách thức xử lý | ·  Guard nhập tiêu chí tìm kiếm hoặc để trống để xem tấ
+P: View Detail Parking Session by ID
+--- TABLE#26 (3x2) ---
+  | Thông tin đầu vào | Parking Session ID
+  | Thông tin đầu ra | Thông tin chi tiết của Parking Session bao gồm Parking 
+  | Cách thức xử lý | ·  Guard chọn một Parking Session từ danh sách hoặc nhậ
+P: Update Parking Session
+--- TABLE#27 (4x2) ---
+  | Thông tin đầu vào | Parking Session ID, thông tin cần chỉnh sửa
+  | Thông tin đầu ra | Parking Session đã được cập nhật, thông báo thành công
+  | Cách thức xử lý | ·  Guard chọn Parking Session cần chỉnh sửa. / ·  Chỉnh
+  | Dữ liệu cần lưu trữ | Lịch sử chỉnh sửa Parking Session, thông tin các trường
+P: 3. Quản lý Thanh toán
+P: Manual Cash Collection (Xử lý thu tiền mặt ngoại lệ tại cổng)
+--- TABLE#28 (4x2) ---
+  | Thông tin đầu vào | Biển số xe, ID của phiên đỗ xe (Parking Session ID)
+  | Thông tin đầu ra | Lệnh mở Barie khẩn cấp, Trạng thái hóa đơn cập nhật thà
+  | Cách thức xử lý | • Hệ thống phát tín hiệu cảnh báo (SOS) khi xe dừng ở c
+  | Dữ liệu cần lưu trữ | • Bản ghi giao dịch trong bảng Payments với payment_met
+P: End Shift & Cash Reconciliation (Chốt ca và Bàn giao tiền mặt)
+--- TABLE#29 (5x2) ---
+  | Thành phần | Chi tiết
+  | Thông tin đầu vào | Guard ID, Thời gian ca trực, Số tiền mặt thực tế kiểm đ
+  | Thông tin đầu ra | Báo cáo chốt ca (Shift Report), thông báo đối soát thàn
+  | Cách thức xử lý | • Đến giờ giao ca, bảo vệ mở Guard App và chọn chức năn
+  | Dữ liệu cần lưu trữ | • Bản ghi báo cáo ca trực: Guard_ID, thời gian bắt đầu 
+P: 4. Quản lý Bookings và Booking Details
+P: View List Bookings
+--- TABLE#30 (3x2) ---
+  | Thông tin đầu vào | Tiêu chí tìm kiếm (Booking ID, tên nhóm khách hàng, trạ
+  | Thông tin đầu ra | Danh sách các booking dưới dạng bảng, bao gồm các cột: 
+  | Cách thức xử lý | ·  Admin nhập tiêu chí tìm kiếm hoặc để trống để xem tấ
+P: View Detail Booking by ID
+--- TABLE#31 (3x2) ---
+  | Thông tin đầu vào | Booking ID
+  | Thông tin đầu ra | Thông tin chi tiết của booking bao gồm danh sách Bookin
+  | Cách thức xử lý | ·  Admin chọn một booking từ danh sách hoặc nhập trực t
+P: View List Booking Details
+--- TABLE#32 (3x2) ---
+  | Thông tin đầu vào | Tiêu chí tìm kiếm (Booking ID, tên khách hàng, trạng th
+  | Thông tin đầu ra | Danh sách các booking details dưới dạng bảng, bao gồm c
+  | Cách thức xử lý | ·  Admin nhập tiêu chí tìm kiếm hoặc để trống để xem tấ
+P: View Detail Booking Details by ID
+--- TABLE#33 (3x2) ---
+  | Thông tin đầu vào | Booking detail ID
+  | Thông tin đầu ra | Thông tin chi tiết của booking detail bao gồm khách hàn
+  | Cách thức xử lý | ·  Admin chọn một booking detail từ danh sách hoặc nhập
+P: 5. Quản lý thiết bị IoT và phần cứng (Devices IO)
+P: View List Devices
+--- TABLE#34 (3x2) ---
+  | Thông tin đầu vào | Tiêu chí tìm kiếm
+  | Thông tin đầu ra | Danh sách các Devices dưới dạng bảng, bao gồm: tên thiế
+  | Cách thức xử lý | ·  Admin nhập tiêu chí tìm kiếm hoặc để trống để xem tấ
+P: View Detail Device by ID
+--- TABLE#35 (3x2) ---
+  | Thông tin đầu vào | Device ID
+  | Thông tin đầu ra | Thông tin chi tiết của Device bao gồm tên thiết bị, thô
+  | Cách thức xử lý | ·  Admin chọn một Device từ danh sách hoặc nhập trực ti
+P: 6. Quản lý Complaints
+P: View List Complaints
+--- TABLE#36 (3x2) ---
+  | Thông tin đầu vào | Tiêu chí tìm kiếm
+  | Thông tin đầu ra | Danh sách các Complaints dưới dạng bảng
+  | Cách thức xử lý | Hiển thị danh sách Complaints với phân trang và lọc the
+P: View Detail Complaint by ID
+--- TABLE#37 (3x2) ---
+  | Thông tin đầu vào | Complaint ID
+  | Thông tin đầu ra | Thông tin chi tiết của Complaint bao gồm nội dung khiếu
+  | Cách thức xử lý | ·  Guard chọn một Complaint từ danh sách / ·  Hệ thống 
+P: Create Complaint
+--- TABLE#38 (4x2) ---
+  | Thông tin đầu vào | Nội dung Complaint, hình ảnh/video
+  | Thông tin đầu ra | Complaint ID mới được tạo, thông báo thành công
+  | Cách thức xử lý | ·  Guard nhập thông tin complaint / ·  Hệ thống kiểm tr
+  | Dữ liệu cần lưu trữ | Complaint ID, thông tin Complaint
+P: Update Complaint
+--- TABLE#39 (4x2) ---
+  | Thông tin đầu vào | Complaint ID, thông tin cần chỉnh sửa
+  | Thông tin đầu ra | Complaint đã được cập nhật, thông báo thành công
+  | Cách thức xử lý | ·  Guard chọn Complaint cần chỉnh sửa. / ·  Chỉnh sửa c
+  | Dữ liệu cần lưu trữ | Lịch sử chỉnh sửa Complaint, thông tin các trường đã th
+
+### Heading 3 ### 2.2.3. Chức năng của ban quản lý
+P: 1. Quản lý Customers, Groups Customers và Groups Customers Profiles
+P: View List Customers
+--- TABLE#40 (3x2) ---
+  | Thông tin đầu vào | Tiêu chí tìm kiếm
+  | Thông tin đầu ra | Danh sách khách hang dưới dạng bảng, bao gồm các cột: U
+  | Cách thức xử lý | ·  Admin nhập tiêu chí tìm kiếm hoặc để trống để xem tấ
+P: View Detail Customer by ID
+--- TABLE#41 (3x2) ---
+  | Thông tin đầu vào | Customer ID
+  | Thông tin đầu ra | Thông tin chi tiết của khách hàng bao gồm Username, Ful
+  | Cách thức xử lý | ·  Admin chọn một khách hàng từ danh sách hoặc nhập trự
+P: Create Customer
+--- TABLE#42 (4x2) ---
+  | Thông tin đầu vào | Username, Fullname, Identity Number, Phone, Address, Em
+  | Thông tin đầu ra | Customer ID mới được tạo, thông báo thành công
+  | Cách thức xử lý | ·  Admin nhập thông tin khách hàng / ·  Hệ thống kiểm t
+  | Dữ liệu cần lưu trữ | Customer ID, thông tin khách hàng
+P: Update Customer
+--- TABLE#43 (4x2) ---
+  | Thông tin đầu vào | Customer ID, thông tin cần chỉnh sửa
+  | Thông tin đầu ra | Customer đã được cập nhật, thông báo thành công
+  | Cách thức xử lý | ·  Admin chọn customer cần chỉnh sửa. / ·  Chỉnh sửa cá
+  | Dữ liệu cần lưu trữ | Lịch sử chỉnh sửa customer, thông tin các trường đã tha
+P: Delete Customer
+--- TABLE#44 (4x2) ---
+  | Thông tin đầu vào | Customer ID
+  | Thông tin đầu ra | Thông báo xóa thành công hoặc thất bại
+  | Cách thức xử lý | ·  Admin chọn customer cần xóa. / ·  Hệ thống kiểm tra 
+  | Dữ liệu cần lưu trữ | Lý do xóa, thời gian xóa (log)
+P: View List Groups Customers
+--- TABLE#45 (3x2) ---
+  | Thông tin đầu vào | Tiêu chí tìm kiếm
+  | Thông tin đầu ra | Danh sách nhóm khách hang dưới dạng bảng, bao gồm các c
+  | Cách thức xử lý | ·  Admin nhập tiêu chí tìm kiếm hoặc để trống để xem tấ
+P: View Detail Groups Customer by ID
+--- TABLE#46 (3x2) ---
+  | Thông tin đầu vào | Groups Customer ID
+  | Thông tin đầu ra | Thông tin chi tiết của nhóm khách hàng bao gồm Tên nhóm
+  | Cách thức xử lý | ·  Admin chọn một nhóm khách hàng từ danh sách hoặc nhậ
+P: Create Group Customers
+--- TABLE#47 (4x2) ---
+  | Thông tin đầu vào | Tên nhóm, Customer ID
+  | Thông tin đầu ra | Group Customers ID mới được tạo, thông báo thành công
+  | Cách thức xử lý | ·  Admin nhập thông tin nhóm khách hàng / ·  Hệ thống k
+  | Dữ liệu cần lưu trữ | Group Customers ID, tên nhóm
+P: Update Group Customer
+--- TABLE#48 (4x2) ---
+  | Thông tin đầu vào | Group Customer ID, thông tin cần chỉnh sửa
+  | Thông tin đầu ra | Group Customer đã được cập nhật, thông báo thành công
+  | Cách thức xử lý | ·  Admin chọn group customer cần chỉnh sửa. / ·  Chỉnh 
+  | Dữ liệu cần lưu trữ | Lịch sử chỉnh sửa group customer, thông tin các trường 
+P: Delete Group Customer
+--- TABLE#49 (4x2) ---
+  | Thông tin đầu vào | Group Customer ID
+  | Thông tin đầu ra | Thông báo xóa thành công hoặc thất bại
+  | Cách thức xử lý | ·  Admin chọn group customer cần xóa. / ·  Hệ thống kiể
+  | Dữ liệu cần lưu trữ | Lý do xóa, thời gian xóa (log)
+P: View List Groups Profiles
+--- TABLE#50 (3x2) ---
+  | Thông tin đầu vào | Tiêu chí tìm kiếm
+  | Thông tin đầu ra | Danh sách profile khách hang dưới dạng bảng, bao gồm cá
+  | Cách thức xử lý | ·  Admin nhập tiêu chí tìm kiếm hoặc để trống để xem tấ
+P: View Detail Groups Profile by ID
+--- TABLE#51 (3x2) ---
+  | Thông tin đầu vào | Groups Customer Profile ID
+  | Thông tin đầu ra | Thông tin chi tiết của profile nhóm khách hàng bao gồm 
+  | Cách thức xử lý | ·  Admin chọn một profile nhóm khách hàng từ danh sách 
+P: Create Group Customers Profile
+--- TABLE#52 (4x2) ---
+  | Thông tin đầu vào | Tên profile
+  | Thông tin đầu ra | Group Customers Profile ID mới được tạo, thông báo thàn
+  | Cách thức xử lý | ·  Admin nhập thông tin profile nhóm khách hàng / ·  Hệ
+  | Dữ liệu cần lưu trữ | Group Customers Profile ID, tên profile
+P: Update Group Customer Profile
+--- TABLE#53 (4x2) ---
+  | Thông tin đầu vào | Group Customer Profile ID, thông tin cần chỉnh sửa
+  | Thông tin đầu ra | Group Customer Profile đã được cập nhật, thông báo thàn
+  | Cách thức xử lý | ·  Admin chọn group customer profile cần chỉnh sửa. / ·
+  | Dữ liệu cần lưu trữ | Lịch sử chỉnh sửa group customer profile, thông tin các
+P: Delete Group Customer profile
+--- TABLE#54 (4x2) ---
+  | Thông tin đầu vào | Group Customer profile ID
+  | Thông tin đầu ra | Thông báo xóa thành công hoặc thất bại
+  | Cách thức xử lý | ·  Admin chọn group customer profile cần xóa. / ·  Hệ t
+  | Dữ liệu cần lưu trữ | Lý do xóa, thời gian xóa (log)
+P: 2. Quản lý Bookings và Booking Details
+P: View List Bookings
+--- TABLE#55 (3x2) ---
+  | Thông tin đầu vào | Tiêu chí tìm kiếm (Booking ID, tên nhóm khách hàng, trạ
+  | Thông tin đầu ra | Danh sách các booking dưới dạng bảng, bao gồm các cột: 
+  | Cách thức xử lý | ·  Admin nhập tiêu chí tìm kiếm hoặc để trống để xem tấ
+P: View Detail Booking by ID
+--- TABLE#56 (3x2) ---
+  | Thông tin đầu vào | Booking ID
+  | Thông tin đầu ra | Thông tin chi tiết của booking bao gồm danh sách Bookin
+  | Cách thức xử lý | ·  Admin chọn một booking từ danh sách hoặc nhập trực t
+P: Create Booking
+--- TABLE#57 (4x2) ---
+  | Thông tin đầu vào | Group Customer ID, loại gói cước
+  | Thông tin đầu ra | Booking ID mới được tạo, thông báo thành công
+  | Cách thức xử lý | ·  Admin chọn nhóm khách hàng. / ·  Chọn gói cước. / · 
+  | Dữ liệu cần lưu trữ | Booking ID, ID nhóm khách hàng, loại gói cước, status
+P: Update Booking
+--- TABLE#58 (4x2) ---
+  | Thông tin đầu vào | Booking ID, thông tin cần chỉnh sửa
+  | Thông tin đầu ra | Booking đã được cập nhật, thông báo thành công
+  | Cách thức xử lý | ·  Admin chọn booking cần chỉnh sửa. / ·  Chỉnh sửa các
+  | Dữ liệu cần lưu trữ | Lịch sử chỉnh sửa booking, thông tin các trường đã thay
+P: Delete Booking
+--- TABLE#59 (4x2) ---
+  | Thông tin đầu vào | Booking ID
+  | Thông tin đầu ra | Thông báo xóa thành công hoặc thất bại
+  | Cách thức xử lý | ·  Admin chọn booking cần xóa. / ·  Hệ thống kiểm tra đ
+  | Dữ liệu cần lưu trữ | Lý do xóa, thời gian xóa (log)
+P: View List Booking Details
+--- TABLE#60 (3x2) ---
+  | Thông tin đầu vào | Tiêu chí tìm kiếm (Booking ID, tên khách hàng, trạng th
+  | Thông tin đầu ra | Danh sách các booking details dưới dạng bảng, bao gồm c
+  | Cách thức xử lý | ·  Admin nhập tiêu chí tìm kiếm hoặc để trống để xem tấ
+P: View Detail Booking Details by ID
+--- TABLE#61 (3x2) ---
+  | Thông tin đầu vào | Booking detail ID
+  | Thông tin đầu ra | Thông tin chi tiết của booking detail bao gồm khách hàn
+  | Cách thức xử lý | ·  Admin chọn một booking detail từ danh sách hoặc nhập
+P: Create Booking detail
+--- TABLE#62 (4x2) ---
+  | Thông tin đầu vào | Booking ID, Customer ID, loại xe, biển số xe, giá cước,
+  | Thông tin đầu ra | Booking detail ID mới được tạo, thông báo thành công
+  | Cách thức xử lý | ·  Admin chọn Booking. / ·  Nhập các trường thông tin c
+  | Dữ liệu cần lưu trữ | Booking ID, ID khách hàng, loại xe, biển số xe, giá cướ
+P: Update Booking detail
+--- TABLE#63 (4x2) ---
+  | Thông tin đầu vào | Booking detail ID, thông tin cần chỉnh sửa
+  | Thông tin đầu ra | Booking detail đã được cập nhật, thông báo thành công
+  | Cách thức xử lý | ·  Admin chọn booking detail cần chỉnh sửa. / ·  Chỉnh 
+  | Dữ liệu cần lưu trữ | Lịch sử chỉnh sửa booking detail, thông tin các trường 
+P: Delete Booking detail
+--- TABLE#64 (4x2) ---
+  | Thông tin đầu vào | Booking detail ID
+  | Thông tin đầu ra | Thông báo xóa thành công hoặc thất bại
+  | Cách thức xử lý | ·  Admin chọn booking detail cần xóa. / ·  Hệ thống kiể
+  | Dữ liệu cần lưu trữ | Lý do xóa, thời gian xóa (log)
+P: 3. Quản lý Packages và biểu giá
+P: View List Packages
+--- TABLE#65 (3x2) ---
+  | Thông tin đầu vào | Tiêu chí tìm kiếm
+  | Thông tin đầu ra | Danh sách các gói cước dưới dạng bảng
+  | Cách thức xử lý | ·  Admin nhập hoặc để trống tiêu chí tìm kiếm. / ·  Hệ 
+P: Create Package
+--- TABLE#66 (4x2) ---
+  | Thông tin đầu vào | Tên gói
+  | Thông tin đầu ra | Package ID mới, thông báo tạo thành công
+  | Cách thức xử lý | ·  Admin nhập đầy đủ thông tin gói cước. / ·  Hệ thống 
+  | Dữ liệu cần lưu trữ | Package ID, tên gói cước
+P: Update Package
+--- TABLE#67 (4x2) ---
+  | Thông tin đầu vào | Package ID, thông tin cần chỉnh sửa
+  | Thông tin đầu ra | Package đã được cập nhật, thông báo thành công
+  | Cách thức xử lý | ·  Admin chọn package cần chỉnh sửa. / ·  Chỉnh sửa các
+  | Dữ liệu cần lưu trữ | Lịch sử chỉnh sửa package, thông tin các trường đã thay
+P: Delete Package
+--- TABLE#68 (4x2) ---
+  | Thông tin đầu vào | Package ID
+  | Thông tin đầu ra | Thông báo xóa thành công hoặc thất bại
+  | Cách thức xử lý | ·  Admin chọn package cần xóa. / ·  Hệ thống kiểm tra đ
+  | Dữ liệu cần lưu trữ | Lý do xóa, thời gian xóa (log)
+P: View List Biểu giá
+--- TABLE#69 (3x2) ---
+  | Thông tin đầu vào | Tiêu chí tìm kiếm
+  | Thông tin đầu ra | Danh sách bảng giá dưới dạng bảng
+  | Cách thức xử lý | ·  Admin nhập hoặc để trống tiêu chí tìm kiếm. / ·  Hệ 
+P: Update biểu giá
+--- TABLE#70 (4x2) ---
+  | Thông tin đầu vào | Gói cước, Loại xe, thời hạn, ngày, khung giờ, mức giá m
+  | Thông tin đầu ra | Biểu giá đã được cập nhật, thông báo thành công
+  | Cách thức xử lý | ·  Admin chọn mức giá và chỉnh sửa. / ·  Hệ thống kiểm 
+  | Dữ liệu cần lưu trữ | Lịch sử chỉnh sửa biểu giá, thông tin các trường đã tha
+P: 4.      Quản lý Loại xe
+P: View List Vehicle Types
+--- TABLE#71 (3x2) ---
+  | Thông tin đầu vào | Tiêu chí tìm kiếm
+  | Thông tin đầu ra | Danh sách các loại xe dưới dạng bảng
+  | Cách thức xử lý | ·  Admin nhập hoặc để trống tiêu chí tìm kiếm. / ·  Hệ 
+P: Create Vehicle Type
+--- TABLE#72 (4x2) ---
+  | Thông tin đầu vào | Tên Vehicle Type
+  | Thông tin đầu ra | Vehicle Type ID, thông báo tạo thành công
+  | Cách thức xử lý | ·  Admin nhập thông tin loại xe. / ·  Hệ thống kiểm tra
+  | Dữ liệu cần lưu trữ | Vehicle Type ID, tên loại xe
+P: Update Vehicle Type
+--- TABLE#73 (4x2) ---
+  | Thông tin đầu vào | Vehicle Type ID, thông tin cần chỉnh sửa
+  | Thông tin đầu ra | Vehicle Type đã được cập nhật, thông báo thành công
+  | Cách thức xử lý | ·  Admin chọn Vehicle Type cần chỉnh sửa. / ·  Chỉnh sử
+  | Dữ liệu cần lưu trữ | Lịch sử chỉnh sửa Vehicle Type, thông tin các trường đã
+P: Delete Vehicle Type
+--- TABLE#74 (4x2) ---
+  | Thông tin đầu vào | Vehicle Type ID
+  | Thông tin đầu ra | Thông báo xóa thành công hoặc thất bại
+  | Cách thức xử lý | ·  Admin chọn Vehicle Type cần xóa. / ·  Hệ thống kiểm 
+  | Dữ liệu cần lưu trữ | Lý do xóa, thời gian xóa (log)
+P: 5. Quản lý Parking Sessions
+P: View List Parking Sessions
+--- TABLE#75 (3x2) ---
+  | Thông tin đầu vào | Tiêu chí tìm kiếm
+  | Thông tin đầu ra | Danh sách các Parking Sessions dưới dạng bảng, bao gồm 
+  | Cách thức xử lý | ·  Admin nhập tiêu chí tìm kiếm hoặc để trống để xem tấ
+P: View Detail Parking Session by ID
+--- TABLE#76 (3x2) ---
+  | Thông tin đầu vào | Parking Session ID
+  | Thông tin đầu ra | Thông tin chi tiết của Parking Session bao gồm Parking 
+  | Cách thức xử lý | ·  Admin chọn một Parking Session từ danh sách hoặc nhậ
+P: Update Parking Session
+--- TABLE#77 (4x2) ---
+  | Thông tin đầu vào | Parking Session ID, thông tin cần chỉnh sửa
+  | Thông tin đầu ra | Parking Session đã được cập nhật, thông báo thành công
+  | Cách thức xử lý | ·  Admin chọn Parking Session cần chỉnh sửa. / ·  Chỉnh
+  | Dữ liệu cần lưu trữ | Lịch sử chỉnh sửa Parking Session, thông tin các trường
+P: 6. Quản lý Zone
+P: View List Zone
+--- TABLE#78 (3x2) ---
+  | Thông tin đầu vào | Tiêu chí tìm kiếm
+  | Thông tin đầu ra | Danh sách các Zone dưới dạng bảng, bao gồm: tên zone, s
+  | Cách thức xử lý | ·  Admin nhập tiêu chí tìm kiếm hoặc để trống để xem tấ
+P: View Detail Zone by ID
+--- TABLE#79 (3x2) ---
+  | Thông tin đầu vào | Zone ID
+  | Thông tin đầu ra | Thông tin chi tiết của Zone bao gồm tên zone, sức chứa,
+  | Cách thức xử lý | ·  Admin chọn một Zone từ danh sách hoặc nhập trực tiếp
+P: Create Zone
+--- TABLE#80 (4x2) ---
+  | Thông tin đầu vào | Thông tin Zone
+  | Thông tin đầu ra | Zone ID mới được tạo, thông báo thành công
+  | Cách thức xử lý | ·  Admin nhập thông tin Zone / ·  Hệ thống kiểm tra tín
+  | Dữ liệu cần lưu trữ | Zone ID, thông tin Zone
+P: Update Zone
+--- TABLE#81 (4x2) ---
+  | Thông tin đầu vào | Zone ID, thông tin cần chỉnh sửa
+  | Thông tin đầu ra | Zone đã được cập nhật, thông báo thành công
+  | Cách thức xử lý | ·  Admin chọn Zone cần chỉnh sửa. / ·  Chỉnh sửa các tr
+  | Dữ liệu cần lưu trữ | Lịch sử chỉnh sửa Zone, thông tin các trường đã thay đổ
+P: Delete Device
+--- TABLE#82 (3x2) ---
+  | Thông tin đầu vào | Zone ID
+  | Thông tin đầu ra | Thông báo xóa thành công hoặc thất bại
+  | Cách thức xử lý | ·  Admin chọn Zone cần xóa. / ·  Hệ thống kiểm tra điều
+P: 7. Quản lý thiết bị IoT và phần cứng (Devices IO)
+P: View List Devices
+--- TABLE#83 (3x2) ---
+  | Thông tin đầu vào | Tiêu chí tìm kiếm
+  | Thông tin đầu ra | Danh sách các Devices dưới dạng bảng, bao gồm: tên thiế
+  | Cách thức xử lý | ·  Admin nhập tiêu chí tìm kiếm hoặc để trống để xem tấ
+P: View Detail Device by ID
+--- TABLE#84 (3x2) ---
+  | Thông tin đầu vào | Device ID
+  | Thông tin đầu ra | Thông tin chi tiết của Device bao gồm tên thiết bị, thô
+  | Cách thức xử lý | ·  Admin chọn một Device từ danh sách hoặc nhập trực ti
+P: Create Device
+--- TABLE#85 (4x2) ---
+  | Thông tin đầu vào | Thông tin Device
+  | Thông tin đầu ra | Device ID mới được tạo, thông báo thành công
+  | Cách thức xử lý | ·  Admin nhập thông tin Device / ·  Hệ thống kiểm tra t
+  | Dữ liệu cần lưu trữ | Device ID, thông tin Device
+P: Update Device
+--- TABLE#86 (4x2) ---
+  | Thông tin đầu vào | Device ID, thông tin cần chỉnh sửa
+  | Thông tin đầu ra | Device đã được cập nhật, thông báo thành công
+  | Cách thức xử lý | ·  Admin chọn Device cần chỉnh sửa. / ·  Chỉnh sửa các 
+  | Dữ liệu cần lưu trữ | Lịch sử chỉnh sửa Device, thông tin các trường đã thay 
+P: Delete Device
+--- TABLE#87 (3x2) ---
+  | Thông tin đầu vào | Device ID
+  | Thông tin đầu ra | Thông báo xóa thành công hoặc thất bại
+  | Cách thức xử lý | ·  Admin chọn Device cần xóa. / ·  Hệ thống kiểm tra đi
+P: 8. Quản lý thanh toán và doanh thu
+P: View Payment Dashboard & Statistics (Giám sát và Thống kê doanh thu)
+--- TABLE#88 (5x2) ---
+  | Thành phần | Chi tiết
+  | Thông tin đầu vào | Tiêu chí lọc: Khoảng thời gian (Ngày/Tháng/Năm), Phương
+  | Thông tin đầu ra | - Biểu đồ thống kê doanh thu trực quan. /  / - Tổng số 
+  | Cách thức xử lý | • Hệ thống truy vấn bảng Payments và Payment_Details kế
+  | Dữ liệu cần lưu trữ | Lịch sử truy xuất báo cáo (lưu log thao tác của tài kho
+P: Audit & Daily Reconciliation (Đối soát doanh thu và Chốt sổ ngày)
+--- TABLE#89 (4x2) ---
+  | Thông tin đầu vào | Ngày cần đối soát, Guard_ID (Mã bảo vệ), Số tiền mặt th
+  | Thông tin đầu ra | Biên bản chốt sổ ngày, Trạng thái dòng tiền (Khớp / Lệc
+  | Cách thức xử lý | • Kế toán vào module Đối soát, chọn ca trực của một Bảo
+  | Dữ liệu cần lưu trữ | • Bản ghi Báo cáo đối soát (Reconciliation_Reports): Ng
+P: Exception Handling & Manual Override (Xử lý ngoại lệ và Cập nhật trạng thái thủ công)
+--- TABLE#90 (5x2) ---
+  | Thành phần | Chi tiết
+  | Thông tin đầu vào | Payment ID (Mã giao dịch bị treo), Lịch sử Webhook chưa
+  | Thông tin đầu ra | Trạng thái giao dịch được cập nhật thành SUCCESS, Gói c
+  | Cách thức xử lý | • Khách hàng báo lỗi "Đã trừ tiền nhưng không qua được 
+  | Dữ liệu cần lưu trữ | • Trạng thái mới của bảng Payments. /  / • Log Audit bắ
+P: 9. Quản lý Complaints
+P: View List Complaints
+--- TABLE#91 (3x2) ---
+  | Thông tin đầu vào | Tiêu chí tìm kiếm
+  | Thông tin đầu ra | Danh sách các Complaints dưới dạng bảng
+  | Cách thức xử lý | Hiển thị danh sách Complaints với phân trang và lọc the
+P: View Detail Complaint by ID
+--- TABLE#92 (3x2) ---
+  | Thông tin đầu vào | Complaint ID
+  | Thông tin đầu ra | Thông tin chi tiết của Complaint bao gồm nội dung khiếu
+  | Cách thức xử lý | ·  Admin chọn một Complaint từ danh sách / ·  Hệ thống 
+P: Create Complaint
+--- TABLE#93 (4x2) ---
+  | Thông tin đầu vào | Nội dung Complaint, hình ảnh/video
+  | Thông tin đầu ra | Complaint ID mới được tạo, thông báo thành công
+  | Cách thức xử lý | ·  Admin nhập thông tin complaint / ·  Hệ thống kiểm tr
+  | Dữ liệu cần lưu trữ | Complaint ID, thông tin Complaint
+P: Update Complaint
+--- TABLE#94 (4x2) ---
+  | Thông tin đầu vào | Complaint ID, thông tin cần chỉnh sửa
+  | Thông tin đầu ra | Complaint đã được cập nhật, thông báo thành công
+  | Cách thức xử lý | ·  Admin chọn Complaint cần chỉnh sửa. / ·  Chỉnh sửa c
+  | Dữ liệu cần lưu trữ | Lịch sử chỉnh sửa Complaint, thông tin các trường đã th
+P: Delete Complaint
+--- TABLE#95 (3x2) ---
+  | Thông tin đầu vào | Complaint ID
+  | Thông tin đầu ra | Thông báo xóa thành công hoặc thất bại
+  | Cách thức xử lý | ·  Admin chọn Complaint cần xóa. / ·  Hệ thống kiểm tra
+P: 10. Quản lý Employees, Roles, Permissions
+P: View List Employees
+--- TABLE#96 (3x2) ---
+  | Thông tin đầu vào | Tiêu chí tìm kiếm
+  | Thông tin đầu ra | Danh sách các Employees dưới dạng bảng, bao gồm các cột
+  | Cách thức xử lý | ·  Admin nhập tiêu chí tìm kiếm hoặc để trống để xem tấ
+P: View Detail Employee by ID
+--- TABLE#97 (3x2) ---
+  | Thông tin đầu vào | Employee ID
+  | Thông tin đầu ra | Thông tin chi tiết của Employee bao gồm Employee ID, Us
+  | Cách thức xử lý | ·  Admin chọn một Employee từ danh sách hoặc nhập trực 
+P: Create Employee
+--- TABLE#98 (4x2) ---
+  | Thông tin đầu vào | Thông tin nhân viên, Role ID
+  | Thông tin đầu ra | Employee ID mới được tạo, thông báo thành công
+  | Cách thức xử lý | ·  Admin nhập thông tin khách hang, chọn vai trò / ·  H
+  | Dữ liệu cần lưu trữ | Employee ID, thông tin nhân viên, Role ID
+P: Update Employee
+--- TABLE#99 (4x2) ---
+  | Thông tin đầu vào | Employee ID, thông tin cần chỉnh sửa
+  | Thông tin đầu ra | Employee đã được cập nhật, thông báo thành công
+  | Cách thức xử lý | ·  Admin chọn Employee cần chỉnh sửa. / ·  Chỉnh sửa cá
+  | Dữ liệu cần lưu trữ | Lịch sử chỉnh sửa Employee, thông tin các trường đã tha
+P: Delete Employee
+--- TABLE#100 (3x2) ---
+  | Thông tin đầu vào | Employee ID
+  | Thông tin đầu ra | Thông báo xóa thành công hoặc thất bại
+  | Cách thức xử lý | ·  Admin chọn Employee cần xóa. / ·  Hệ thống kiểm tra 
+P: View List Roles
+--- TABLE#101 (3x2) ---
+  | Thông tin đầu vào | Tiêu chí tìm kiếm
+  | Thông tin đầu ra | Danh sách các Roles dưới dạng bảng
+  | Cách thức xử lý | Hiển thị danh sách vai trò và quyền được cấp
+P: View Detail Role by ID
+--- TABLE#102 (3x2) ---
+  | Thông tin đầu vào | Role ID
+  | Thông tin đầu ra | Thông tin chi tiết của Role bao gồm tên vai trò, danh s
+  | Cách thức xử lý | ·  Admin chọn một role từ danh sách / ·  Hệ thống truy 
+P: Create Role
+--- TABLE#103 (4x2) ---
+  | Thông tin đầu vào | Tên role
+  | Thông tin đầu ra | Role ID mới được tạo, thông báo thành công
+  | Cách thức xử lý | ·  Admin nhập thông tin role / ·  Hệ thống kiểm tra tín
+  | Dữ liệu cần lưu trữ | Role ID, thông tin Role
+P: Update Role
+--- TABLE#104 (4x2) ---
+  | Thông tin đầu vào | Role ID, thông tin cần chỉnh sửa
+  | Thông tin đầu ra | Role đã được cập nhật, thông báo thành công
+  | Cách thức xử lý | ·  Admin chọn Role cần chỉnh sửa. / ·  Chỉnh sửa các tr
+  | Dữ liệu cần lưu trữ | Lịch sử chỉnh sửa Role, thông tin các trường đã thay đổ
+P: Delete Role
+--- TABLE#105 (3x2) ---
+  | Thông tin đầu vào | Role ID
+  | Thông tin đầu ra | Thông báo xóa thành công hoặc thất bại
+  | Cách thức xử lý | ·  Admin chọn Role cần xóa. / ·  Hệ thống kiểm tra điều
+P: View List Permissions
+--- TABLE#106 (3x2) ---
+  | Thông tin đầu vào | Không có
+  | Thông tin đầu ra | Danh sách tất cả permissions trong hệ thống
+  | Cách thức xử lý | Hiển thị danh sách quyền theo nhóm chức năng
+P: Update Permission
+--- TABLE#107 (4x2) ---
+  | Thông tin đầu vào | Role ID, danh sách permission cần thay đổi
+  | Thông tin đầu ra | Permission của role đã được cập nhật
+  | Cách thức xử lý | ·  Admin chọn Role cần chỉnh sửa. / ·  Chỉnh sửa các pe
+  | Dữ liệu cần lưu trữ | Lịch sử chỉnh sửa Permission, thông tin các permission 
+P: 11. Cấu hình tham số hệ thống động
+P: Update System Parameters
+--- TABLE#108 (4x2) ---
+  | Thông tin đầu vào | Thời gian ân hạn, quy tắc tính phí, thời gian giữ chỗ s
+  | Thông tin đầu ra | Thời gian ân hạn, quy tắc tính phí, thời gian giữ chỗ s
+  | Cách thức xử lý | ·  Admin xem và cập nhật các thông số / ·  Hệ thống kiể
+  | Dữ liệu cần lưu trữ | Thời gian ân hạn, quy tắc tính phí, thời gian giữ chỗ s
+P: 12. Quản lý Thiết lập AI và Buffer Dự phòng
+P: View & Update AI Settings
+--- TABLE#109 (4x2) ---
+  | Thông tin đầu vào | Ngưỡng nhận diện, độ chính xác tối thiểu
+  | Thông tin đầu ra | Ngưỡng nhận diện, độ chính xác tối thiểu mới
+  | Cách thức xử lý | ·  Admin xem và cập nhật các tham số AI / ·  Hệ thống k
+  | Dữ liệu cần lưu trữ | Ngưỡng nhận diện, độ chính xác tối thiểu đã được cập nh
+P: View & Update Safety Buffer
+--- TABLE#110 (4x2) ---
+  | Thông tin đầu vào | Tỷ lệ buffer dự phòng
+  | Thông tin đầu ra | Tỷ lệ buffer dự phòng mới
+  | Cách thức xử lý | ·  Admin xem và cập nhật các hệ số an toàn và vùng đệm 
+  | Dữ liệu cần lưu trữ | Tỷ lệ buffer dự phòng đã được cập nhật
+P: 13. Authentication & Authorization
+P: Login
+--- TABLE#111 (2x2) ---
+  | Thông tin đầu vào | Tên đăng nhập (username, phone, email), password
+  | Cách thức xử lý | Xác thực thông tin và cấp session/token
+P: Logout
+--- TABLE#112 (2x2) ---
+  | Thông tin đầu vào | Session hiện tại
+  | Cách thức xử lý | Hủy session hiện tại, đăng xuất tài khoản ra khỏi hệ th
+P: Forget password
+--- TABLE#113 (4x2) ---
+  | Thông tin đầu vào | Email/phone
+  | Thông tin đầu ra | Password mới đã được cập nhật
+  | Cách thức xử lý | ·  Nhập email/phone / ·  Xác thực email/phone có tồn tạ
+  | Dữ liệu cần lưu trữ | Password mới
+P: Change password
+--- TABLE#114 (4x2) ---
+  | Thông tin đầu vào | Password cũ
+  | Thông tin đầu ra | Password mới đã được cập nhật
+  | Cách thức xử lý | ·  Nhập password cũ và password mới / ·  Xác thực tính 
+  | Dữ liệu cần lưu trữ | Password mới
+
+### Heading 3 ### 2.2.4. Chức năng tự động của AI và hệ thống
+P: 1. Tạo mới Parking Session
+P: Create Parking Session
+--- TABLE#115 (4x2) ---
+  | Thông tin đầu vào | Biển số xe, loại xe, Booking Detail ID, thời điểm gửi, 
+  | Thông tin đầu ra | Parking session mới được tạo, thông báo thành công
+  | Cách thức xử lý | ·  AI nhận diện biển số xe và loại xe / ·  Hệ thống nhậ
+  | Dữ liệu cần lưu trữ | Parking session ID, Biển số xe, loại xe, Booking Detail
+P: 2. Thông báo và Nhắc nợ Tự động
+P: Automatic Notification and Debt Reminder
+--- TABLE#116 (4x2) ---
+  | Thông tin đầu vào | Booking Detail ID / Customer ID / Loại sự kiện (sắp hết
+  | Thông tin đầu ra | Thông báo đẩy (Push Notification) gửi đến Customer App 
+  | Cách thức xử lý | Hệ thống chạy job nền định kỳ để kiểm tra các gói cước 
+  | Dữ liệu cần lưu trữ | Notification ID, Customer ID, Booking Detail ID, Loại t
+P: 3. Module Camera AI
+P: 1. Thu nhận Khung hình Theo thời gian thực
+P: Real-time Frame Capture
+--- TABLE#117 (4x2) ---
+  | Thông tin đầu vào | URL stream camera RTSP / HTTP / đường dẫn thiết bị, cấu
+  | Thông tin đầu ra | Khung hình BGR thô, metadata khung hình
+  | Cách thức xử lý | · Hệ thống kết nối đến stream camera bằng OpenCV VideoC
+  | Dữ liệu cần lưu trữ | Cấu hình camera gồm URL, FPS, độ phân giải; khung hình 
+P: 2. Phát hiện Biển số Xe
+P: License Plate Detection
+--- TABLE#118 (4x2) ---
+  | Thông tin đầu vào | Khung hình video thô, trọng số mô hình YOLOv11, ngưỡng 
+  | Thông tin đầu ra | Danh sách kết quả phát hiện biển số gồm bounding box, c
+  | Cách thức xử lý | · Tiền xử lý khung hình: chuẩn hóa pixel và resize về 6
+  | Dữ liệu cần lưu trữ | Log sự kiện phát hiện gồm cameraId, timestamp, detected
+P: 3. Trích xuất Vùng Biển số & Tiền xử lý
+P: License Plate Cropping and Preprocessing
+--- TABLE#119 (4x2) ---
+  | Thông tin đầu vào | Toàn bộ khung hình video, tọa độ bounding box từ bước p
+  | Thông tin đầu ra | Ảnh biển số đã xử lý, metadata ảnh biển số gồm original
+  | Cách thức xử lý | · Cắt vùng biển số từ khung hình theo tọa độ bounding b
+  | Dữ liệu cần lưu trữ | Ảnh biển số đã cắt khi có sự kiện kích hoạt; các tham s
+P: 4. Nhận dạng Văn bản OCR
+P: Optical Character Recognition
+--- TABLE#120 (4x2) ---
+  | Thông tin đầu vào | Ảnh biển số đã tiền xử lý, OCR engine, model ngôn ngữ, 
+  | Thông tin đầu ra | Chuỗi OCR thô, điểm tin cậy OCR theo từng vùng ký tự, đ
+  | Cách thức xử lý | · Đưa ảnh đã xử lý vào OCR engine như EasyOCR / · Nhận 
+  | Dữ liệu cần lưu trữ | Chuỗi OCR thô trước chuẩn hóa, điểm tin cậy OCR, OCR en
+P: 5. Xác thực & Chuẩn hóa Biển số
+P: License Plate Validation and Normalization
+--- TABLE#121 (4x2) ---
+  | Thông tin đầu vào | Chuỗi văn bản OCR thô, quy tắc định dạng biển số theo k
+  | Thông tin đầu ra | Biển số đã chuẩn hóa, trạng thái xác thực, điểm tin cậy
+  | Cách thức xử lý | · Loại bỏ khoảng trắng và chuyển chuỗi sang chữ hoa / ·
+  | Dữ liệu cần lưu trữ | Số biển số đã chuẩn hóa, trạng thái xác thực, log các h
+
+### Heading 1 ### 3. System Design
+
+### Heading 2 ### 3.1. Entity Relationship Diagram
+P: Note:
+[IMAGE]
+P: Entities are represented by rectangles. An entity is an object or concept about which you want to store information. A weak entity is an ent
+P: Relationships are represented by diamond shapes, show how two entities share information in the database. In some cases, entities can be sel
+P: Attributes are represented by ovals. A key attribute is the unique, distinguishing characteristic of the entity. For example, an employee's 
+P: A multivalued attribute can have more than one value. For example, an employee entity can have multiple skill values. A derived attribute is
+P: For example, an employee's monthly salary is based on the employee's annual salary.
+P: Connecting lines solid lines that connect attributes and show the relationships of entities in the diagram.
+P: Cardinality specifies the numerical attribute of the relationship between entities. It can be one-to-one, many-to-one, or many-to-many.
+
+### Heading 3 ### Describes entities and relationships between entities
+
+### Heading 3 ### 1. Thực thể Accounts
+P: 2. Thực thể Roles
+
+### Heading 2 ### 3.2. Database Design
+
+### Heading 4 ### 3.1. Giới thiệu chung về thiết kế CSDL
+P: Cơ sở dữ liệu của Hệ thống Quản lý Bãi đỗ xe Thông minh được thiết kế trên nền tảng PostgreSQL (Supabase Cloud), sử dụng mô hình quan hệ (Re
+P: Thiết kế CSDL tập trung vào việc hỗ trợ đầy đủ các nghiệp vụ cốt lõi của hệ thống bao gồm: quản lý khách hàng & nhóm khách hàng, đăng ký gói
+
+### Heading 4 ### 3.2. Mục tiêu thiết kế
+P: Tính toàn vẹn dữ liệu (Data Integrity): Đảm bảo tính nhất quán và chính xác của dữ liệu qua các ràng buộc khóa chính, khóa ngoại, check cons
+P: Hiệu năng cao (Performance): Hỗ trợ truy vấn nhanh cho các hoạt động thời gian thực (real-time) như nhận diện xe vào/ra, thanh toán và thông
+P: Khả năng mở rộng (Scalability): Dễ dàng mở rộng khi số lượng bãi đỗ xe, thiết bị IoT và người dùng tăng lên.
+P: Bảo mật và Audit: Hỗ trợ audit log (created_by, updated_by, timestamps), Row Level Security (RLS) và ghi nhận lịch sử thay đổi quan trọng.
+P: Tính linh hoạt: Dễ dàng cấu hình biểu giá động, gói cước và quy tắc kinh doanh mà không cần thay đổi cấu trúc bảng lớn.
+P: Hỗ trợ Real-time: Tận dụng tính năng Realtime của Supabase cho thông báo và giám sát thiết bị.
+
+### Heading 4 ### 3.3. Kiến trúc tổng thể của Cơ sở dữ liệu
+P: Thiết kế CSDL được chia thành các nhóm module chính sau:
+P: Module Phân quyền & Tài khoản (accounts, roles, role_function_action, employees)
+P: Module Khách hàng & Nhóm (customers, groups_customers, groups_profiles)
+P: Module Gói cước & Giá (packages, package_vehicle_type, package_price, vehicle_types, tariff_rules)
+P: Module Đăng ký & Phiên đỗ (bookings, booking_details, parking_sessions)
+P: Module Thanh toán (payments, payment_details)
+P: Module Không gian & Thiết bị (zones, iot_devices)
+P: Module Hỗ trợ (complaints, notifications, otp_one_time, functions, actions)
+
+### Heading 4 ### 3.4. Đặc điểm nổi bật của thiết kế
+P: Hybrid Design: Kết hợp giữa chuẩn hóa cao (Normalized) cho dữ liệu cốt lõi và một số bảng denormalized (ví dụ: lưu amount_paid, is_paid tron
+P: Audit Trail: Hầu hết các bảng quan trọng đều có các trường created_at, updated_at, created_by, updated_by để theo dõi lịch sử thay đổi.
+P: Soft Delete: Sử dụng cờ deleted và deleted_at trên nhiều bảng để hỗ trợ khôi phục dữ liệu khi cần.
+P: JSONB Support: Sử dụng kiểu dữ liệu jsonb (ví dụ: gateway_response trong bảng payments) để lưu trữ dữ liệu linh hoạt từ các cổng thanh toán.
+P: Referential Integrity: Sử dụng khóa ngoại (Foreign Keys) chặt chẽ kết hợp với một số ràng buộc logic ở tầng ứng dụng để cân bằng giữa tính t
+P: Thiết kế này không chỉ đáp ứng tốt các yêu cầu nghiệp vụ hiện tại mà còn dễ dàng mở rộng khi hệ thống phát triển thêm các tính năng mới như:
+
+### Heading 4 ### 3.5. Chi tiết thiết kế cơ sở dữ liệu
+P: 1. accounts
+P: Mô tả: Bảng trung tâm quản lý tất cả các tài khoản đăng nhập trong hệ thống. Đây là bảng nền tảng cho việc xác thực và phân quyền người dùng
+P: Mục đích sử dụng: Quản lý thông tin đăng nhập, trạng thái tài khoản và liên kết với các đối tượng người dùng (Customer, Employee, Admin).
+P: Ý nghĩa các trường:
+P: ID: Khóa chính, định danh duy nhất cho tài khoản.
+P: role_id: Vai trò của tài khoản (liên kết với bảng roles).
+P: account_type: Loại tài khoản (Customer, Employee, Admin).
+P: status: Trạng thái tài khoản (active, inactive, locked, suspended).
+P: supabase_id: ID từ Supabase Authentication (UUID).
+P: username, password_hash: Thông tin đăng nhập.
+P: last_login: Thời gian đăng nhập gần nhất.
+P: created_at, updated_at, created_by, updated_by: Thông tin audit.
+P: 2. roles
+P: Mô tả: Bảng lưu trữ các vai trò trong hệ thống theo mô hình Role-Based Access Control (RBAC).
+P: Mục đích sử dụng: Quản lý và phân loại quyền hạn của người dùng trong hệ thống.
+P: Ý nghĩa các trường:
+P: ID: Khóa chính.
+P: role_name: Tên vai trò (Admin, Guard, Customer...).
+P: description: Mô tả chi tiết về vai trò.
+P: is_active: Trạng thái hoạt động của vai trò.
+P: created_at, updated_at, created_by, updated_by: Thông tin audit.
+P: 3. role_function_action
+P: Mô tả: Bảng trung gian thực hiện phân quyền chi tiết theo chức năng và hành động.
+P: Mục đích sử dụng: Xác định một Role được phép thực hiện những Function nào và Action nào (Create, Read, Update, Delete...).
+P: Ý nghĩa các trường:
+P: role_id: ID vai trò.
+P: func_id: ID chức năng.
+P: action_id: ID hành động.
+P: created_at, updated_at, created_by, updated_by: Thông tin audit.
+P: 4. employees
+P: Mô tả: Bảng quản lý thông tin chi tiết của nhân viên làm việc tại bãi đỗ xe.
+P: Mục đích sử dụng: Quản lý thông tin bảo vệ, kế toán và các nhân viên vận hành khác.
+P: Ý nghĩa các trường:
+P: ID: Khóa chính.
+P: account_id: Liên kết với tài khoản đăng nhập.
+P: full_name: Họ và tên nhân viên.
+P: phone: Số điện thoại.
+P: is_online: Trạng thái đang trực hay không.
+P: created_at, updated_at, created_by, updated_by: Thông tin audit.
+P: 5. customers
+P: Mô tả: Bảng lưu trữ thông tin cá nhân của khách hàng sử dụng dịch vụ.
+P: Mục đích sử dụng: Quản lý thông tin khách hàng vãng lai và khách dài hạn.
+P: Ý nghĩa các trường:
+P: ID: Khóa chính.
+P: account_id: Liên kết với tài khoản.
+P: group_id: Thuộc về nhóm khách hàng (nếu có).
+P: full_name: Họ và tên.
+P: phone, address: Thông tin liên lạc và địa chỉ.
+P: created_at, updated_at, created_by, updated_by: Thông tin audit.
+P: 6. groups_profiles
+P: Mô tả: Bảng định nghĩa các mẫu profile cho nhóm khách hàng (Household/Corporate).
+P: Mục đích sử dụng: Thiết lập quy tắc chung cho từng loại nhóm khách hàng.
+P: Ý nghĩa các trường:
+P: ID: Khóa chính.
+P: profile_code: Mã profile.
+P: profile_name: Tên profile (ví dụ: Gia đình tiêu chuẩn, Doanh nghiệp VIP).
+P: 7. groups_customers
+P: Mô tả: Bảng đại diện cho một nhóm khách hàng (gia đình hoặc doanh nghiệp).
+P: Mục đích sử dụng: Cho phép quản lý nhiều xe và nhiều thành viên dưới một tài khoản đại diện.
+P: Ý nghĩa các trường:
+P: ID: Khóa chính.
+P: profile_id: Loại profile áp dụng.
+P: group_code, group_name: Mã và tên nhóm.
+P: master_account_id: Tài khoản chủ nhóm.
+P: is_synchronize: Đồng bộ hóa gói cước.
+P: 8. packages
+P: Mô tả: Bảng quản lý các gói dịch vụ đăng ký dài hạn.
+P: Mục đích sử dụng: Tạo và quản lý các gói vé tháng, quý, năm.
+P: Ý nghĩa các trường:
+P: ID: Khóa chính.
+P: package_code, package_name: Mã và tên gói.
+P: description: Mô tả gói.
+P: is_available: Trạng thái còn sử dụng được hay không.
+P: profile_id: Thuộc profile nhóm nào.
+P: 9. package_vehicle_type
+P: Mô tả: Bảng trung gian liên kết gói cước với loại phương tiện.
+P: Mục đích sử dụng: Quy định số lượng xe tối đa và áp dụng gói cho từng loại xe.
+P: Ý nghĩa các trường:
+P: ID: Khóa chính.
+P: package_id, vehicle_type_id: Liên kết gói và loại xe.
+P: max_quantity: Số lượng xe tối đa cho phép.
+P: 10. package_price
+P: Mô tả: Bảng lưu trữ mức giá chi tiết của gói cước.
+P: Mục đích sử dụng: Xác định giá tiền cụ thể theo thời hạn và loại xe.
+P: Ý nghĩa các trường:
+P: ID: Khóa chính.
+P: package_price_name: Tên mức giá.
+P: duration_days, duration_months: Thời hạn.
+P: price: Giá tiền.
+P: is_active: Trạng thái kích hoạt.
+P: 11. vehicle_types
+P: Mô tả: Danh mục các loại phương tiện trong hệ thống.
+P: Mục đích sử dụng: Phân loại xe để áp dụng quy tắc tính phí và quản lý chỗ đỗ.
+P: Ý nghĩa các trường:
+P: ID: Khóa chính.
+P: type_code, type_name: Mã và tên loại xe.
+P: 12. tariff_rules
+P: Mô tả: Bảng quy tắc tính giá động cho khách vãng lai.
+P: Mục đích sử dụng: Xác định mức phí theo khung giờ, ngày lễ, giờ cao điểm.
+P: Ý nghĩa các trường:
+P: ID: Khóa chính.
+P: vehicle_type_id: Áp dụng cho loại xe nào.
+P: start_time, end_time: Khung giờ áp dụng.
+P: base_price: Giá cơ bản.
+P: day_type: Loại ngày (weekday, weekend, holiday...).
+P: 13. bookings
+P: Mô tả: Bảng đại diện cho hợp đồng đăng ký chỗ đỗ xe dài hạn.
+P: Mục đích sử dụng: Quản lý các hợp đồng thuê chỗ của nhóm khách hàng.
+P: Ý nghĩa các trường:
+P: ID: Khóa chính.
+P: group_id, package_id: Liên kết nhóm và gói cước.
+P: created_by: Người tạo hợp đồng.
+P: 14. booking_details
+P: Mô tả: Chi tiết từng xe đăng ký trong một hợp đồng.
+P: Mục đích sử dụng: Quản lý thông tin riêng biệt của từng phương tiện trong hợp đồng.
+P: Ý nghĩa các trường:
+P: ID: Khóa chính.
+P: booking_id: Thuộc hợp đồng nào.
+P: customer_id, vehicle_no: Khách hàng và biển số xe.
+P: start_date, end_date: Thời hạn sử dụng.
+P: status: Trạng thái hiện tại.
+P: 15. parking_sessions
+P: Mô tả: Bảng ghi nhận từng phiên đỗ xe (vào/ra bãi).
+P: Mục đích sử dụng: Theo dõi toàn bộ hoạt động ra vào của phương tiện.
+P: Ý nghĩa các trường:
+P: ID: Khóa chính.
+P: vehicle_no, vehicle_type_id: Thông tin xe.
+P: entry_time, exit_time: Thời gian vào/ra.
+P: amount_due, amount_paid, is_paid: Thông tin thanh toán.
+P: grace_period_end: Thời gian ân hạn.
+P: 16. payments
+P: Mô tả: Bảng hóa đơn thanh toán tổng (Master Payment).
+P: Mục đích sử dụng: Quản lý tất cả các giao dịch thanh toán trong hệ thống.
+P: Ý nghĩa các trường:
+P: ID: Khóa chính.
+P: pay_code: Mã giao dịch.
+P: amount: Tổng số tiền.
+P: method, status, gateway: Phương thức và trạng thái thanh toán.
+P: gateway_response: JSON phản hồi từ cổng thanh toán.
+P: 17. payment_details
+P: Mô tả: Bảng chi tiết phân bổ tiền trong một hóa đơn.
+P: Mục đích sử dụng: Theo dõi số tiền được thanh toán cho từng xe hoặc phiên đỗ.
+P: Ý nghĩa các trường:
+P: ID: Khóa chính.
+P: payment_id: Thuộc hóa đơn nào.
+P: booking_detail_id: Liên kết với xe trong hợp đồng.
+P: item_amount: Số tiền cho mục này.
+P: applied_start_date, applied_end_date: Chu kỳ áp dụng.
+P: 18. zones
+P: Mô tả: Bảng quản lý các khu vực đỗ xe vật lý.
+P: Mục đích sử dụng: Quản lý không gian và theo dõi tỷ lệ lấp đầy theo khu vực.
+P: Ý nghĩa các trường:
+P: ID: Khóa chính.
+P: zone_name: Tên khu vực.
+P: capacity: Sức chứa tối đa.
+P: current_occupancy: Số chỗ đang chiếm.
+P: 19. iot_devices
+P: Mô tả: Bảng quản lý các thiết bị IoT và phần cứng trong bãi.
+P: Mục đích sử dụng: Giám sát, cấu hình và theo dõi tình trạng hoạt động của thiết bị.
+P: Ý nghĩa các trường:
+P: ID: Khóa chính.
+P: device_code, device_name: Mã và tên thiết bị.
+P: zone_id_from, zone_id_to: Khu vực lắp đặt.
+P: status, last_ping: Trạng thái và thời gian kết nối gần nhất.
+P: 20. complaints
+P: Mô tả: Bảng quản lý khiếu nại từ khách hàng.
+P: Mục đích sử dụng: Xử lý góp ý và khiếu nại của khách hàng.
+P: Ý nghĩa các trường:
+P: ID: Khóa chính.
+P: content: Nội dung khiếu nại.
+P: img_url: Hình ảnh đính kèm.
+P: is_solved, solved_at: Trạng thái xử lý.
+P: 21. notifications
+P: Mô tả: Bảng lưu lịch sử thông báo đẩy của hệ thống.
+P: Mục đích sử dụng: Quản lý thông báo gửi cho khách hàng và nhân viên.
+P: Ý nghĩa các trường:
+P: ID: Khóa chính.
+P: account_id: Người nhận.
+P: title, message: Tiêu đề và nội dung.
+P: is_read: Đã đọc hay chưa.
+P: 22. otp_one_time
+P: Mô tả: Bảng quản lý mã OTP sử dụng một lần.
+P: Mục đích sử dụng: Hỗ trợ xác thực, quên mật khẩu, đăng nhập 2 lớp.
+P: Ý nghĩa các trường:
+P: ID: Khóa chính.
+P: account_id: Tài khoản liên quan.
+P: otp_code: Mã OTP.
+P: expired_at, is_used: Thời hạn và trạng thái sử dụng.
+
+### Heading 2 ### 3.3. Sitemap -> Hiếu bổ sung
+
+### Heading 2 ### 3.4. System Functions Design
+
+### Heading 3 ### 3.4.1. General Functions
+
+### Heading 4 ### 1.Authentication
+--- TABLE#122 (4x2) ---
+  | Description | Chức năng cho phép người dùng (Khách hàng, Admin, Nhân 
+  | Input | Tên đăng nhập (Email/Số điện thoại) và Mật khẩu.
+  | Processing | 1. Người dùng nhập thông tin đăng nhập trên giao diện. 
+  | Result | Thành công: Người dùng được cấp quyền truy cập, chuyển 
+
+### Heading 4 ### 2.Authorization
+--- TABLE#123 (4x2) ---
+  | Description | Chức năng chạy ngầm phía Backend (Spring Boot) giúp kiể
+  | Input | Access Token (JWT) nằm trong HTTP Header và API Endpoin
+  | Processing | 1. Hệ thống Backend chặn bắt Request từ Client thông qu
+  | Result | Hợp lệ: Chạy logic nghiệp vụ, trả về kết quả (HTTP 200 
+P: 3. Logout
+--- TABLE#124 (4x2) ---
+  | Description | Chức năng cho phép người dùng chủ động kết thúc phiên l
+  | Input | Hành động click/chạm vào nút Đăng xuất trên giao diện. 
+  | Processing | Người dùng kích hoạt hành động Đăng xuất trên giao diện
+  | Result | Thành công: Trạng thái đăng nhập bị xóa sạch, chuyển hư
+P: 4. Forgot password
+--- TABLE#125 (4x2) ---
+  | Description | Chức năng giúp người dùng khôi phục quyền truy cập tài 
+  | Input | Tên đăng nhập (Email/Số điện thoại), Mã OTP, Mật khẩu m
+  | Processing | Người dùng nhập Tên đăng nhập (Email/Số điện thoại) vào
+  | Result | Thành công: Hệ thống thông báo đổi mật khẩu thành công,
+P: 5. Change password
+--- TABLE#126 (4x2) ---
+  | Description | Chức năng cho phép người dùng đang trong phiên làm việc
+  | Input | Access Token (để định danh người dùng), Mã OTP, Mật khẩ
+  | Processing | Người dùng truy cập phần "Thay đổi mật khẩu" trong cài 
+  | Result | Thành công: Mật khẩu được thay đổi an toàn. Hệ thống có
+
+### Heading 3 ### 3.4.2. Customer Functions
+
+### Heading 4 ### 1. Manage Customers, Groups Customers
+P: View Detailed Customer by ID
+[IMAGE]
+--- TABLE#127 (4x2) ---
+  | Description | Chức năng cho phép khách hàng xem thông tin chi tiết củ
+  | Input | Customer ID (ID của chính khách hàng đang đăng nhập)
+  | Processing | Khách hàng truy cập vào mục “Hồ sơ cá nhân” trong ứng d
+  | Result | Hiển thị thành công thông tin chi tiết của khách hàng b
+P: Update Customer
+[IMAGE]
+--- TABLE#128 (4x2) ---
+  | Description | Chức năng cho phép khách hàng chỉnh sửa thông tin cá nh
+  | Input | Customer ID (ID của khách hàng đang đăng nhập) / Các tr
+  | Processing | Khách hàng vào màn hình “Chỉnh sửa hồ sơ”. / Hệ thống t
+  | Result | Hiển thị thông báo “Cập nhật thông tin thành công”. / T
+P: View Detailed Groups Customer by Customer ID
+[IMAGE]
+--- TABLE#129 (4x2) ---
+  | Description | Chức năng cho phép khách hàng xem thông tin chi tiết củ
+  | Input | Customer ID (ID của khách hàng đang đăng nhập)
+  | Processing | Khách hàng truy cập vào mục “Nhóm của tôi” hoặc “Thông 
+  | Result | Hiển thị thành công thông tin chi tiết của nhóm khách h
+P: Update Group Customer, applies to customers who are owners of the group
+[IMAGE]
+--- TABLE#130 (4x2) ---
+  | Description | Chức năng cho phép chủ nhóm (Group Owner) cập nhật thôn
+  | Input | Customer ID (ID của chủ nhóm - Group Owner) / Danh sách
+  | Processing | Khách hàng (chủ nhóm) truy cập vào màn hình quản lý nhó
+  | Result | Hiển thị thông báo “Cập nhật nhóm khách hàng thành công
+
+### Heading 4 ### 2. Manage Bookings and Booking Details
+P: View Detailed Booking by ID
+[IMAGE]
+--- TABLE#131 (4x2) ---
+  | Description | Chức năng cho phép khách hàng xem thông tin chi tiết củ
+  | Input | Booking ID (ID của hợp đồng cần xem chi tiết)
+  | Processing | Khách hàng chọn một hợp đồng từ danh sách Booking của m
+  | Result | Hiển thị thành công thông tin chi tiết của hợp đồng đăn
+P: View List Booking Details
+[IMAGE]
+--- TABLE#132 (4x2) ---
+  | Description | Chức năng cho phép khách hàng xem danh sách tất cả các 
+  | Input | Customer ID (ID của khách hàng đang đăng nhập)
+  | Processing | Khách hàng truy cập vào mục “Xe của tôi” hoặc “Chi tiết
+  | Result | Hiển thị danh sách các xe trong hợp đồng dưới dạng bảng
+P: View Detailed Booking Details by ID
+[IMAGE]
+--- TABLE#133 (4x2) ---
+  | Description | Chức năng cho phép khách hàng xem thông tin chi tiết củ
+  | Input | Booking Detail ID (ID của xe trong hợp đồng)
+  | Processing | Khách hàng chọn một xe từ danh sách Booking Details. / 
+  | Result | Hiển thị thành công thông tin chi tiết của xe bao gồm: 
+P: Create Booking details, applied when customers renew their booking details
+[IMAGE]
+--- TABLE#134 (4x2) ---
+  | Description | Chức năng cho phép khách hàng tạo mới hoặc gia hạn đăng
+  | Input | Booking ID / Customer ID / Loại xe, Biển số xe / Gói cư
+  | Processing | Khách hàng chọn xe cần gia hạn hoặc tạo mới trong hợp đ
+  | Result | Hiển thị thông báo “Tạo/Gia hạn xe thành công”. / Xe mớ
+
+### Heading 4 ### 3. Manage Parking Sessions
+P: View List Parking Sessions
+[IMAGE]
+--- TABLE#135 (4x2) ---
+  | Description | Chức năng cho phép khách hàng xem lịch sử tất cả các ph
+  | Input | Customer ID (ID của khách hàng đang đăng nhập)
+  | Processing | Khách hàng truy cập vào mục “Lịch sử đỗ xe” trong ứng d
+  | Result | Hiển thị danh sách các phiên đỗ xe dưới dạng bảng với c
+P: View Detailed Parking Session by ID
+[IMAGE]
+--- TABLE#136 (4x2) ---
+  | Description | Chức năng cho phép khách hàng xem thông tin chi tiết củ
+  | Input | Parking Session ID (ID của phiên đỗ xe)
+  | Processing | Khách hàng chọn một phiên đỗ xe từ danh sách lịch sử. /
+  | Result | Hiển thị thành công thông tin chi tiết của phiên đỗ xe 
+
+### Heading 4 ### 4. Manage Payment
+P: View List Payment History
+P: View Payment Details
+P: Pay Parking Fee (Casual Parking Payment via Kiosk/App)
+P: Pay Subscription Package (New Registration or Renewal)
+
+### Heading 4 ### 5. Manage Complaints
+P: View List Complaints
+[IMAGE]
+--- TABLE#137 (4x2) ---
+  | Description | Chức năng cho phép khách hàng xem toàn bộ danh sách khi
+  | Input | Customer ID (tự động lấy từ tài khoản đang đăng nhập)
+  | Processing | Khách hàng truy cập vào mục “Khiếu nại của tôi” trong ứ
+  | Result | Hiển thị danh sách các khiếu nại với thông tin: Mã khiế
+P: View Detailed Complaint by ID
+[IMAGE]
+--- TABLE#138 (4x2) ---
+  | Description | Chức năng cho phép khách hàng xem thông tin chi tiết củ
+  | Input | Complaint ID
+  | Processing | Khách hàng chọn một khiếu nại từ danh sách. / Hệ thống 
+  | Result | Hiển thị đầy đủ thông tin khiếu nại: Nội dung chi tiết,
+P: Create Complaint
+[IMAGE]
+--- TABLE#139 (4x2) ---
+  | Description | Chức năng cho phép khách hàng gửi khiếu nại mới về dịch
+  | Input | Nội dung khiếu nại / Hình ảnh hoặc video đính kèm (tùy 
+  | Processing | Khách hàng mở form tạo khiếu nại. / Nhập nội dung khiếu
+  | Result | Hiển thị thông báo “Gửi khiếu nại thành công”. Khiếu nạ
+P: Update Complaint
+[IMAGE]
+--- TABLE#140 (4x2) ---
+  | Description | Chức năng cho phép khách hàng chỉnh sửa khiếu nại chưa 
+  | Input | Complaint ID / Nội dung cập nhật (và hình ảnh mới nếu c
+  | Processing | Khách hàng chọn khiếu nại chưa xử lý và click Chỉnh sửa
+  | Result | Hiển thị thông báo “Cập nhật khiếu nại thành công”.
+
+### Heading 3 ### 3.4.3. Security Guard Functions
+
+### Heading 4 ### 1. Manage Parking Sessions
+P: View List Parking Sessions
+[IMAGE]
+--- TABLE#141 (4x2) ---
+  | Description | Chức năng cho phép Bảo vệ xem danh sách tất cả các phiê
+  | Input | Tiêu chí tìm kiếm (tùy chọn): Biển số xe, Trạng thái, T
+  | Processing | Bảo vệ truy cập vào mục “Phiên đỗ xe” trên Guard App. /
+  | Result | Hiển thị danh sách các phiên đỗ xe dưới dạng bảng với c
+P: View Detailed Parking Session by ID
+[IMAGE]
+--- TABLE#142 (4x2) ---
+  | Description | Chức năng cho phép Bảo vệ xem thông tin chi tiết của mộ
+  | Input | Parking Session ID (ID của phiên đỗ xe)
+  | Processing | Bảo vệ chọn một phiên từ danh sách hoặc nhập trực tiếp 
+  | Result | Hiển thị thành công thông tin chi tiết của phiên đỗ xe.
+P: Update Parking Session
+[IMAGE]
+--- TABLE#143 (4x2) ---
+  | Description | Chức năng cho phép Bảo vệ cập nhật thủ công thông tin c
+  | Input | Parking Session ID / Các trường thông tin cần chỉnh sửa
+  | Processing | Bảo vệ chọn phiên đỗ xe cần cập nhật từ danh sách. / Hệ
+  | Result | Hiển thị thông báo “Cập nhật phiên đỗ xe thành công”. /
+
+### Heading 4 ### 2. Manage Payment
+P: Manual Cash Collection (Exception Handling at Exit Gate)
+P: End Shift & Cash Reconciliation
+
+### Heading 4 ### 3. Manage Bookings and Booking Details
+P: View List Bookings
+[IMAGE]
+--- TABLE#144 (4x2) ---
+  | Description | Chức năng cho phép Bảo vệ xem danh sách các hợp đồng đă
+  | Input | Tiêu chí tìm kiếm (tùy chọn): Booking ID, Tên nhóm khác
+  | Processing | Bảo vệ truy cập vào mục “Hợp đồng đăng ký” trên Guard A
+  | Result | Hiển thị danh sách các hợp đồng đăng ký dưới dạng bảng 
+P: View Detailed Booking by ID
+[IMAGE]
+--- TABLE#145 (4x2) ---
+  | Description | Chức năng cho phép Bảo vệ xem thông tin chi tiết của mộ
+  | Input | Booking ID (ID của hợp đồng cần xem)
+  | Processing | Bảo vệ chọn một Booking từ danh sách hoặc nhập trực tiế
+  | Result | Thông tin tổng quan Booking (Mã Booking, Gói cước, Trạn
+P: View List Booking Details
+[IMAGE]
+--- TABLE#146 (4x2) ---
+  | Description | Chức năng cho phép Bảo vệ xem danh sách tất cả các xe đ
+  | Input | Tiêu chí tìm kiếm (tùy chọn): Booking ID, Tên khách hàn
+  | Processing | Bảo vệ truy cập vào mục “Danh sách xe đăng ký” trên Gua
+  | Result | Hiển thị danh sách các xe đăng ký dưới dạng bảng với cá
+P: View Detailed Booking Details by ID
+[IMAGE]
+--- TABLE#147 (4x2) ---
+  | Description | Chức năng cho phép Bảo vệ xem thông tin chi tiết của mộ
+  | Input | Booking Detail ID (ID của xe trong hợp đồng)
+  | Processing | Bảo vệ chọn một xe từ danh sách Booking Details hoặc nh
+  | Result | Hiển thị thành công thông tin chi tiết của xe bao gồm: 
+
+### Heading 4 ### 4. Manage IoT devices and hardware (Devices IO)
+P: View List Devices
+[IMAGE]
+--- TABLE#148 (4x2) ---
+  | Description | Chức năng cho phép Bảo vệ xem danh sách tất cả các thiế
+  | Input | Tiêu chí tìm kiếm (tùy chọn): Tên thiết bị, Loại thiết 
+  | Processing | Bảo vệ truy cập vào mục “Thiết bị” trên Guard App. / Bả
+  | Result | Hiển thị danh sách thiết bị dưới dạng bảng trên Guard A
+P: View Detailed Device by ID
+[IMAGE]
+--- TABLE#149 (4x2) ---
+  | Description | Chức năng cho phép Bảo vệ xem thông tin chi tiết của mộ
+  | Input | Device ID (ID của thiết bị cần xem chi tiết)
+  | Processing | Bảo vệ click vào một thiết bị từ danh sách hoặc quét mã
+  | Result | Hiển thị thành công thông tin chi tiết của thiết bị. / 
+
+### Heading 4 ### 5. Manage Complaints
+P: View List Complaints
+[IMAGE]
+--- TABLE#150 (4x2) ---
+  | Description | Chức năng cho phép Bảo vệ xem danh sách tất cả các khiế
+  | Input | Tiêu chí tìm kiếm (tùy chọn): Trạng thái khiếu nại, Kho
+  | Processing | Bảo vệ truy cập vào mục “Khiếu nại” trên Guard App. / B
+  | Result | Hiển thị danh sách các khiếu nại dưới dạng bảng với thô
+P: View Detailed Complaint by ID
+[IMAGE]
+--- TABLE#151 (4x2) ---
+  | Description | Chức năng cho phép Bảo vệ xem thông tin chi tiết của mộ
+  | Input | Complaint ID
+  | Processing | Bảo vệ chọn một khiếu nại từ danh sách hoặc nhập trực t
+  | Result | Hiển thị đầy đủ thông tin khiếu nại: Nội dung chi tiết,
+P: Create Complaint
+[IMAGE]
+--- TABLE#152 (4x2) ---
+  | Description | Chức năng cho phép Bảo vệ tạo khiếu nại thay cho khách 
+  | Input | Nội dung khiếu nại / Hình ảnh hoặc video hỗ trợ (tùy ch
+  | Processing | Bảo vệ mở form tạo khiếu nại. / Nhập nội dung khiếu nại
+  | Result | Hiển thị thông báo “Tạo khiếu nại thành công”. Khiếu nạ
+P: Update Complaint
+[IMAGE]
+--- TABLE#153 (4x2) ---
+  | Description | Chức năng cho phép Bảo vệ cập nhật thông tin hoặc bổ su
+  | Input | Complaint ID / Thông tin cần cập nhật (nội dung bổ sung
+  | Processing | Bảo vệ chọn khiếu nại chưa xử lý. / Hệ thống tải thông 
+  | Result | Hiển thị thông báo “Cập nhật khiếu nại thành công”.
+
+### Heading 3 ### 3.4.4. Admin Functions
+
+### Heading 4 ### 1. Manage Customers, Groups Customers and Groups Customers Profiles
+P: View List Customers
+[IMAGE]
+--- TABLE#154 (4x2) ---
+  | Description | Chức năng cho phép Admin xem danh sách tất cả khách hàn
+  | Input | Tiêu chí tìm kiếm (tùy chọn): Họ tên, Số điện thoại, Em
+  | Processing | Admin truy cập vào mục quản lý khách hàng. / Admin có t
+  | Result | Hiển thị danh sách khách hàng dưới dạng bảng với phân t
+P: View Detailed Customer by ID
+[IMAGE]
+--- TABLE#155 (4x2) ---
+  | Description | Chức năng cho phép Admin xem thông tin chi tiết của một
+  | Input | Customer ID (ID của khách hàng cần xem chi tiết)
+  | Processing | Admin chọn khách hàng từ danh sách hoặc nhập trực tiếp 
+  | Result | Hiển thị thành công thông tin chi tiết của khách hàng b
+P: Create Customer
+[IMAGE]
+--- TABLE#156 (4x2) ---
+  | Description | Chức năng cho phép Admin tạo mới một tài khoản khách hà
+  | Input | Username / Số điện thoại, Họ và tên (Fullname), Số CCCD
+  | Processing | Admin nhập đầy đủ thông tin khách hàng trên form tạo mớ
+  | Result | Hiển thị thông báo “Tạo khách hàng mới thành công”. / K
+P: Update Customer
+[IMAGE]
+--- TABLE#157 (4x2) ---
+  | Description | Chức năng cho phép Admin cập nhật thông tin cá nhân của
+  | Input | Customer ID (ID của khách hàng cần cập nhật) / Các trườ
+  | Processing | Admin chọn khách hàng từ danh sách và vào màn hình chỉn
+  | Result | Hiển thị thông báo “Cập nhật thông tin khách hàng thành
+P: Delete Customer
+[IMAGE]
+--- TABLE#158 (4x2) ---
+  | Description | Chức năng cho phép Admin thực hiện xóa một khách hàng k
+  | Input | Customer ID (ID của khách hàng cần xóa)
+  | Processing | Admin chọn khách hàng từ danh sách và thực hiện lệnh xó
+  | Result | Hiển thị thông báo “Xóa khách hàng thành công”. / Khách
+P: View List Groups Customers
+[IMAGE]
+--- TABLE#159 (4x2) ---
+  | Description | Chức năng cho phép Admin xem danh sách tất cả các nhóm 
+  | Input | Tiêu chí tìm kiếm (tùy chọn): Tên nhóm, Tên chủ nhóm, S
+  | Processing | Admin truy cập vào mục quản lý nhóm khách hàng. / Admin
+  | Result | Hiển thị danh sách các nhóm khách hàng dưới dạng bảng v
+P: View Detailed Groups Customer by ID
+[IMAGE]
+--- TABLE#160 (4x2) ---
+  | Description | Chức năng cho phép Admin xem thông tin chi tiết của một
+  | Input | Group Customer ID (ID của nhóm khách hàng)
+  | Processing | Admin chọn một nhóm từ danh sách hoặc nhập trực tiếp Gr
+  | Result | Hiển thị thành công thông tin chi tiết của nhóm khách h
+P: Create Group Customers
+[IMAGE]
+--- TABLE#161 (4x2) ---
+  | Description | Chức năng cho phép Admin tạo mới một nhóm khách hàng để
+  | Input | Tên nhóm (Group Name), Mã nhóm (Group Code), Profile ID
+  | Processing | Admin nhập thông tin nhóm trên form tạo mới. / Hệ thống
+  | Result | Hiển thị thông báo “Tạo nhóm khách hàng thành công”. / 
+P: Update Group Customer
+[IMAGE]
+--- TABLE#162 (4x2) ---
+  | Description | Chức năng cho phép Admin cập nhật thông tin của một nhó
+  | Input | Group Customer ID / Các trường thông tin cần chỉnh sửa
+  | Processing | Admin chọn nhóm cần chỉnh sửa. / Hệ thống tải thông tin
+  | Result | Hiển thị thông báo “Cập nhật nhóm khách hàng thành công
+P: Delete Group Customer
+[IMAGE]
+--- TABLE#163 (4x2) ---
+  | Description | Chức năng cho phép Admin xóa một nhóm khách hàng bằng p
+  | Input | Group Customer ID
+  | Processing | Admin chọn nhóm cần xóa. / Hệ thống kiểm tra điều kiện 
+  | Result | Hiển thị thông báo “Xóa nhóm khách hàng thành công”.
+P: View List Groups Profiles
+[IMAGE]
+--- TABLE#164 (4x2) ---
+  | Description | Chức năng cho phép Admin xem danh sách tất cả các Group
+  | Input | Tiêu chí tìm kiếm (tùy chọn): Tên profile, Mã profile..
+  | Processing | Admin truy cập vào mục quản lý Group Profile. / Admin n
+  | Result | Hiển thị danh sách các Group Profile dưới dạng bảng với
+P: View Detailed Groups Profile by ID
+[IMAGE]
+--- TABLE#165 (4x2) ---
+  | Description | Chức năng cho phép Admin xem thông tin chi tiết của một
+  | Input | Group Customer Profile ID
+  | Processing | Admin chọn một profile từ danh sách hoặc nhập trực tiếp
+  | Result | Hiển thị thành công thông tin chi tiết của Group Profil
+P: Create Group Customers Profile
+[IMAGE]
+--- TABLE#166 (4x2) ---
+  | Description | Chức năng cho phép Admin tạo mới một Group Profile (mẫu
+  | Input | Profile Code / Profile Name
+  | Processing | Admin nhập thông tin profile trên form tạo mới. / Hệ th
+  | Result | Hiển thị thông báo “Tạo Group Profile thành công”. / Pr
+P: Update Group Customer Profile
+[IMAGE]
+--- TABLE#167 (4x2) ---
+  | Description | Chức năng cho phép Admin cập nhật thông tin của một Gro
+  | Input | Group Customer Profile ID / Các trường thông tin cần ch
+  | Processing | Admin chọn profile cần chỉnh sửa. / Hệ thống tải thông 
+  | Result | Hiển thị thông báo “Cập nhật Group Profile thành công”.
+P: Delete Group Customer profile
+[IMAGE]
+--- TABLE#168 (4x2) ---
+  | Description | Chức năng cho phép Admin xóa một Group Profile bằng phư
+  | Input | Group Customer Profile ID
+  | Processing | Admin chọn profile cần xóa. / Hệ thống kiểm tra điều ki
+  | Result | Hiển thị thông báo “Xóa Group Profile thành công”.
+
+### Heading 4 ### 2. Manage Bookings and Booking Details
+P: View List Bookings
+[IMAGE]
+--- TABLE#169 (4x2) ---
+  | Description | Chức năng cho phép Admin xem danh sách tất cả các hợp đ
+  | Input | Tiêu chí tìm kiếm (tùy chọn): Booking ID, Tên nhóm khác
+  | Processing | Admin truy cập vào mục quản lý Booking. / Admin nhập ti
+  | Result | Hiển thị danh sách các hợp đồng đăng ký dưới dạng bảng 
+P: View Detailed Booking by ID
+[IMAGE]
+--- TABLE#170 (4x2) ---
+  | Description | Chức năng cho phép Admin xem thông tin chi tiết của một
+  | Input | Booking ID (ID của hợp đồng cần xem)
+  | Processing | Admin chọn một Booking từ danh sách hoặc nhập trực tiếp
+  | Result | Hiển thị thành công thông tin chi tiết của hợp đồng bao
+P: Create Booking
+[IMAGE]
+--- TABLE#171 (4x2) ---
+  | Description | Chức năng cho phép Admin tạo mới một hợp đồng đăng ký c
+  | Input | Group Customer ID / Subscription Package Type (Loại gói
+  | Processing | Admin chọn nhóm khách hàng và gói cước muốn đăng ký. / 
+  | Result | Hiển thị thông báo “Tạo Booking thành công”. / Hợp đồng
+P: Update Booking
+[IMAGE]
+--- TABLE#172 (4x2) ---
+  | Description | Chức năng cho phép Admin cập nhật thông tin của một hợp
+  | Input | Booking ID / Các trường thông tin cần chỉnh sửa
+  | Processing | Admin chọn Booking cần chỉnh sửa. / Hệ thống tải thông 
+  | Result | Hiển thị thông báo “Cập nhật Booking thành công”.
+P: Delete Booking
+[IMAGE]
+--- TABLE#173 (4x2) ---
+  | Description | Chức năng cho phép Admin xóa một hợp đồng đăng ký bằng 
+  | Input | Booking ID
+  | Processing | Admin chọn Booking cần xóa. / Hệ thống kiểm tra điều ki
+  | Result | Hiển thị thông báo “Xóa Booking thành công”.
+P: View List Booking Details
+[IMAGE]
+--- TABLE#174 (4x2) ---
+  | Description | Chức năng cho phép Admin xem danh sách tất cả các xe đư
+  | Input | Tiêu chí tìm kiếm (tùy chọn): Booking ID, Tên khách hàn
+  | Processing | Admin truy cập vào mục quản lý Booking Detail. / Admin 
+  | Result | Hiển thị danh sách các xe trong hợp đồng dưới dạng bảng
+P: View Detailed Booking Details by ID
+[IMAGE]
+--- TABLE#175 (4x2) ---
+  | Description | Chức năng cho phép Admin xem thông tin chi tiết của một
+  | Input | Booking Detail ID (ID của xe trong hợp đồng)
+  | Processing | Admin chọn một Booking Detail từ danh sách hoặc nhập tr
+  | Result | Hiển thị thành công thông tin chi tiết của xe trong hợp
+P: Create Booking detail
+[IMAGE]
+--- TABLE#176 (4x2) ---
+  | Description | Chức năng cho phép Admin thêm mới một xe vào hợp đồng đ
+  | Input | Booking ID / Customer ID / Loại xe, Biển số xe / Gói cư
+  | Processing | Admin chọn Booking và nhập thông tin xe mới. / Hệ thống
+  | Result | Hiển thị thông báo “Tạo chi tiết xe thành công”. / Xe m
+P: Update Booking detail
+[IMAGE]
+--- TABLE#177 (4x2) ---
+  | Description | Chức năng cho phép Admin chỉnh sửa thông tin của một xe
+  | Input | Booking Detail ID / Các trường thông tin cần chỉnh sửa
+  | Processing | Admin chọn Booking Detail cần chỉnh sửa. / Hệ thống tải
+  | Result | Hiển thị thông báo “Cập nhật chi tiết xe thành công”.
+P: Delete Booking detail
+[IMAGE]
+--- TABLE#178 (4x2) ---
+  | Description | Chức năng cho phép Admin xóa một xe khỏi hợp đồng bằng 
+  | Input | Booking Detail ID
+  | Processing | Admin chọn Booking Detail cần xóa. / Hệ thống kiểm tra 
+  | Result | Hiển thị thông báo “Xóa chi tiết xe thành công”.
+
+### Heading 4 ### 3. Manage Packages and price
+P: View List Packages
+[IMAGE]
+--- TABLE#179 (4x2) ---
+  | Description | Chức năng cho phép Admin xem, tìm kiếm và quản lý danh 
+  | Input | Tiêu chí tìm kiếm (tùy chọn): Tên gói, Mã gói, Trạng th
+  | Processing | Admin truy cập vào mục “Quản lý Gói cước”. / Admin có t
+  | Result | Hiển thị danh sách các gói cước với thông tin chi tiết.
+P: Create Package
+[IMAGE]
+--- TABLE#180 (4x2) ---
+  | Description | Chức năng cho phép Admin tạo mới một gói đăng ký chỗ đỗ
+  | Input | Package Code, Package Name, Description, Profile ID, Is
+  | Processing | Admin mở form tạo gói cước mới. / Nhập đầy đủ thông tin
+  | Result | Hiển thị thông báo “Tạo gói cước thành công” và chuyển 
+P: Update Package
+[IMAGE]
+--- TABLE#181 (4x2) ---
+  | Description | Chức năng cho phép Admin chỉnh sửa thông tin của gói cư
+  | Input | Package ID / Các trường cần cập nhật (Tên gói, Mô tả, T
+  | Processing | Admin chọn gói cước từ danh sách và click Edit. / Hệ th
+  | Result | Hiển thị thông báo “Cập nhật gói cước thành công”.
+P: Delete Package
+[IMAGE]
+--- TABLE#182 (4x2) ---
+  | Description | Chức năng cho phép Admin xóa một gói cước khỏi hệ thống
+  | Input | Package ID
+  | Processing | Admin chọn gói cước cần xóa. / Hệ thống kiểm tra điều k
+  | Result | Hiển thị thông báo “Xóa gói cước thành công”.
+P: View List Price For Subscription
+[IMAGE]
+--- TABLE#183 (4x2) ---
+  | Description | Chức năng cho phép Admin xem toàn bộ danh sách các mức 
+  | Input | Tiêu chí tìm kiếm (tùy chọn): Tên gói, Loại xe, Thời hạ
+  | Processing | Admin truy cập vào mục “Quản lý Mức giá”. / Admin có th
+  | Result | Hiển thị danh sách các mức giá với thông tin chi tiết.
+P: Create Price For Subscription
+[IMAGE]
+--- TABLE#184 (4x2) ---
+  | Description | Chức năng cho phép Admin thêm mức giá mới cho một loại 
+  | Input | Package Vehicle Type ID, Duration (months), Price, Pack
+  | Processing | Admin chọn gói cước và loại xe. / Nhập số tháng và mức 
+  | Result | Hiển thị thông báo “Tạo mức giá thành công”.
+P: Update Price For Subscription
+[IMAGE]
+--- TABLE#185 (4x2) ---
+  | Description | Chức năng cho phép Admin chỉnh sửa thông tin mức giá củ
+  | Input | Package Price ID / Thông tin cần cập nhật (Duration, Pr
+  | Processing | Admin chọn mức giá từ danh sách và click Edit. / Hệ thố
+  | Result | Hiển thị thông báo “Cập nhật mức giá thành công”.
+P: Delete Price For Subscription
+[IMAGE]
+--- TABLE#186 (4x2) ---
+  | Description | Chức năng cho phép Admin xóa một mức giá.
+  | Input | Package Price ID
+  | Processing | Admin chọn mức giá cần xóa. / Hệ thống kiểm tra mức giá
+  | Result | Hiển thị thông báo “Xóa mức giá thành công”.
+P: View List Tariff Rules
+[IMAGE]
+--- TABLE#187 (4x2) ---
+  | Description | Chức năng cho phép Admin xem, tìm kiếm và quản lý danh 
+  | Input | Tiêu chí tìm kiếm (Vehicle Type, Day Type, Trạng thái h
+  | Processing | Admin truy cập vào mục “Quản lý Bảng giá Vãng lai”. / A
+  | Result | Hiển thị danh sách bảng giá dưới dạng bảng với đầy đủ t
+P: Create Tariff Rules
+[IMAGE]
+--- TABLE#188 (4x2) ---
+  | Description | Chức năng cho phép Admin tạo mới quy tắc tính giá cho k
+  | Input | Vehicle Type, Day Type, Start Time, End Time, Base Pric
+  | Processing | Admin chọn loại xe và loại ngày (Weekday/Weekend). / Nh
+  | Result | Hiển thị thông báo “Tạo bảng giá thành công”.
+P: Update Tariff Rules
+[IMAGE]
+--- TABLE#189 (4x2) ---
+  | Description | Chức năng cho phép Admin chỉnh sửa quy tắc tính giá đã 
+  | Input | Tariff Rule ID, Updated fields (time slot, prices...)
+  | Processing | Admin chọn bảng giá cần chỉnh sửa. / Hệ thống tải thông
+  | Result | Hiển thị thông báo “Cập nhật bảng giá thành công”.
+P: Delete Tariff Rules
+[IMAGE]
+--- TABLE#190 (4x2) ---
+  | Description | Chức năng cho phép Admin vô hiệu hóa (soft delete) một 
+  | Input | Tariff Rule ID
+  | Processing | Admin chọn bảng giá cần vô hiệu hóa. / Hệ thống kiểm tr
+  | Result | Hiển thị thông báo “Đã vô hiệu hóa bảng giá thành công”
+
+### Heading 4 ### 4. Manage Vehicle Types
+P: View List Vehicle Types
+[IMAGE]
+--- TABLE#191 (4x2) ---
+  | Description | Chức năng cho phép Admin xem danh sách tất cả các loại 
+  | Input | Tiêu chí tìm kiếm (tùy chọn): Mã loại xe, Tên loại xe
+  | Processing | Admin truy cập vào mục quản lý loại phương tiện. / Admi
+  | Result | Hiển thị danh sách các loại phương tiện dưới dạng bảng.
+P: Create Vehicle Type
+[IMAGE]
+--- TABLE#192 (4x2) ---
+  | Description | Chức năng cho phép Admin thêm mới một loại phương tiện 
+  | Input | Tên loại xe (Vehicle Type Name) / Mã loại xe (Vehicle T
+  | Processing | Admin nhập thông tin loại phương tiện trên form tạo mới
+  | Result | Hiển thị thông báo “Tạo loại phương tiện thành công”. /
+P: Update Vehicle Type
+[IMAGE]
+--- TABLE#193 (4x2) ---
+  | Description | Chức năng cho phép Admin chỉnh sửa thông tin của một lo
+  | Input | Vehicle Type ID / Các trường thông tin cần chỉnh sửa (T
+  | Processing | Admin chọn loại phương tiện cần chỉnh sửa. / Hệ thống t
+  | Result | Hiển thị thông báo “Cập nhật loại phương tiện thành côn
+P: Delete Vehicle Type
+[IMAGE]
+--- TABLE#194 (4x2) ---
+  | Description | Chức năng cho phép Admin xóa một loại phương tiện khỏi 
+  | Input | Vehicle Type ID
+  | Processing | Admin chọn loại phương tiện cần xóa. / Hệ thống kiểm tr
+  | Result | Hiển thị thông báo “Xóa loại phương tiện thành công”.
+
+### Heading 4 ### 5. Manage Parking Sessions
+P: View List Parking Sessions
+[IMAGE]
+--- TABLE#195 (4x2) ---
+  | Description | Chức năng cho phép Admin xem toàn bộ danh sách các phiê
+  | Input | Tiêu chí tìm kiếm (tùy chọn): Biển số xe, Trạng thái, T
+  | Processing | Admin truy cập vào mục quản lý phiên đỗ xe. / Admin nhậ
+  | Result | Hiển thị danh sách các phiên đỗ xe dưới dạng bảng với c
+P: View Detailed Parking Session by ID
+[IMAGE]
+--- TABLE#196 (4x2) ---
+  | Description | Chức năng cho phép Admin xem thông tin chi tiết của một
+  | Input | Parking Session ID (ID của phiên đỗ xe)
+  | Processing | Admin chọn một phiên từ danh sách hoặc nhập trực tiếp P
+  | Result | Hiển thị thành công thông tin chi tiết của phiên đỗ xe.
+P: Update Parking Session
+[IMAGE]
+--- TABLE#197 (4x2) ---
+  | Description | Chức năng cho phép Admin cập nhật thủ công thông tin củ
+  | Input | Parking Session ID / Các trường thông tin cần chỉnh sửa
+  | Processing | Admin chọn phiên đỗ xe cần cập nhật từ danh sách. / Hệ 
+  | Result | Hiển thị thông báo “Cập nhật phiên đỗ xe thành công”. /
+
+### Heading 4 ### 6. Manage Zone
+P: View List Zone
+[IMAGE]
+--- TABLE#198 (4x2) ---
+  | Description | Chức năng cho phép Admin xem danh sách tất cả các khu v
+  | Input | Tiêu chí tìm kiếm (tùy chọn): Tên khu vực, Loại khu vực
+  | Processing | Admin truy cập vào mục quản lý khu vực đỗ xe. / Admin n
+  | Result | Hiển thị danh sách các khu vực dưới dạng bảng với thông
+P: View Detailed Zone by ID
+[IMAGE]
+--- TABLE#199 (4x2) ---
+  | Description | Chức năng cho phép Admin xem thông tin chi tiết của một
+  | Input | Zone ID (ID của khu vực cần xem)
+  | Processing | Admin chọn một khu vực từ danh sách hoặc nhập trực tiếp
+  | Result | Hiển thị thành công thông tin chi tiết của khu vực đỗ x
+P: Create Zone
+[IMAGE]
+--- TABLE#200 (4x2) ---
+  | Description | Chức năng cho phép Admin tạo mới một khu vực đỗ xe tron
+  | Input | Thông tin khu vực (Tên khu vực, Loại khu vực, Sức chứa,
+  | Processing | Admin nhập thông tin khu vực trên form tạo mới. / Hệ th
+  | Result | Hiển thị thông báo “Tạo khu vực thành công”. / Khu vực 
+P: Update Zone
+[IMAGE]
+--- TABLE#201 (4x2) ---
+  | Description | Chức năng cho phép Admin chỉnh sửa thông tin của một kh
+  | Input | Zone ID / Các trường thông tin cần chỉnh sửa
+  | Processing | Admin chọn khu vực cần chỉnh sửa. / Hệ thống tải thông 
+  | Result | Hiển thị thông báo “Cập nhật khu vực thành công”.
+P: Delete Device
+[IMAGE]
+--- TABLE#202 (4x2) ---
+  | Description | Chức năng cho phép Admin xóa một khu vực đỗ xe bằng phư
+  | Input | Zone ID
+  | Processing | Admin chọn khu vực cần xóa. / Hệ thống kiểm tra điều ki
+  | Result | Hiển thị thông báo “Xóa khu vực thành công”.
+
+### Heading 4 ### 7. Manage IoT and Hardware Device (Devices IO)
+P: View List Devices
+[IMAGE]
+--- TABLE#203 (4x2) ---
+  | Description | Chức năng cho phép Admin xem danh sách tất cả các thiết
+  | Input | Tiêu chí tìm kiếm (tùy chọn): Tên thiết bị, Mã thiết bị
+  | Processing | Admin truy cập vào mục quản lý thiết bị. / Admin nhập t
+  | Result | Hiển thị danh sách thiết bị dưới dạng bảng với phân tra
+P: View Detailed Device by ID
+[IMAGE]
+--- TABLE#204 (4x2) ---
+  | Description | Chức năng cho phép Admin xem thông tin chi tiết của một
+  | Input | Device ID (ID của thiết bị cần xem)
+  | Processing | Admin chọn thiết bị từ danh sách hoặc nhập trực tiếp De
+  | Result | Hiển thị thành công thông tin chi tiết của thiết bị bao
+P: Create Device
+[IMAGE]
+--- TABLE#205 (4x2) ---
+  | Description | Chức năng cho phép Admin thêm mới một thiết bị IoT vào 
+  | Input | Thông tin thiết bị (Mã thiết bị, Tên thiết bị, Loại thi
+  | Processing | Admin nhập thông tin thiết bị trên form tạo mới. / Hệ t
+  | Result | Hiển thị thông báo “Tạo thiết bị thành công”. / Thiết b
+P: Update Device
+[IMAGE]
+--- TABLE#206 (4x2) ---
+  | Description | Chức năng cho phép Admin chỉnh sửa thông tin của một th
+  | Input | Device ID / Các trường thông tin cần chỉnh sửa
+  | Processing | Admin chọn thiết bị cần chỉnh sửa. / Hệ thống tải thông
+  | Result | Hiển thị thông báo “Cập nhật thiết bị thành công”.
+P: Delete Device
+[IMAGE]
+--- TABLE#207 (4x2) ---
+  | Description | Chức năng cho phép Admin xóa một thiết bị IoT khỏi hệ t
+  | Input | Device ID
+  | Processing | Admin chọn thiết bị cần xóa. / Hệ thống kiểm tra điều k
+  | Result | Hiển thị thông báo “Xóa thiết bị thành công”.
+
+### Heading 4 ### 8. Manage Payment
+P: View Payment Dashboard & Statistics
+P: Audit & Daily Reconciliation
+P: Exception Handling & Manual Override
+
+### Heading 4 ### 9. Manage Complaints
+P: View List Complaints
+[IMAGE]
+--- TABLE#208 (4x2) ---
+  | Description | Chức năng cho phép Admin xem, tìm kiếm và quản lý toàn 
+  | Input | Tiêu chí tìm kiếm (tùy chọn): Trạng thái khiếu nại, Kho
+  | Processing | Admin truy cập vào mục “Quản lý Khiếu nại”. / Admin nhậ
+  | Result | Hiển thị danh sách các khiếu nại với thông tin: Mã khiế
+P: View Detailed Complaint by ID
+[IMAGE]
+--- TABLE#209 (4x2) ---
+  | Description | Chức năng cho phép Admin xem thông tin đầy đủ của một k
+  | Input | Complaint ID
+  | Processing | Admin chọn một khiếu nại từ danh sách hoặc nhập trực ti
+  | Result | Hiển thị thông tin chi tiết khiếu nại bao gồm nội dung,
+P: Create Complaint
+[IMAGE]
+--- TABLE#210 (4x2) ---
+  | Description | Chức năng cho phép Admin tạo khiếu nại thay mặt khách h
+  | Input | Nội dung khiếu nại / Hình ảnh/video hỗ trợ (tùy chọn) /
+  | Processing | Admin mở form tạo khiếu nại. / Chọn khách hàng và nhập 
+  | Result | Hiển thị thông báo “Tạo khiếu nại thành công”.
+P: Update Complaint
+[IMAGE]
+--- TABLE#211 (4x2) ---
+  | Description | Chức năng cho phép Admin chỉnh sửa hoặc bổ sung thông t
+  | Input | Complaint ID / Thông tin cần cập nhật (nội dung, hình ả
+  | Processing | Admin chọn khiếu nại cần chỉnh sửa. / Hệ thống tải thôn
+  | Result | Hiển thị thông báo “Cập nhật khiếu nại thành công”.
+P: Delete Complaint
+[IMAGE]
+--- TABLE#212 (4x2) ---
+  | Description | Chức năng cho phép Admin xóa khiếu nại bằng phương pháp
+  | Input | Complaint ID
+  | Processing | Admin chọn khiếu nại cần xóa. / Hệ thống kiểm tra điều 
+  | Result | Hiển thị thông báo “Xóa khiếu nại thành công”.
+
+### Heading 4 ### 10. Manage Employees
+P: View List Employees
+[IMAGE]
+--- TABLE#213 (4x2) ---
+  | Description | Chức năng cho phép Admin xem, tìm kiếm và quản lý danh 
+  | Input | Tiêu chí tìm kiếm (tùy chọn): Tên nhân viên, Số điện th
+  | Processing | Admin truy cập vào mục “Quản lý Nhân viên”. / Admin nhậ
+  | Result | Hiển thị danh sách nhân viên với các cột: Mã nhân viên,
+P: View Detailed Employee by ID
+[IMAGE]
+--- TABLE#214 (4x2) ---
+  | Description | Chức năng cho phép Admin xem thông tin chi tiết của một
+  | Input | Employee ID
+  | Processing | Admin chọn nhân viên từ danh sách hoặc nhập trực tiếp E
+  | Result | Hiển thị chi tiết nhân viên: Họ tên, Số điện thoại, Ema
+P: Create Employee
+[IMAGE]
+--- TABLE#215 (4x2) ---
+  | Description | Chức năng cho phép Admin thêm mới một nhân viên vào hệ 
+  | Input | Họ tên, Số điện thoại, Vai trò (Role ID), Mật khẩu
+  | Processing | Admin mở form tạo nhân viên mới. / Nhập thông tin cá nh
+  | Result | Hiển thị thông báo “Tạo nhân viên thành công” và thông 
+P: Update Employee
+[IMAGE]
+--- TABLE#216 (4x2) ---
+  | Description | Chức năng cho phép Admin chỉnh sửa thông tin cá nhân và
+  | Input | Employee ID / Thông tin cần cập nhật (Họ tên, Số điện t
+  | Processing | Admin chọn nhân viên cần chỉnh sửa. / Hệ thống tải thôn
+  | Result | Hiển thị thông báo “Cập nhật nhân viên thành công”.
+P: Delete Employee
+[IMAGE]
+--- TABLE#217 (4x2) ---
+  | Description | Chức năng cho phép Admin xóa nhân viên bằng phương pháp
+  | Input | Employee ID
+  | Processing | Admin chọn nhân viên cần xóa. / Hệ thống kiểm tra điều 
+  | Result | Hiển thị thông báo “Xóa nhân viên thành công”.
+
+### Heading 4 ### 11. Manage Roles & Permissions
+P: View List Roles
+[IMAGE]
+--- TABLE#218 (4x2) ---
+  | Description | Chức năng cho phép Admin xem danh sách tất cả các vai t
+  | Input | Tiêu chí tìm kiếm (tùy chọn): Tên vai trò
+  | Processing | Admin truy cập vào mục “Quản lý Vai trò & Quyền”. / Adm
+  | Result | Hiển thị danh sách các vai trò với thông tin: Mã Role, 
+P: View Detailed Role by ID
+[IMAGE]
+--- TABLE#219 (4x2) ---
+  | Description | Chức năng cho phép Admin xem thông tin chi tiết của một
+  | Input | Role ID
+  | Processing | Admin chọn một vai trò từ danh sách. / Hệ thống truy vấ
+  | Result | Hiển thị chi tiết vai trò: Tên vai trò, Mô tả và danh s
+P: Create Role
+[IMAGE]
+--- TABLE#220 (4x2) ---
+  | Description | Chức năng cho phép Admin tạo mới một vai trò và gán quy
+  | Input | Tên vai trò (Role Name) / Mô tả / Danh sách quyền (List
+  | Processing | Admin nhập tên vai trò và mô tả. / Chọn các quyền cần g
+  | Result | Hiển thị thông báo “Tạo vai trò thành công”.
+P: Update Role & Permissions
+[IMAGE]
+--- TABLE#221 (4x2) ---
+  | Description | Chức năng cho phép Admin chỉnh sửa thông tin vai trò và
+  | Input | Role ID / Tên vai trò, Mô tả (tùy chọn) / Danh sách quy
+  | Processing | Admin chọn vai trò cần chỉnh sửa. / Hệ thống tải thông 
+  | Result | Hiển thị thông báo “Cập nhật vai trò và quyền thành côn
+P: Delete Role
+[IMAGE]
+--- TABLE#222 (4x2) ---
+  | Description | Chức năng cho phép Admin xóa vai trò bằng phương pháp x
+  | Input | Role ID
+  | Processing | Admin chọn vai trò cần xóa. / Hệ thống kiểm tra điều ki
+  | Result | Hiển thị thông báo “Xóa vai trò thành công”.
+
+### Heading 4 ### 12. Dynamic System Parameter Configuration
+P: Update System Parameters
+
+### Heading 4 ### 13. AI Configuration and Safety Buffer Management
+P: View & Update AI Settings
+P: View & Update Safety Buffer
+
+### Heading 3 ### 3.4.5. Automatic System Functions
+
+### Heading 4 ### 1. Create Parking Session (Automatic)
+P: Create Parking Session (Automatic)
+
+### Heading 4 ### 2. Automatic Notification and Debt Reminder
+P: Automatic Notification and Debt Reminder
+
+### Heading 4 ### 3. Module Camera AI
+P: 1. Thu nhận Khung hình Theo thời gian thực
+[IMAGE]
+--- TABLE#223 (4x2) ---
+  | Description | Chức năng cho phép hệ thống thu nhận khung hình video t
+  | Input | URL stream camera (RTSP / HTTP) hoặc đường dẫn thiết bị
+  | Processing | Hệ thống kết nối đến stream camera bằng OpenCV VideoCap
+  | Result | Hệ thống liên tục cung cấp các khung hình BGR thô kèm m
+P: 2. Phát hiện Biển số Xe
+[IMAGE]
+--- TABLE#224 (4x2) ---
+  | Description | Chức năng phát hiện và định vị chính xác các vùng biển 
+  | Input | Khung hình video thô (raw frame) / Trọng số mô hình YOL
+  | Processing | Hệ thống nhận khung hình từ module thu nhận khung hình.
+  | Result | Trả về danh sách các vùng biển số được phát hiện (bound
+P: 3. Trích xuất và Tiền xử lý Biển số
+[IMAGE]
+--- TABLE#225 (4x2) ---
+  | Description | Chức năng trích xuất vùng biển số từ khung hình camera 
+  | Input | Khung hình video thô từ module thu nhận khung hình / Tọ
+  | Processing | Cắt vùng biển số từ khung hình theo tọa độ bounding box
+  | Result | Trả về ảnh biển số đã được xử lý chất lượng cao kèm met
+P: 4. Nhận dạng Văn bản Biển số
+[IMAGE]
+--- TABLE#226 (4x2) ---
+  | Description | Chức năng nhận dạng ký tự từ ảnh biển số xe đã được tiề
+  | Input | Ảnh biển số đã được tiền xử lý từ bước trước, cấu hình 
+  | Processing | Hệ thống đưa ảnh biển số đã xử lý vào engine OCR (EasyO
+  | Result | Trả về chuỗi văn bản biển số thô (raw OCR string) kèm t
+P: 5. Xác thực và Chuẩn hóa Biển số
+[IMAGE]
+--- TABLE#227 (4x2) ---
+  | Description | Chức năng kiểm tra và chuẩn hóa kết quả nhận dạng biển 
+  | Input | Chuỗi văn bản biển số thô (raw OCR string) từ bước nhận
+  | Processing | Loại bỏ khoảng trắng thừa và chuyển toàn bộ chuỗi về ch
+  | Result | Trả về biển số đã được chuẩn hóa và xác thực thành công
+
+### Heading 1 ### 4. Task sheet
+--- TABLE#228 (27x6) ---
+  | STT | Task | Assigned To | Start Date | Due Date | Note
+  | 1 | Thu thập yêu cầu từ Ban quản lý bãi giữ xe, Bảo vệ và K |  |  |  | 
+  | 2 | Nghiên cứu các hệ thống quản lý bãi giữ xe tương tự |  |  |  | 
+  | 3 | Phân tích yêu cầu và lập danh sách tính năng |  |  |  | 
+  | 4 | Lập kế hoạch dự án chi tiết |  |  |  | 
+  | 5 | Thiết kế và chỉnh sửa thiết kế hệ thống: ERD, Database, |  |  |  | 
+  | 6 | Thiết kế giao diện người dùng (UI/UX) |  |  |  | 
+  | 7 | Phát triển module Authentication, Authorization |  |  |  | 
+  | 8 | Phát triển module Customers, Groups Customers, Groups P |  |  |  | 
+  ...(more rows)
+
+### Heading 1 ### 5. Validation Checklists
+
+### Heading 2 ### 5.1. Customer Functions
+P: 5.1.1. Authentication & Authorization
+P: Login
+--- TABLE#229 (6x4) ---
+  | Checklists | Implementation steps | Desired results | Results
+  | Check interface | At the login screen, check the overall interface | The interface is similar to the design | Pass
+  | Check validation of fields | Enter the invalid fields | Display error messages | Pass
+  | Check validation of fields | Enter the valid fields | Display a successful message, redirect to the homepage | Pass
+  | Check function | 1. Enter data into the fields / 2. Press the button “Lo | Display message: “Login successful”, redirect to the ho | Pass
+  | Check other related pages | Check the redirects between related pages | Pressing any button or link will redirect you to the sc | Pass
+P: Forget password
+--- TABLE#230 (6x4) ---
+  | Checklists | Implementation steps | Desired results | Results
+  | Check interface | At the forget password screen, check the overall interf | The interface is similar to the design | Pass
+  | Check validation of fields | Enter the invalid fields | Display error messages | Pass
+  | Check validation of fields | Enter the valid fields | Display a successful message, redirect to the login pag | Pass
+  | Check function | 1. Enter phone number into the field / 2. Enter OTP / 3 | Display message: “Change password successful”, redirect | Pass
+  | Check other related pages | Check the redirects between related pages | Pressing any button or link will redirect you to the sc | Pass
+P: Change password
+--- TABLE#231 (6x4) ---
+  | Checklists | Implementation steps | Desired results | Results
+  | Check interface | At the change password screen, check the overall interf | The interface is similar to the design | Pass
+  | Check validation of fields | Enter the invalid fields | Display error messages | Pass
+  | Check validation of fields | Enter the valid fields | Display a successful message, redirect to the login pag | Pass
+  | Check function | 1. Type and re-type new password into the fields / 2. P | Display message: “Change password successful”, redirect | Pass
+  | Check other related pages | Check the redirects between related pages | Pressing any button or link will redirect you to the sc | Pass
+P: 5.1.2. Manage Customers, Group Customers
+P: View detailed Customer by ID
+--- TABLE#232 (4x4) ---
+  | Checklists | Implementation steps | Desired results | Results
+  | Check interface | At the detailed information of customer screen, check t | The interface is similar to the design | Pass
+  | Check the displayed data | Compare the displayed data with the data in the databas | Display the detailed information of the correct custome | Pass
+  | Check other related pages | Check the redirects between related pages | Pressing any button or link will redirect you to the sc | Pass
+P: Update customer
+--- TABLE#233 (6x4) ---
+  | Checklists | Implementation steps | Desired results | Results
+  | Check interface | At the update customer’s information screen, check the  | The interface is similar to the design | Pass
+  | Check validation of fields | Enter the invalid fields | Display error messages | Pass
+  | Check validation of fields | Enter the valid fields | Display a successful message, redirect to the detailed  | Pass
+  | Check function | 1. Edit data displayed in fields / 2. Click button “Upd | - Display message “Customer updated successfully” / - D | Pass
+  | Check other related pages | Check the redirects between related pages | Pressing any button or link will redirect you to the sc | Pass
+P: View detailed groups customers by customer ID
+--- TABLE#234 (4x4) ---
+  | Checklists | Implementation steps | Desired results | Results
+  | Check interface | At the detailed information of group customer screen, c | The interface is similar to the design | Pass
+  | Check the displayed data | Compare the displayed data with the data in the databas | Display the detailed information of group of the correc | Pass
+  | Check other related pages | Check the redirects between related pages | Pressing any button or link will redirect you to the sc | Pass
+P: Update Group Customer, applies to customers who are owners of the group
+--- TABLE#235 (6x4) ---
+  | Checklists | Implementation steps | Desired results | Results
+  | Check interface | At the update group’s members screen, check the overall | The interface is similar to the design | Pass
+  | Check validation of fields | Enter the invalid fields | Display error messages | Pass
+  | Check validation of fields | Enter the valid fields | Display a successful message, redirect to the list memb | Pass
+  | Check function | 1. Search and choose customer to add into group / 2. Cl | - Display message “Customer added to group successfully | Pass
+  | Check other related pages | Check the redirects between related pages | Pressing any button or link will redirect you to the sc | Pass
+P: 5.1.3. Manage Bookings and Booking Details
+P: View Detailed Booking by ID
+--- TABLE#236 (4x4) ---
+  | Checklists | Implementation steps | Desired results | Results
+  | Check interface | At the detailed information of booking screen, check th | The interface is similar to the design | Pass
+  | Check the displayed data | Compare the displayed data with the data in the databas | Display detailed information of booking of the correct  | Pass
+  | Check other related pages | Check the redirects between related pages | Pressing any button or link will redirect you to the sc | Pass
+P: View List Booking Details
+--- TABLE#237 (4x4) ---
+  | Checklists | Implementation steps | Desired results | Results
+  | Check interface | At the list booking details screen, check the overall i | The interface is similar to the design | Pass
+  | Check the displayed data | Compare the displayed data with the data in the databas | Display the list of booking details in the database | Pass
+  | Check other related pages | Check the redirects between related pages | Pressing any button or link will redirect you to the sc | Pass
+P: View Detailed Booking Details by ID
+--- TABLE#238 (4x4) ---
+  | Checklists | Implementation steps | Desired results | Results
+  | Check interface | At the detailed information of booking detail screen, c | The interface is similar to the design | Pass
+  | Check the displayed data | Compare the displayed data with the data in the databas | Display the detailed information of booking detail in t | Pass
+  | Check other related pages | Check the redirects between related pages | Pressing any button or link will redirect you to the sc | Pass
+P: Create Booking details, applied when customers renew their booking details
+--- TABLE#239 (6x4) ---
+  | Checklists | Implementation steps | Desired results | Results
+  | Check interface | At the renew booking detail screen, check the overall i | The interface is similar to the design | Pass
+  | Check validation of fields | Enter the invalid fields | Display error messages | Pass
+  | Check validation of fields | Enter the valid fields | Display a successful message, redirect to the detailed  | Pass
+  | Check function | 1. Keep or change necessary information at fields / 2.  | - Display message “Booking detail renewed successfully” | Pass
+  | Check other related pages | Check the redirects between related pages | Pressing any button or link will redirect you to the sc | Pass
+P: 5.1.4. Manage Parking Sessions
+P: View List Parking Sessions
+--- TABLE#240 (4x4) ---
+  | Checklists | Implementation steps | Desired results | Results
+  | Check interface | At the list of parking sessions screen, check the overa | The interface is similar to the design | Pass
+  | Check the displayed data | Compare the displayed data with the data in the databas | Display the list of parking sessions in the database | Pass
+  | Check other related pages | Check the redirects between related pages | Pressing any button or link will redirect you to the sc | Pass
+P: View Detail Parking Session by ID
+--- TABLE#241 (4x4) ---
+  | Checklists | Implementation steps | Desired results | Results
+  | Check interface | At the detailed information of parking session screen,  | The interface is similar to the design | Pass
+  | Check the displayed data | Compare the displayed data with the data in the databas | Display the detailed information of parking session in  | Pass
+  | Check other related pages | Check the redirects between related pages | Pressing any button or link will redirect you to the sc | Pass
+P: 5.1.5. Manage Payment
+P: View List Payment History
+--- TABLE#242 (4x4) ---
+  | Checklists | Implementation steps | Desired results | Results
+  | Check interface | At the list of payment history screen, check the overal | The interface is similar to the design | Pass
+  | Check the displayed data | Compare the displayed data with the data in the databas | Display the list of payment of the correct customer in  | Pass
+  | Check other related pages | Check the redirects between related pages | Pressing any button or link will redirect you to the sc | Pass
+P: View Detailed Payment
+--- TABLE#243 (4x4) ---
+  | Checklists | Implementation steps | Desired results | Results
+  | Check interface | At the detailed information of payment history screen,  | The interface is similar to the design | Pass
+  | Check the displayed data | Compare the displayed data with the data in the databas | Display the detailed information of payment of the corr | Pass
+  | Check other related pages | Check the redirects between related pages | Pressing any button or link will redirect you to the sc | Pass
+P: Pay Parking Fee (at Kiosk)
+--- TABLE#244 (6x4) ---
+  | Checklists | Implementation steps | Desired results | Results
+  | Check interface | At the payment screen, check the overall interface | The interface is similar to the design | Pass
+  | Check validation of fields | Enter the invalid fields | Display error messages | Pass
+  | Check validation of fields | Enter the valid fields | Display a successful message | Pass
+  | Check function | 1. Keep or change necessary information at fields / 2.  | - Display message “Booking detail renewed successfully” | Pass
+  | Check other related pages | Check the redirects between related pages | Pressing any button or link will redirect you to the sc | Pass
+P: Pay Subscription Package
+--- TABLE#245 (6x4) ---
+  | Checklists | Implementation steps | Desired results | Results
+  | Check interface | At the pay subscription package screen, check the overa | The interface is similar to the design | Pass
+  | Check validation of fields | Enter the invalid fields | Display error messages | Pass
+  | Check validation of fields | Enter the valid fields | Display a successful message, redirect to the detailed  | Pass
+  | Check function | 1. Keep or change necessary information at fields / 2.  | - Display message “Booking detail renewed successfully” | Pass
+  | Check other related pages | Check the redirects between related pages | Pressing any button or link will redirect you to the sc | Pass
+P: 5.1.6. Manage Complaints
+P: View List Complaints
+--- TABLE#246 (4x4) ---
+  | Checklists | Implementation steps | Desired results | Results
+  | Check interface | At the list of complaints screen, check the overall int | The interface is similar to the design | Pass
+  | Check the displayed data | Compare the displayed data with the data in the databas | Display the list of complaints of the correct customer  | Pass
+  | Check other related pages | Check the redirects between related pages | Pressing any button or link will redirect you to the sc | Pass
+P: View Detail Complaint by ID
+--- TABLE#247 (4x4) ---
+  | Checklists | Implementation steps | Desired results | Results
+  | Check interface | At the detailed information of complaint screen, check  | The interface is similar to the design | Pass
+  | Check the displayed data | Compare the displayed data with the data in the databas | Display the detailed information of complaint of the co | Pass
+  | Check other related pages | Check the redirects between related pages | Pressing any button or link will redirect you to the sc | Pass
+P: Create Complaint
+--- TABLE#248 (6x4) ---
+  | Checklists | Implementation steps | Desired results | Results
+  | Check interface | At the creation new complaint screen, check the overall | The interface is similar to the design | Pass
+  | Check validation of fields | Enter the invalid fields | Display error messages | Pass
+  | Check validation of fields | Enter the valid fields | Display a successful message, redirect to the detailed  | Pass
+  | Check function | 1. Enter information into fields / 2. Click button “Sen | - Display message “Complaint sent successfully” / - New | Pass
+  | Check other related pages | Check the redirects between related pages | Pressing any button or link will redirect you to the sc | Pass
+P: Update Complaint
+--- TABLE#249 (6x4) ---
+  | Checklists | Implementation steps | Desired results | Results
+  | Check interface | At the complaint update screen, check the overall inter | The interface is similar to the design | Pass
+  | Check validation of fields | Enter the invalid fields | Display error messages | Pass
+  | Check validation of fields | Enter the valid fields | Display a successful message, redirect to the detailed  | Pass
+  | Check function | 1. Change necessary information at fields / 2. Click bu | - Display message “Complaint updated successfully” / -  | Pass
+  | Check other related pages | Check the redirects between related pages | Pressing any button or link will redirect you to the sc | Pass
+P: 5.2. Security Guard Functions
+P: 5.2.1. Authentication & Authorization
+P: Login
+P: Logout
+P: Forget password
+P: Change password
+P: 5.2.2. Manage Parking Sessions
+P: View List Parking Sessions
+P: View Detail Parking Session by ID
+P: Update Parking Session
+P: 5.2.3. Manage Payment
+P: 5.2.4. Manage Bookings and Booking Details
+P: View List Bookings
+P: View Detail Booking by ID
+P: View List Booking Details
+P: View Detail Booking Details by ID
+P: 5.2.5. Manage IoT devices and hardware (Devices IO)
+P: View List Devices
+P: View Detail Device by ID
+P: 5.2.6. Manage Complaints
+P: View List Complaints
+P: View Detail Complaint by ID
+P: Create Complaint
+P: Update Complaint
+P: 5.3. Admin Functions
+P: 5.3.1. Manage Customers, Groups Customers and Groups Customers Profiles
+P: View List Customers
+P: View Detail Customer by ID
+P: Create Customer
+P: Update Customer
+P: Delete Customer
+P: View List Groups Customers
+P: View Detail Groups Customer by ID
+P: Create Group Customers
+P: Update Group Customer
+P: Delete Group Customer
+P: View List Groups Profiles
+P: View Detail Groups Profile by ID
+P: Create Group Customers Profile
+P: Update Group Customer Profile
+P: Delete Group Customer profile
+
+### Heading 4 ### 5.3.2. Manage Bookings and Booking Details
+P: View List Bookings
+P: View Detail Booking by ID
+P: Create Booking
+P: Update Booking
+P: Delete Booking
+P: View List Booking Details
+P: View Detail Booking Details by ID
+P: Create Booking detail
+P: Update Booking detail
+P: Delete Booking detail
+P: 5.3.3. Manage Packages and price
+P: View List Packages
+P: Create Package
+P: Update Package
+P: Delete Package
+P: View List Price
+P: Update price
+P: 5.3.4. Manage Vehicle Types
+P: View List Vehicle Types
+P: Create Vehicle Type
+P: Update Vehicle Type
+P: Delete Vehicle Type
+P: 5.3.5. Manage Parking Sessions
+P: View List Parking Sessions
+P: View Detail Parking Session by ID
+P: Update Parking Session
+P: 5.3.6. Manage Zone
+P: View List Zone
+P: View Detail Zone by ID
+P: Create Zone
+P: Update Zone
+P: Delete Device
+P: 5.3.7. Manage IoT and Hardware Device (Devices IO)
+P: View List Devices
+P: View Detail Device by ID
+P: Create Device
+P: Update Device
+P: Delete Device
+P: 5.3.8. Manage Payment
+P: 5.3.9. Manage Complaints
+P: View List Complaints
+P: View Detail Complaint by ID
+P: Create Complaint
+P: Update Complaint
+P: Delete Complaint
+P: 5.3.10. Manage Employees, Roles, Permissions
+P: View List Employees
+P: View Detail Employee by ID
+P: Create Employee
+P: Update Employee
+P: Delete Employee
+P: View List Roles
+P: View Detail Role by ID
+P: Create Role
+P: Update Role
+P: Delete Role
+P: View List Permissions
+P: Update Permission
+P: 5.3.11. Dynamic System Parameter Configuration
+P: Update System Parameters
+P: 5.3.12. AI Configuration and Safety Buffer Management
+P: View & Update AI Settings
+P: View & Update Safety Buffer
+P: 5.3.13. Authentication & Authorization
+P: Login
+P: Logout
+P: Forget password
+P: Change password
+P: 5.4. Automatic System Functions
+P: 5.4.1. Create Parking Session (Automatic)
+P: Create Parking Session (AI Automatic)
+P: 5.4.2. Automatic Notification and Debt Reminder
+P: Automatic Notification and Debt Reminder
+
+### Heading 1 ### 6. Hướng dẫn cài đặt và sử dụng

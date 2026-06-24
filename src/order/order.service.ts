@@ -1,7 +1,8 @@
 import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common'
 import { PrismaService } from '../prisma/prisma.service'
 import { CreateOrderDto } from './dto/order.dto'
-import { invoiceCode } from '../bookings/booking.helpers'
+import { DOCUMENT_CODE_PATTERN, HOLD_EXPIRES_MINUTES, fallbackDocumentCode, nextInvoiceCode } from '../bookings/booking.helpers'
+import { isAutoConfirmedGateway, normalizePaymentMethod } from '../common/payment-methods'
 
 // Các chuyển trạng thái hợp lệ cho Order
 const ORDER_TRANSITIONS: Record<string, string[]> = {
@@ -21,9 +22,43 @@ const ORDER_STATUS_TO_INVOICE: Record<string, string> = {
   refunded:  'refunded',
 }
 
+function fallbackOrderCode(order: any): string {
+  return fallbackDocumentCode('OD', order)
+}
+
+function haversineDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371; // Earth radius in km
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLng / 2) ** 2;
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+async function checkStockForWarehouse(tx: any, warehouseId: number, items: any[]): Promise<boolean> {
+  for (const item of items) {
+    const sku = item.product.sku;
+    const inv = await tx.inventory.findUnique({
+      where: { sku_warehouseId: { sku, warehouseId } }
+    });
+    if (!inv || inv.available < item.qty) {
+      return false;
+    }
+  }
+  return true;
+}
+
 @Injectable()
 export class OrderService {
   constructor(private prisma: PrismaService) {}
+
+  private readonly uuidPattern =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+  private readonly orderCodePattern = DOCUMENT_CODE_PATTERN
 
   // ─── Tạo đơn hàng mới ─────────────────────────────────────
   async create(dto: CreateOrderDto, userId?: string) {
@@ -31,6 +66,8 @@ export class OrderService {
       throw new BadRequestException('Đơn hàng phải có ít nhất 1 sản phẩm')
     }
 
+    const paymentMethod = normalizePaymentMethod(dto.payment_method, 'cod')
+    const autoConfirmed = isAutoConfirmedGateway(paymentMethod)
     const productIds = dto.items.map(i => i.product_id)
     const products = await this.prisma.product.findMany({
       where: { id: { in: productIds } },
@@ -64,12 +101,15 @@ export class OrderService {
           customerEmail:   dto.customer_email || null,
           // FE gửi customer_address, fallback về shipping_address
           customerAddress: dto.customer_address || dto.shipping_address || '',
-          paymentMethod:   dto.payment_method || 'cod',
+          paymentMethod,
           shippingFee,
           note:            dto.note || null,
           subtotal,
           total,
-          status: 'pending',
+          status: autoConfirmed ? 'confirmed' : 'pending',
+          deliveryMethod:  (dto.delivery_method || 'delivery') as any,
+          pickupBranchId:  dto.pickup_branch_id || null,
+          customerCoords:  dto.customer_coords ? (dto.customer_coords as any) : null,
           items: {
             create: itemsWithPrice.map(i => ({
               product:     { connect: { id: i.product_id } },
@@ -83,17 +123,19 @@ export class OrderService {
       })
 
       // Tạo Invoice với snapshot giá tại thời điểm đặt hàng
-      await tx.invoice.create({
+      const code = await nextInvoiceCode(tx, 'OD')
+
+      const invoice = await tx.invoice.create({
         data: {
-          code:             invoiceCode('OD'),
+          code,
           orderId:          order.id,
           customerName:     dto.customer_name,
           customerPhone:    dto.customer_phone,
           customerEmail:    dto.customer_email || null,
           subtotalSnapshot: subtotal,
           totalSnapshot:    total,
-          paymentMethod:    dto.payment_method || 'cod',
-          status:           'unpaid',
+          paymentMethod,
+          status:           autoConfirmed ? 'paid' : 'unpaid',
           items: {
             create: itemsWithPrice.map(i => ({
               description:       i.productName,
@@ -106,12 +148,28 @@ export class OrderService {
       })
 
       // FE reads res.data — trả về { success: true, data: {...} }
-      return { success: true, data: this.transform(order) }
+      return {
+        success: true,
+        data: {
+          ...this.transform(order),
+          orderCode: code,
+          order_code: code,
+          invoiceId: invoice.id,
+          invoice_id: invoice.id,
+          invoiceStatus: invoice.status,
+          invoice_status: invoice.status,
+          invoiceCode: code,
+          invoice_code: code,
+          sales_code: code,
+        },
+      }
     })
   }
 
   // ─── Đơn hàng của tôi ─────────────────────────────────────
   async findMyOrders(userId: string) {
+    await this.expireStaleUnpaidOrders()
+
     const orders = await this.prisma.order.findMany({
       where:   { userId },
       include: { items: true, invoices: true },
@@ -122,6 +180,8 @@ export class OrderService {
 
   // ─── Tất cả đơn hàng (admin) ──────────────────────────────
   async findAll(filters?: { status?: string }) {
+    await this.expireStaleUnpaidOrders()
+
     const orders = await this.prisma.order.findMany({
       where:   filters?.status ? { status: filters.status as any } : {},
       include: { items: true, invoices: true, user: { select: { fullName: true } } },
@@ -132,8 +192,13 @@ export class OrderService {
 
   // ─── Chi tiết đơn hàng ────────────────────────────────────
   async findOne(id: string) {
+    await this.expireStaleUnpaidOrders()
+
+    const resolvedId = await this.resolveOrderId(id)
+    if (!resolvedId) throw new NotFoundException('Không tìm thấy đơn hàng')
+
     const order = await this.prisma.order.findUnique({
-      where:   { id },
+      where:   { id: resolvedId },
       include: { items: true, invoices: { include: { items: true } } },
     })
     if (!order) throw new NotFoundException('Không tìm thấy đơn hàng')
@@ -141,8 +206,13 @@ export class OrderService {
   }
 
   async findOneForUser(id: string, user: any) {
+    await this.expireStaleUnpaidOrders()
+
+    const resolvedId = await this.resolveOrderId(id)
+    if (!resolvedId) throw new NotFoundException('Không tìm thấy đơn hàng')
+
     const order = await this.prisma.order.findUnique({
-      where:   { id },
+      where:   { id: resolvedId },
       include: { items: true, invoices: { include: { items: true } } },
     })
     if (!order) throw new NotFoundException('Không tìm thấy đơn hàng')
@@ -152,10 +222,15 @@ export class OrderService {
   }
 
   // ─── Cập nhật trạng thái (admin) ──────────────────────────
-  async updateStatus(id: string, newStatus: string) {
+  async updateStatus(id: string, newStatus: string, user?: any) {
+    await this.expireStaleUnpaidOrders()
+
+    const resolvedId = await this.resolveOrderId(id)
+    if (!resolvedId) throw new NotFoundException('Không tìm thấy đơn hàng')
+
     const order = await this.prisma.order.findUnique({
-      where:   { id },
-      include: { invoices: true },
+      where:   { id: resolvedId },
+      include: { invoices: true, items: { include: { product: true } } },
     })
     if (!order) throw new NotFoundException('Không tìm thấy đơn hàng')
 
@@ -168,8 +243,136 @@ export class OrderService {
     }
 
     return this.prisma.$transaction(async (tx) => {
+      let selectedWarehouseId: number | null = null;
+      if (newStatus === 'processing') {
+        if (order.deliveryMethod === 'pickup') {
+          if (!order.pickupBranchId) {
+            throw new BadRequestException('Đơn hàng nhận tại cửa hàng nhưng không có chi nhánh nhận');
+          }
+          const wh = await tx.warehouse.findFirst({
+            where: { branchId: order.pickupBranchId, isActive: true }
+          });
+          if (!wh) {
+            throw new BadRequestException('Không tìm thấy kho hoạt động cho chi nhánh nhận hàng');
+          }
+          const hasEnough = await checkStockForWarehouse(tx, wh.id, order.items);
+          if (!hasEnough) {
+            throw new BadRequestException(`Kho ${wh.name} không đủ tồn kho để hoàn thành đơn hàng`);
+          }
+          selectedWarehouseId = wh.id;
+        } else {
+          // Delivery order: find nearest warehouse with stock
+          let lat: number | null = null;
+          let lng: number | null = null;
+          if (order.customerCoords && typeof order.customerCoords === 'object') {
+            const coords = order.customerCoords as any;
+            lat = parseFloat(coords.lat);
+            lng = parseFloat(coords.lng);
+          }
+
+          if (lat !== null && !isNaN(lat) && lng !== null && !isNaN(lng)) {
+            const branchWarehouses = await tx.warehouse.findMany({
+              where: { branchId: { not: null }, isActive: true },
+              include: { branch: true },
+            });
+            const sortedCandidates = branchWarehouses.map(w => {
+              const wLat = parseFloat(String(w.branch?.lat || 0));
+              const wLng = parseFloat(String(w.branch?.lng || 0));
+              const distance = haversineDistance(lat!, lng!, wLat, wLng);
+              return { warehouse: w, distance };
+            }).sort((a, b) => a.distance - b.distance);
+
+            for (const candidate of sortedCandidates) {
+              const whId = candidate.warehouse.id;
+              if (await checkStockForWarehouse(tx, whId, order.items)) {
+                selectedWarehouseId = whId;
+                break;
+              }
+            }
+          }
+
+          // If no branch warehouse has enough stock, or if customerCoords is missing, check Kho Hub
+          if (!selectedWarehouseId) {
+            const hub = await tx.warehouse.findFirst({
+              where: { isHub: true, isActive: true }
+            });
+            if (hub && await checkStockForWarehouse(tx, hub.id, order.items)) {
+              selectedWarehouseId = hub.id;
+            }
+          }
+
+          // If still no warehouse has enough stock, default to nearest branch or Kho Hub and throw exception
+          if (!selectedWarehouseId) {
+            throw new BadRequestException('Không đủ tồn kho khả dụng tại bất kỳ chi nhánh nào hoặc kho Hub');
+          }
+        }
+
+        // Deduct stock from the selected warehouse
+        await tx.order.update({
+          where: { id: resolvedId },
+          data: { fulfillingWarehouseId: selectedWarehouseId }
+        });
+
+        for (const item of order.items) {
+          const sku = item.product.sku;
+          const inv = await tx.inventory.findUnique({
+            where: { sku_warehouseId: { sku, warehouseId: selectedWarehouseId } }
+          });
+          await tx.inventory.update({
+            where: { sku_warehouseId: { sku, warehouseId: selectedWarehouseId } },
+            data: {
+              onHand: { decrement: item.qty },
+              available: { decrement: item.qty }
+            }
+          });
+          await tx.inventoryTransaction.create({
+            data: {
+              type: 'export',
+              date: new Date(),
+              sku,
+              warehouseId: selectedWarehouseId,
+              qty: item.qty,
+              cost: inv ? inv.unitCost : 0,
+              note: `Xuất hàng bán online (Đơn: ${order.id})`,
+              operatorId: user?.id || null,
+            }
+          });
+          await this.prisma.syncProductInStock(tx, sku);
+        }
+      }
+
+      if (newStatus === 'cancelled' && order.fulfillingWarehouseId) {
+        const whId = order.fulfillingWarehouseId;
+        for (const item of order.items) {
+          const sku = item.product.sku;
+          await tx.inventory.update({
+            where: { sku_warehouseId: { sku, warehouseId: whId } },
+            data: {
+              onHand: { increment: item.qty },
+              available: { increment: item.qty }
+            }
+          });
+          const inv = await tx.inventory.findUnique({
+            where: { sku_warehouseId: { sku, warehouseId: whId } }
+          });
+          await tx.inventoryTransaction.create({
+            data: {
+              type: 'import',
+              date: new Date(),
+              sku,
+              warehouseId: whId,
+              qty: item.qty,
+              cost: inv ? inv.unitCost : 0,
+              note: `Nhập lại hàng do hủy đơn online (Đơn: ${order.id})`,
+              operatorId: user?.id || null,
+            }
+          });
+          await this.prisma.syncProductInStock(tx, sku);
+        }
+      }
+
       const updated = await tx.order.update({
-        where:   { id },
+        where:   { id: resolvedId },
         data:    { status: newStatus as any },
         include: { items: true, invoices: { include: { items: true } } },
       })
@@ -178,7 +381,7 @@ export class OrderService {
       const invoiceStatus = ORDER_STATUS_TO_INVOICE[newStatus]
       if (invoiceStatus && order.invoices.length > 0) {
         await tx.invoice.updateMany({
-          where: { orderId: id },
+          where: { orderId: resolvedId },
           data:  { status: invoiceStatus as any },
         })
       }
@@ -190,14 +393,19 @@ export class OrderService {
 
   // ─── Lấy Invoice của đơn hàng ─────────────────────────────
   async getInvoice(orderId: string, user: any) {
-    const order = await this.prisma.order.findUnique({ where: { id: orderId } })
+    await this.expireStaleUnpaidOrders()
+
+    const resolvedId = await this.resolveOrderId(orderId)
+    if (!resolvedId) throw new NotFoundException('Không tìm thấy đơn hàng')
+
+    const order = await this.prisma.order.findUnique({ where: { id: resolvedId } })
     if (!order) throw new NotFoundException('Không tìm thấy đơn hàng')
     if (user.role !== 'admin' && user.role !== 'employee' && order.userId !== user.id) {
       throw new ForbiddenException('Bạn không có quyền xem hóa đơn này')
     }
 
     const invoice = await this.prisma.invoice.findFirst({
-      where:   { orderId },
+      where:   { orderId: resolvedId },
       include: { items: true },
     })
     if (!invoice) throw new NotFoundException('Chưa có hóa đơn cho đơn hàng này')
@@ -224,9 +432,54 @@ export class OrderService {
     }
   }
 
+  private async expireStaleUnpaidOrders() {
+    const expiresBefore = new Date(Date.now() - HOLD_EXPIRES_MINUTES * 60 * 1000)
+    const staleOrders = await this.prisma.order.findMany({
+      where: {
+        status: 'pending',
+        createdAt: { lt: expiresBefore },
+        invoices: { some: { status: 'unpaid' } },
+      },
+      select: { id: true },
+    })
+    const orderIds = (staleOrders || []).map((order) => order.id)
+    if (orderIds.length === 0) return
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.order.updateMany({
+        where: { id: { in: orderIds }, status: 'pending' },
+        data: { status: 'cancelled' as any },
+      })
+      await tx.invoice.updateMany({
+        where: { orderId: { in: orderIds }, status: 'unpaid' },
+        data: { status: 'cancelled' as any },
+      })
+    })
+  }
+
   private transform(raw: any) {
+    const latestInvoice = [...(raw.invoices || [])].sort(
+      (a: any, b: any) => +new Date(b.createdAt) - +new Date(a.createdAt)
+    )[0]
+    const latestInvoiceCode = latestInvoice?.code && DOCUMENT_CODE_PATTERN.test(latestInvoice.code)
+      ? latestInvoice.code
+      : null
+    const latestInvoiceId = latestInvoice?.id ?? raw.invoiceId ?? raw.invoice_id ?? null
+    const latestInvoiceStatus = latestInvoice?.status ?? raw.invoiceStatus ?? raw.invoice_status ?? null
+    const orderCode = latestInvoiceCode || fallbackOrderCode(raw)
+
     return {
       id:              raw.id,
+      orderCode,
+      order_code:      orderCode,
+      invoiceId:       latestInvoiceId,
+      invoice_id:      latestInvoiceId,
+      invoiceStatus:   latestInvoiceStatus,
+      invoice_status:  latestInvoiceStatus,
+      invoiceCode:     latestInvoiceCode,
+      invoice_code:    latestInvoiceCode,
+      sales_code:      orderCode,
+      userId:          raw.userId ?? null,
       customerName:    raw.customerName,
       customerPhone:   raw.customerPhone,
       customerEmail:   raw.customerEmail,
@@ -236,8 +489,13 @@ export class OrderService {
       subtotal:        parseFloat(String(raw.subtotal)),
       shippingFee:     parseFloat(String(raw.shippingFee)),
       total:           parseFloat(String(raw.total)),
+      totalAmount:     parseFloat(String(raw.total)),
       status:          raw.status,
       createdAt:       raw.createdAt,
+      deliveryMethod:  raw.deliveryMethod,
+      pickupBranchId:  raw.pickupBranchId,
+      fulfillingWarehouseId: raw.fulfillingWarehouseId,
+      customerCoords:  raw.customerCoords,
       allowedNextStatuses: ORDER_TRANSITIONS[raw.status] ?? [],
       items: (raw.items || []).map((i: any) => ({
         productId:   i.productId,
@@ -248,7 +506,7 @@ export class OrderService {
       })),
       invoices: (raw.invoices || []).map((inv: any) => ({
         id:               inv.id,
-        code:             inv.code,
+        code:             DOCUMENT_CODE_PATTERN.test(inv.code) ? inv.code : fallbackOrderCode(raw),
         status:           inv.status,
         subtotalSnapshot: parseFloat(String(inv.subtotalSnapshot)),
         totalSnapshot:    parseFloat(String(inv.totalSnapshot)),
@@ -256,5 +514,19 @@ export class OrderService {
         createdAt:        inv.createdAt,
       })),
     }
+  }
+
+  private async resolveOrderId(input: string): Promise<string | null> {
+    const value = String(input || '').trim()
+    if (!value) return null
+    if (this.uuidPattern.test(value)) return value
+    if (!this.orderCodePattern.test(value)) return value
+
+    const invoice = await this.prisma.invoice.findFirst({
+      where: { code: value.toUpperCase() },
+      select: { orderId: true },
+    })
+
+    return invoice?.orderId || null
   }
 }

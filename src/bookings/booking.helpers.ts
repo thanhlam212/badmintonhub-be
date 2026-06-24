@@ -9,7 +9,6 @@
 import { BadRequestException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { FixedScheduleCycle } from './dto/booking.dto';
 
 // ═══════════════════════════════════════════════════════════════
 // TYPE EXPORTS
@@ -164,20 +163,85 @@ export function buildHourSlots(timeStart: string, timeEnd: string): string[] {
   return slots;
 }
 
+export const BUSINESS_TIME_ZONE = 'Asia/Ho_Chi_Minh';
+
+export function getBusinessNowParts(now: Date): { dateToken: string; minutes: number } {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: BUSINESS_TIME_ZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).formatToParts(now);
+
+  const get = (type: string) => parts.find((part) => part.type === type)?.value || '0';
+  const hour = Number(get('hour')) % 24;
+  const minute = Number(get('minute'));
+
+  return {
+    dateToken: `${get('year')}-${get('month')}-${get('day')}`,
+    minutes: hour * 60 + minute,
+  };
+}
+
+export function isSlotStartInPast(
+  slotDate: Date,
+  time: string,
+  now: Date = new Date(),
+): boolean {
+  const slotDateToken = formatDate(slotDate);
+  const current = getBusinessNowParts(now);
+  if (slotDateToken < current.dateToken) return true;
+  if (slotDateToken > current.dateToken) return false;
+
+  const [hour, minute = 0] = time.split(':').map(Number);
+  return hour * 60 + minute <= current.minutes;
+}
+
+export function assertSlotNotPast(date: Date, time: string): void {
+  if (isSlotStartInPast(date, time)) {
+    throw new BadRequestException('Khung giờ đã qua, vui lòng chọn khung giờ khác');
+  }
+}
+
 // ═══════════════════════════════════════════════════════════════
 // OCCURRENCE GENERATION
 // ═══════════════════════════════════════════════════════════════
+
+export interface WeeklySlot {
+  dayOfWeek: number; // 0=CN, 1=T2, 2=T3, 3=T4, 4=T5, 5=T6, 6=T7
+  timeStart: string;
+  timeEnd: string;
+}
+
+export interface SlotOccurrence {
+  date: Date;
+  timeStart: string;
+  timeEnd: string;
+}
+
+/**
+ * Tìm ngày đầu tiên >= startDate có dayOfWeek khớp với slot.
+ */
+export function getFirstOccurrenceOnOrAfter(startDate: Date, dayOfWeek: number): Date {
+  const startDay = startDate.getUTCDay();
+  let offset = dayOfWeek - startDay;
+  if (offset < 0) offset += 7;
+  return addDays(startDate, offset);
+}
 
 /**
  * Sinh danh sách ngày theo cycle:
  * - weekly: lặp mỗi 7 ngày
  * - monthly: lặp theo ngày trong tháng, clamp nếu tháng sau không có ngày đó
  */
-export function generateFixedDates(
+export function generateWeeklySlotDates(
   startDate: string,
-  endDate: string,
-  cycle: FixedScheduleCycle,
-): Date[] {
+  numberOfWeeks: number,
+  weeklySlots: WeeklySlot[],
+): SlotOccurrence[] {
   const start = normalizeDate(startDate);
   const end = normalizeDate(endDate);
   const dates: Date[] = [];
@@ -190,7 +254,13 @@ export function generateFixedDates(
         ? addDays(cursor, 7)
         : addMonthsClamped(cursor, 1);
   }
-  return dates;
+
+  // Sắp xếp theo ngày, sau đó theo giờ bắt đầu
+  return occurrences.sort((a, b) => {
+    const dateDiff = a.date.getTime() - b.date.getTime();
+    if (dateDiff !== 0) return dateDiff;
+    return a.timeStart.localeCompare(b.timeStart);
+  });
 }
 
 function lastDayOfMonth(year: number, monthIndex: number): number {
@@ -469,12 +539,10 @@ export function resolveFixedSchedulePlan(input: {
  * Ví dụ sau (ĐÚNG):
  *   dates = [Jun 19, Jun 26, Jul 3, Jul 10] → length=4 → pass ✅
  */
-export function validateFixedScheduleInput(input: {
+export function validateWeeklySlotInput(input: {
   startDate: string;
-  endDate: string;
-  cycle: FixedScheduleCycle;
-  timeStart: string;
-  timeEnd: string;
+  numberOfWeeks: number;
+  weeklySlots: WeeklySlot[];
 }): void {
   const start = normalizeDate(input.startDate);
   const end = normalizeDate(input.endDate);
@@ -485,8 +553,8 @@ export function validateFixedScheduleInput(input: {
   if (start < today) {
     throw new BadRequestException('Ngày bắt đầu phải từ hôm nay trở đi');
   }
-  if (end <= start) {
-    throw new BadRequestException('Ngày kết thúc phải sau ngày bắt đầu');
+  if (input.numberOfWeeks < 4) {
+    throw new BadRequestException('Gói đặt sân cố định tối thiểu 4 tuần');
   }
 
   // Validate giờ trước khi generate dates (throw nếu giờ sai)
@@ -514,11 +582,61 @@ export function validateFixedScheduleInput(input: {
 /**
  * Sinh invoice code: {PREFIX}-YYYYMMDD-XXXX
  */
-export function invoiceCode(prefix: string): string {
-  const now = new Date();
-  const datePart = formatDate(now).replace(/-/g, '');
-  const randomPart = String(Math.floor(Math.random() * 10000)).padStart(4, '0');
-  return `${prefix}-${datePart}-${randomPart}`;
+export const DOCUMENT_CODE_PATTERN = /^(MB|BK|FS|OD|SO)-\d{8}-\d{4}$/i;
+
+export function invoiceCode(prefix: string, seq?: number, date: Date = new Date()): string {
+  const cleanPrefix = String(prefix || '').trim().toUpperCase();
+  if (!/^(MB|BK|FS|OD|SO)$/.test(cleanPrefix)) {
+    throw new BadRequestException('Prefix mã chứng từ không hợp lệ');
+  }
+
+  const datePart = formatDate(date).replace(/-/g, '');
+  const numericSeq = typeof seq === 'number'
+    ? seq
+    : Math.floor(Math.random() * 10000);
+  const seqPart = String(Math.max(0, numericSeq) % 10000).padStart(4, '0');
+  return `${cleanPrefix}-${datePart}-${seqPart}`;
+}
+
+export function fallbackDocumentCode(
+  prefix: string,
+  source: { id?: string | null; createdAt?: Date | string | null },
+): string {
+  const date = source.createdAt ? new Date(source.createdAt) : new Date();
+  const safeDate = Number.isNaN(date.getTime()) ? new Date() : date;
+  const normalized = String(source.id || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+  let seq = 0;
+  for (const ch of normalized) {
+    seq = (seq * 31 + ch.charCodeAt(0)) % 10000;
+  }
+  return invoiceCode(prefix, seq, safeDate);
+}
+
+export async function nextInvoiceCode(
+  client: DbClient,
+  prefix: 'MB' | 'BK' | 'FS' | 'OD' | 'SO',
+  date: Date = new Date(),
+): Promise<string> {
+  const datePart = formatDate(date).replace(/-/g, '');
+  const codePrefix = `${prefix}-${datePart}-`;
+  const latest = await client.invoice.findFirst({
+    where: { code: { startsWith: codePrefix } },
+    select: { code: true },
+    orderBy: { code: 'desc' },
+  });
+
+  const parsedLatestSeq = latest?.code ? Number.parseInt(latest.code.slice(-4), 10) : 0;
+  const latestSeq = Number.isFinite(parsedLatestSeq) ? parsedLatestSeq : 0;
+  for (let seq = latestSeq + 1; seq <= 9999; seq++) {
+    const code = invoiceCode(prefix, seq, date);
+    const existing = await client.invoice.findFirst({
+      where: { code },
+      select: { id: true },
+    });
+    if (!existing) return code;
+  }
+
+  throw new BadRequestException(`Đã hết dải mã ${prefix} trong ngày ${datePart}`);
 }
 
 // ═══════════════════════════════════════════════════════════════

@@ -17,6 +17,14 @@ export class VnpayProvider {
     this.returnUrl  = config.get<string>('VNPAY_RETURN_URL', '')
   }
 
+  isConfigured(): boolean {
+    return Boolean(
+      this.tmnCode && this.hashSecret && this.returnUrl &&
+      !this.tmnCode.includes('your_') &&
+      !this.hashSecret.includes('your_')
+    )
+  }
+
   createPaymentUrl(params: {
     txnRef: string
     amount: number

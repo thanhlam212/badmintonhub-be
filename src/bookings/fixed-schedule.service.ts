@@ -29,6 +29,7 @@ import {
   invoiceCode,
   checkSlotConflict,
   PreviewOccurrence,
+  SlotOccurrence,
 } from './booking.helpers';
 
 // ═══════════════════════════════════════════════════════════════
@@ -128,7 +129,6 @@ export class FixedScheduleService {
       },
       pricing: {
         pricePerHour,
-        pricePerSession,
         estimatedTotal,
         currency: 'VND',
       },
@@ -371,15 +371,29 @@ export class FixedScheduleService {
         invoiceItems.push(result.invoiceItem);
       }
 
+      // Tổng thực tế = tổng các invoice items (đã xét custom hours)
+      const actualTotal = invoiceItems.reduce(
+        (sum, item) => sum + Number(item.lineTotalSnapshot),
+        0,
+      );
+
+      // Cập nhật totalAmountSnapshot nếu custom action thay đổi tổng tiền
+      if (actualTotal !== totalAmount) {
+        await tx.fixedSchedule.update({
+          where: { id: fixedSchedule.id },
+          data: { totalAmountSnapshot: actualTotal },
+        });
+      }
+
       const invoice = await tx.invoice.create({
         data: {
-          code: invoiceCode('FS'),
+          code: await nextInvoiceCode(tx, 'FS'),
           fixedScheduleId: fixedSchedule.id,
           customerName: dto.customerName,
           customerPhone: dto.customerPhone,
           customerEmail: dto.customerEmail || null,
-          subtotalSnapshot: totalAmount,
-          totalSnapshot: totalAmount,
+          subtotalSnapshot: actualTotal,
+          totalSnapshot: actualTotal,
           paymentMethod: dto.paymentMethod,
           status:
             dto.paymentMethod === PaymentMethod.CASH ? 'unpaid' : 'deposited',
@@ -391,7 +405,7 @@ export class FixedScheduleService {
         scheduleId: fixedSchedule.id,
         invoiceId: invoice.id,
         invoiceCode: invoice.code,
-        totalAmount,
+        totalAmount: actualTotal,
         bookingsCreated: createdBookings.length,
         skipped: dto.decisions.length - billable.length,
         status: fixedSchedule.status,

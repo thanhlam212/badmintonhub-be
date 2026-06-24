@@ -1,0 +1,115 @@
+=== HEADING OUTLINE ===
+  [Heading 1] 1. Problem Definition (Phiên bản Tiếng Việt)
+    [Heading 2] 1.1. Problem Abstraction
+      [Heading 3] Giới thiệu chung về dự án Quản lý Bãi đỗ xe thông minh
+      [Heading 3] Xuất xứ của Dự án
+      [Heading 3] Lý do cần thiết xây dựng Dự án
+      [Heading 3] Thực trạng
+      [Heading 3] Tầm quan trọng của Dự án
+    [Heading 2] 1.2. The Current System
+      [Heading 3] Thực trạng và những bất cập của các phần mềm quản lý bãi đỗ xe hiện nay
+      [Heading 3] Lợi ích khi áp dụng mô hình Scrum Agile
+      [Heading 3] Quy trình làm việc của Scrum Agile
+        [Heading 4] Product Backlog – Tạo lập và quản lý danh sách công việc
+        [Heading 4] 2. Sprint Planning – Lập kế hoạch Sprint
+        [Heading 4] 3. Development Work – Thực hiện công việc trong Sprint
+        [Heading 4] 4. Sprint Review – Trình bày kết quả và nhận phản hồi
+        [Heading 4] 5. Sprint Retrospective – Nhìn lại và cải tiến
+        [Heading 4] 6. Increment – Sản phẩm tăng trưởng
+    [Heading 2] 1.3. The Proposed System
+      [Heading 3] Chức năng của Khách hàng (Customer)
+        [Heading 4] Đăng nhập vào hệ thống
+        [Heading 4] Quản lý thông tin cá nhân và nhóm khách hàng
+        [Heading 4] Quản lý Booking và Booking Details
+        [Heading 4] Xem lịch sử đỗ xe (Parking Session)
+        [Heading 4] Quản lý thanh toán và lịch sử giao dịch
+        [Heading 4] Gửi khiếu nại / phản hồi
+      [Heading 3] Chức năng của Bảo vệ (Security / Guard)
+        [Heading 4] Đăng nhập vào Guard App
+        [Heading 4] Quản lý và xử lý Parking Session
+        [Heading 4] Xử lý thanh toán tiền mặt
+        [Heading 4] Tra cứu thông tin Booking và Booking detail
+        [Heading 4] Tra cứu thông tin thiết bị phần cứng
+        [Heading 4] Nhận và xử lý khiếu nại thời gian thực
+      [Heading 3] Chức năng của Ban Quản Lý (Admin)
+        [Heading 4] Quản lý Khách hàng và Nhóm Khách hàng (Group Customer & Group Profile)
+        [Heading 4] Quản lý Booking và Booking Details
+        [Heading 4] Quản lý Gói cước (Package) và Biểu giá
+        [Heading 4] Quản lý Loại xe (Vehicle Type)
+        [Heading 4] Quản lý Parking Session
+        [Heading 4] Quản lý Không gian và Zone
+        [Heading 4] Quản lý Thiết bị IoT và Phần cứng
+        [Heading 4] Quản lý Thanh toán và Doanh thu
+        [Heading 4] Quản lý Khiếu nại
+        [Heading 4] Quản lý Nhân viên và Phân quyền
+        [Heading 4] Cấu hình Tham số Hệ thống Động
+        [Heading 4] Quản lý Thiết lập AI và Buffer Dự phòng
+      [Heading 3] AI & Automatic System Functions
+        [Heading 4] Tạo phiên đỗ xe tự động
+        [Heading 4] Hệ thống thông báo và nhắc nợ tự động
+        [Heading 4] Hệ thống Module Camera AI
+      [Heading 3] 1.3.1. Boundaries of the System
+      [Heading 3] 1.3.2. Hardware and Software Requirements
+      [Heading 3] 2.7. Other Supporting Tools
+  [Heading 1] 2. Customer Requirements Specification
+    [Heading 2] 2.1. Users of the System
+    [Heading 2] 2.2. System functions
+      [Heading 3] 2.2.1. Chức năng khách hàng
+      [Heading 3] View Detail Payment (Xem chi tiết giao dịch)
+      [Heading 3] Pay Parking Fee (Thanh toán phí đỗ xe vãng lai qua Kiosk/App)
+      [Heading 3] Pay Subscription Package (Thanh toán đăng ký mới hoặc gia hạn vé tháng)
+      [Heading 3] 2.2.2. Chức năng của bảo vệ
+      [Heading 3] 2.2.3. Chức năng của ban quản lý
+      [Heading 3] 2.2.4. Chức năng tự động của AI và hệ thống
+  [Heading 1] 3. System Design
+    [Heading 2] 3.1. Entity Relationship Diagram
+      [Heading 3] Describes entities and relationships between entities
+      [Heading 3] 1. Thực thể Accounts
+    [Heading 2] 3.2. Database Design
+        [Heading 4] 3.1. Giới thiệu chung về thiết kế CSDL
+        [Heading 4] 3.2. Mục tiêu thiết kế
+        [Heading 4] 3.3. Kiến trúc tổng thể của Cơ sở dữ liệu
+        [Heading 4] 3.4. Đặc điểm nổi bật của thiết kế
+        [Heading 4] 3.5. Chi tiết thiết kế cơ sở dữ liệu
+    [Heading 2] 3.3. Sitemap -> Hiếu bổ sung
+    [Heading 2] 3.4. System Functions Design
+      [Heading 3] 3.4.1. General Functions
+        [Heading 4] 1.Authentication
+        [Heading 4] 2.Authorization
+      [Heading 3] 3.4.2. Customer Functions
+        [Heading 4] 1. Manage Customers, Groups Customers
+        [Heading 4] 2. Manage Bookings and Booking Details
+        [Heading 4] 3. Manage Parking Sessions
+        [Heading 4] 4. Manage Payment
+        [Heading 4] 5. Manage Complaints
+      [Heading 3] 3.4.3. Security Guard Functions
+        [Heading 4] 1. Manage Parking Sessions
+        [Heading 4] 2. Manage Payment
+        [Heading 4] 3. Manage Bookings and Booking Details
+        [Heading 4] 4. Manage IoT devices and hardware (Devices IO)
+        [Heading 4] 5. Manage Complaints
+      [Heading 3] 3.4.4. Admin Functions
+        [Heading 4] 1. Manage Customers, Groups Customers and Groups Customers Profiles
+        [Heading 4] 2. Manage Bookings and Booking Details
+        [Heading 4] 3. Manage Packages and price
+        [Heading 4] 4. Manage Vehicle Types
+        [Heading 4] 5. Manage Parking Sessions
+        [Heading 4] 6. Manage Zone
+        [Heading 4] 7. Manage IoT and Hardware Device (Devices IO)
+        [Heading 4] 8. Manage Payment
+        [Heading 4] 9. Manage Complaints
+        [Heading 4] 10. Manage Employees
+        [Heading 4] 11. Manage Roles & Permissions
+        [Heading 4] 12. Dynamic System Parameter Configuration
+        [Heading 4] 13. AI Configuration and Safety Buffer Management
+      [Heading 3] 3.4.5. Automatic System Functions
+        [Heading 4] 1. Create Parking Session (Automatic)
+        [Heading 4] 2. Automatic Notification and Debt Reminder
+        [Heading 4] 3. Module Camera AI
+  [Heading 1] 4. Task sheet
+  [Heading 1] 5. Validation Checklists
+    [Heading 2] 5.1. Customer Functions
+        [Heading 4] 5.3.2. Manage Bookings and Booking Details
+  [Heading 1] 6. Hướng dẫn cài đặt và sử dụng
+
+=== TABLES: 249 | INLINE IMAGES: 102 ===

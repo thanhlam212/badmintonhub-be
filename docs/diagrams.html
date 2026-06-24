@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>BadmintonHub — Sơ đồ Use Case & Flow Diagram</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<style>
+  :root {
+    --bg: #0f1720;
+    --panel: #ffffff;
+    --ink: #1f2933;
+    --muted: #6b7280;
+    --accent: #1d6feb;
+    --border: #e2e8f0;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+    background: #eef2f6;
+    color: var(--ink);
+    line-height: 1.55;
+  }
+  header {
+    background: linear-gradient(135deg, #1d6feb, #0b3d91);
+    color: #fff;
+    padding: 32px 40px;
+  }
+  header h1 { margin: 0 0 6px; font-size: 26px; }
+  header p { margin: 0; opacity: .9; font-size: 14px; }
+  .layout { display: flex; align-items: flex-start; }
+  nav {
+    position: sticky; top: 0;
+    width: 280px; min-height: 100vh;
+    background: #0f1720; color: #cbd5e1;
+    padding: 24px 18px; flex-shrink: 0;
+  }
+  nav h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: #64748b; margin: 18px 0 8px; }
+  nav a { display: block; color: #cbd5e1; text-decoration: none; padding: 6px 10px; border-radius: 6px; font-size: 13.5px; }
+  nav a:hover { background: #1e293b; color: #fff; }
+  main { flex: 1; padding: 32px 40px; max-width: 1180px; }
+  section { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 24px 28px; margin-bottom: 28px; box-shadow: 0 1px 3px rgba(0,0,0,.05); }
+  section h2 { margin-top: 0; font-size: 20px; color: #0b3d91; border-bottom: 2px solid #eef2f6; padding-bottom: 10px; }
+  section h3 { font-size: 16px; color: #1f2933; margin: 26px 0 6px; }
+  .desc { color: var(--muted); font-size: 14px; margin: 4px 0 16px; }
+  .mermaid { background: #fbfdff; border: 1px dashed #d6e0ec; border-radius: 10px; padding: 18px; overflow-x: auto; text-align: center; }
+  .legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 13px; color: var(--muted); margin-top: 12px; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .dot { width: 13px; height: 13px; border-radius: 3px; display: inline-block; }
+  code { background: #f1f5f9; padding: 1px 6px; border-radius: 4px; font-size: 13px; }
+  .tag { display:inline-block; background:#e7f0ff; color:#1d6feb; border-radius:6px; padding:1px 8px; font-size:12px; font-weight:600; margin-left:6px;}
+</style>
+</head>
+<body>
+<header>
+  <h1>BadmintonHub — Sơ đồ Use Case &amp; Flow Diagram</h1>
+  <p>Hệ thống đặt sân cầu lông, bán hàng &amp; quản lý kho · NestJS + Prisma + PostgreSQL</p>
+</header>
+
+<div class="layout">
+  <nav>
+    <h2>Use Case</h2>
+    <a href="#uc-overview">① Tổng quan tác nhân</a>
+    <a href="#uc-booking">② Đặt sân &amp; Lịch cố định</a>
+    <a href="#uc-shop">③ Mua hàng &amp; Thanh toán</a>
+    <a href="#uc-ops">④ Vận hành &amp; Kho (Admin/NV)</a>
+
+    <h2>Flow Diagram</h2>
+    <a href="#fd-auth">A. Đăng ký / Đăng nhập</a>
+    <a href="#fd-booking">B. Đặt sân thường</a>
+    <a href="#fd-fixed">C. Đặt lịch cố định</a>
+    <a href="#fd-order">D. Đặt hàng online</a>
+    <a href="#fd-payment">E. Cổng thanh toán</a>
+    <a href="#fd-checkin">F. Check-in tại quầy</a>
+    <a href="#fd-pos">G. Đơn bán tại quầy (POS)</a>
+    <a href="#fd-stock">H. Nhập kho qua đơn mua</a>
+    <a href="#fd-transfer">I. Chuyển kho</a>
+
+    <h2>State Diagram</h2>
+    <a href="#st-booking">Trạng thái Booking</a>
+    <a href="#st-order">Trạng thái Đơn hàng</a>
+  </nav>
+
+  <main>
+    <!-- ============ USE CASE ============ -->
+    <section id="uc-overview">
+      <h2>① Use Case — Tổng quan tác nhân &amp; phân hệ</h2>
+      <p class="desc">Bốn nhóm tác nhân và phạm vi chức năng họ truy cập. <code>Guest</code> dùng các API public (đặt sân, mua hàng không cần đăng nhập); <code>User</code> kế thừa Guest và có thêm lịch sử, đánh giá, hồ sơ; <code>Nhân viên</code> &amp; <code>Admin</code> vận hành nội bộ.</p>
+      <div class="mermaid">
+flowchart LR
+  guest(["🧍 Khách (Guest)"])
+  user(["👤 Người dùng"])
+  emp(["🧑‍💼 Nhân viên"])
+  admin(["👨‍💻 Admin"])
+  gw([" 🏦 Cổng thanh toán<br/>VNPay · MoMo · SePay"])
+
+  user -. kế thừa .-> guest
+  admin -. kế thừa .-> emp
+
+  subgraph SYS [Hệ thống BadmintonHub]
+    direction TB
+    P1(["Đặt sân &amp; lịch cố định"])
+    P2(["Mua hàng online"])
+    P3(["Thanh toán hoá đơn"])
+    P4(["Quản lý sân &amp; đánh giá"])
+    P5(["Quản lý booking / check-in"])
+    P6(["Quản lý kho · nhập · xuất"])
+    P7(["Đơn mua &amp; nhà cung cấp"])
+    P8(["Bán hàng tại quầy (POS)"])
+    P9(["Chuyển kho giữa chi nhánh"])
+    P10(["Thống kê &amp; báo cáo"])
+  end
+
+  guest --> P1 & P2 & P3 & P4
+  user --> P4
+  emp --> P5 & P6 & P8 & P9 & P10
+  admin --> P4 & P7 & P10
+  P3 <--> gw
+
+  classDef actor fill:#1d6feb,stroke:#0b3d91,color:#fff,font-weight:bold;
+  classDef ext fill:#7c3aed,stroke:#4c1d95,color:#fff,font-weight:bold;
+  classDef uc fill:#e7f0ff,stroke:#1d6feb,color:#0b3d91;
+  class guest,user,emp,admin actor;
+  class gw ext;
+  class P1,P2,P3,P4,P5,P6,P7,P8,P9,P10 uc;
+      </div>
+      <div class="legend">
+        <span><span class="dot" style="background:#1d6feb"></span> Tác nhân nội bộ</span>
+        <span><span class="dot" style="background:#7c3aed"></span> Hệ thống ngoài</span>
+        <span><span class="dot" style="background:#e7f0ff;border:1px solid #1d6feb"></span> Nhóm use case</span>
+      </div>
+    </section>
+
+    <section id="uc-booking">
+      <h2>② Use Case — Đặt sân &amp; Lịch cố định <span class="tag">module: bookings / courts</span></h2>
+      <p class="desc">Khách có thể tra cứu sân và đặt mà không cần đăng nhập. Người dùng đăng nhập xem được lịch sử và đánh giá. Nhân viên/Admin xử lý xác nhận, check-in, lịch lặp lại.</p>
+      <div class="mermaid">
+flowchart LR
+  guest(["🧍 Khách"])
+  user(["👤 Người dùng"])
+  staff(["🧑‍💼 NV / Admin"])
+
+  subgraph SYS [Phân hệ Đặt sân]
+    direction TB
+    u1(["Xem danh sách / chi tiết sân"])
+    u2(["Xem khung giờ trống"])
+    u3(["Đặt sân thường / giữ chỗ"])
+    u4(["Xem trước gói lịch cố định"])
+    u5(["Xác nhận gói lịch cố định"])
+    u6(["Kiểm tra slot khả dụng"])
+    u7(["Xem booking / gói của tôi"])
+    u8(["Đánh giá sân"])
+    u9(["Điều chỉnh buổi trong gói<br/>(dời / đổi sân / bỏ buổi)"])
+    a1(["Xác nhận booking / thanh toán"])
+    a2(["Check-in khách"])
+    a3(["Tạo booking lặp theo tuần"])
+    a4(["Cập nhật trạng thái / huỷ / xoá"])
+    a5(["Quản lý sân (tạo/sửa/bật-tắt)"])
+  end
+
+  guest --> u1 & u2 & u3 & u4 & u5 & u6
+  user --> u7 & u8 & u9
+  staff --> a1 & a2 & a3 & a4 & a5
+  u3 -.->|«include»| u6
+  u5 -.->|«include»| u6
+
+  classDef actor fill:#1d6feb,stroke:#0b3d91,color:#fff,font-weight:bold;
+  classDef uc fill:#e7f0ff,stroke:#1d6feb,color:#0b3d91;
+  classDef act fill:#fff4e5,stroke:#f59e0b,color:#92400e;
+  class guest,user,staff actor;
+  class u1,u2,u3,u4,u5,u6,u7,u8,u9 uc;
+  class a1,a2,a3,a4,a5 act;
+      </div>
+      <div class="legend">
+        <span><span class="dot" style="background:#e7f0ff;border:1px solid #1d6feb"></span> Use case khách/người dùng</span>
+        <span><span class="dot" style="background:#fff4e5;border:1px solid #f59e0b"></span> Use case nội bộ (NV/Admin)</span>
+      </div>
+    </section>
+
+    <section id="uc-shop">
+      <h2>③ Use Case — Mua hàng &amp; Thanh toán <span class="tag">module: orders / payment / products</span></h2>
+      <p class="desc">Luồng thương mại điện tử: duyệt sản phẩm, đặt hàng (giao hàng hoặc nhận tại chi nhánh), thanh toán qua cổng, theo dõi hoá đơn. Cổng thanh toán gọi ngược lại hệ thống qua IPN.</p>
+      <div class="mermaid">
+flowchart LR
+  guest(["🧍 Khách"])
+  user(["👤 Người dùng"])
+  staff(["🧑‍💼 NV / Admin"])
+  gw(["🏦 Cổng thanh toán"])
+
+  subgraph SYS [Phân hệ Mua hàng]
+    direction TB
+    s1(["Xem danh mục / chi tiết sản phẩm"])
+    s2(["Tạo đơn hàng (giao / nhận tại quầy)"])
+    s3(["Tạo link thanh toán"])
+    s4(["Xem trạng thái thanh toán"])
+    s5(["Xem đơn hàng của tôi"])
+    s6(["Xem hoá đơn"])
+    s7(["Nhận callback IPN / return"])
+    m1(["Duyệt &amp; cập nhật trạng thái đơn"])
+  end
+
+  guest --> s1 & s2 & s3 & s4
+  user --> s5 & s6
+  staff --> m1
+  gw --> s7
+  s2 -.->|«include»| s3
+  s3 -.->|«include»| s7
+
+  classDef actor fill:#1d6feb,stroke:#0b3d91,color:#fff,font-weight:bold;
+  classDef ext fill:#7c3aed,stroke:#4c1d95,color:#fff,font-weight:bold;
+  classDef uc fill:#e7f0ff,stroke:#1d6feb,color:#0b3d91;
+  classDef act fill:#fff4e5,stroke:#f59e0b,color:#92400e;
+  class guest,user,staff actor;
+  class gw ext;
+  class s1,s2,s3,s4,s5,s6,s7 uc;
+  class m1 act;
+      </div>
+    </section>
+
+    <section id="uc-ops">
+      <h2>④ Use Case — Vận hành &amp; Quản lý kho <span class="tag">module: inventory / purchase-orders / sales-orders / transfers / stats</span></h2>
+      <p class="desc">Các chức năng nội bộ yêu cầu vai trò <code>admin</code> hoặc <code>employee</code>. Admin kế thừa toàn bộ quyền của nhân viên và quản lý thêm đơn mua &amp; nhà cung cấp.</p>
+      <div class="mermaid">
+flowchart LR
+  emp(["🧑‍💼 Nhân viên"])
+  admin(["👨‍💻 Admin"])
+  admin -. kế thừa .-> emp
+
+  subgraph SYS [Phân hệ Vận hành nội bộ]
+    direction TB
+    i1(["Xem tồn kho theo kho / danh mục"])
+    i2(["Nhập kho"])
+    i3(["Xuất kho"])
+    i4(["Cảnh báo hàng sắp hết"])
+    i5(["Lịch sử giao dịch kho"])
+    p1(["Tạo đơn bán tại quầy (POS)"])
+    p2(["Duyệt / từ chối đơn bán"])
+    p3(["Xác nhận thanh toán &amp; hoàn tất"])
+    p4(["Tạo / quản lý tài khoản khách vãng lai"])
+    t1(["Tạo yêu cầu chuyển kho"])
+    t2(["Duyệt &amp; cập nhật trạng thái chuyển"])
+    st(["Xem dashboard thống kê"])
+    po1(["Quản lý nhà cung cấp"])
+    po2(["Tạo &amp; theo dõi đơn mua (PO)"])
+  end
+
+  emp --> i1 & i2 & i3 & i4 & i5 & p1 & p2 & p3 & p4 & t1 & t2 & st
+  admin --> po1 & po2
+
+  classDef actor fill:#1d6feb,stroke:#0b3d91,color:#fff,font-weight:bold;
+  classDef uc fill:#e7f0ff,stroke:#1d6feb,color:#0b3d91;
+  classDef act fill:#fff4e5,stroke:#f59e0b,color:#92400e;
+  class emp,admin actor;
+  class i1,i2,i3,i4,i5,p1,p2,p3,p4,t1,t2,st uc;
+  class po1,po2 act;
+      </div>
+    </section>
+
+    <!-- ============ FLOW DIAGRAMS ============ -->
+    <section id="fd-auth">
+      <h2>A. Flow — Đăng ký / Đăng nhập</h2>
+      <p class="desc"><code>POST /auth/register</code>, <code>POST /auth/login</code> → trả JWT. Các request sau gắn token; guard kiểm tra vai trò.</p>
+      <div class="mermaid">
+flowchart TD
+  start([Bắt đầu]) --> choice{Đã có tài khoản?}
+  choice -- Chưa --> reg[Nhập thông tin đăng ký]
+  reg --> vdup{Trùng username /<br/>email / phone?}
+  vdup -- Có --> err1[Báo lỗi trùng]:::err --> choice
+  vdup -- Không --> hash[Băm mật khẩu + tạo User]
+  hash --> login
+  choice -- Rồi --> login[Nhập username + mật khẩu]
+  login --> vcheck{Khớp mật khẩu?}
+  vcheck -- Sai --> err2[401 Sai thông tin]:::err --> login
+  vcheck -- Đúng --> jwt[Phát hành JWT + trả user]
+  jwt --> done([Vào hệ thống]):::ok
+  classDef err fill:#fde2e2,stroke:#dc2626,color:#7f1d1d;
+  classDef ok fill:#dcfce7,stroke:#16a34a,color:#14532d;
+      </div>
+    </section>
+
+    <section id="fd-booking">
+      <h2>B. Flow — Đặt sân thường</h2>
+      <p class="desc"><code>POST /bookings</code> (hoặc <code>/bookings/hold</code>). Kiểm tra slot trống → tạo booking <code>pending</code> + khoá slot → sinh hoá đơn → chuyển sang thanh toán. NV/Admin xác nhận thanh toán → <code>confirmed</code>.</p>
+      <div class="mermaid">
+flowchart TD
+  s([Khách chọn sân + ngày + giờ]) --> chk[Kiểm tra slot khả dụng]
+  chk --> q{Slot còn trống?}
+  q -- Không --> busy[Báo đã có người đặt]:::err --> s
+  q -- Có --> create[Tạo Booking = pending<br/>khoá CourtSlot]
+  create --> inv[Sinh Invoice = unpaid]
+  inv --> pm{Hình thức thanh toán}
+  pm -- Tại quầy / tiền mặt --> wait[Chờ NV xác nhận]
+  pm -- Online --> pay[Tạo link cổng thanh toán]
+  pay --> ipn{Kết quả từ cổng}
+  ipn -- Thành công --> paid[Invoice = paid]
+  ipn -- Thất bại / hết hạn --> cancel[Huỷ booking, mở lại slot]:::err
+  wait --> confirm
+  paid --> confirm[Booking = confirmed]:::ok
+  confirm --> e([Hoàn tất đặt sân])
+  classDef err fill:#fde2e2,stroke:#dc2626,color:#7f1d1d;
+  classDef ok fill:#dcfce7,stroke:#16a34a,color:#14532d;
+      </div>
+    </section>
+
+    <section id="fd-fixed">
+      <h2>C. Flow — Đặt lịch cố định (gói weekly / monthly)</h2>
+      <p class="desc"><code>/bookings/fixed/preview</code> → <code>/bookings/fixed/confirm</code>. Sinh ra danh sách buổi (occurrences) trong khoảng start–end; mỗi buổi có thể điều chỉnh trong giới hạn <code>adjustmentLimit</code>.</p>
+      <div class="mermaid">
+flowchart TD
+  s([Chọn sân + chu kỳ + khoảng ngày]) --> prev[Preview: sinh danh sách buổi]
+  prev --> conflict{Có buổi trùng lịch?}
+  conflict -- Có --> show[Hiển thị buổi xung đột]:::warn --> adjustp[Khách đổi giờ/sân]
+  adjustp --> prev
+  conflict -- Không --> price[Tính giá gói + snapshot]
+  price --> confirmc[Xác nhận tạo FixedSchedule = pending]
+  confirmc --> occ[Tạo các Occurrence = scheduled<br/>+ Booking cho từng buổi]
+  occ --> dep[Đặt cọc / thanh toán gói]
+  dep --> active[FixedSchedule = confirmed]:::ok
+  active --> run([Vận hành theo lịch])
+  run --> adj{Cần điều chỉnh buổi?}
+  adj -- Còn lượt --> doadj[Dời / đổi sân / bỏ buổi<br/>adjustmentUsed++]:::warn --> run
+  adj -- Hết lượt --> deny[Từ chối điều chỉnh]:::err --> run
+  classDef err fill:#fde2e2,stroke:#dc2626,color:#7f1d1d;
+  classDef ok fill:#dcfce7,stroke:#16a34a,color:#14532d;
+  classDef warn fill:#fff4e5,stroke:#f59e0b,color:#92400e;
+      </div>
+    </section>
+
+    <section id="fd-order">
+      <h2>D. Flow — Đặt hàng online</h2>
+      <p class="desc"><code>POST /orders</code> (public, token tuỳ chọn để gắn user). Chọn giao hàng hoặc nhận tại chi nhánh; hệ thống chọn kho phục vụ, tính phí ship, sinh hoá đơn, rồi qua thanh toán.</p>
+      <div class="mermaid">
+flowchart TD
+  s([Khách thêm sản phẩm vào giỏ]) --> info[Nhập thông tin nhận hàng]
+  info --> method{Phương thức nhận}
+  method -- Giao hàng --> ship[Tính phí ship theo toạ độ]
+  method -- Nhận tại chi nhánh --> pick[Chọn chi nhánh nhận]
+  ship --> wh[Chọn kho phục vụ + kiểm tồn]
+  pick --> wh
+  wh --> stock{Đủ tồn kho?}
+  stock -- Không --> oos[Báo hết hàng]:::err --> s
+  stock -- Có --> order[Tạo Order = pending + OrderItem]
+  order --> inv[Sinh Invoice]
+  inv --> pay[Thanh toán online / COD]
+  pay --> ok2[Đơn được tiếp nhận]:::ok
+  ok2 --> flow[NV xử lý: confirmed → processing →<br/>shipping → delivered]
+  flow --> e([Hoàn tất])
+  classDef err fill:#fde2e2,stroke:#dc2626,color:#7f1d1d;
+  classDef ok fill:#dcfce7,stroke:#16a34a,color:#14532d;
+      </div>
+    </section>
+
+    <section id="fd-payment">
+      <h2>E. Flow — Cổng thanh toán (VNPay / MoMo / SePay)</h2>
+      <p class="desc"><code>POST /payment/create</code> sinh URL/QR. Người dùng được redirect về <code>return</code>; cổng gọi <code>ipn</code> (server-to-server) để xác nhận chắc chắn → cập nhật Payment + Invoice.</p>
+      <div class="mermaid">
+sequenceDiagram
+  autonumber
+  actor U as Khách
+  participant BE as BadmintonHub API
+  participant GW as Cổng thanh toán
+  U->>BE: POST /payment/create (invoiceId, method)
+  BE->>BE: Tạo Payment = pending + ký chữ ký
+  BE-->>U: Trả paymentUrl / QR
+  U->>GW: Quét QR / nhập thẻ
+  GW-->>U: Redirect /payment/.../return
+  GW->>BE: IPN (server-to-server) + chữ ký
+  BE->>BE: Verify chữ ký + số tiền
+  alt Hợp lệ & thành công
+    BE->>BE: Payment = success, Invoice = paid
+    BE-->>GW: 200 OK (đã ghi nhận)
+  else Sai chữ ký / thất bại
+    BE->>BE: Payment = failed
+    BE-->>GW: Trả mã lỗi
+  end
+      </div>
+    </section>
+
+    <section id="fd-checkin">
+      <h2>F. Flow — Check-in tại quầy</h2>
+      <p class="desc"><code>POST /bookings/checkin</code> bằng <code>bookingId</code> hoặc mã hoá đơn. NV quét/nhập mã → xác minh → chuyển sang <code>playing</code>.</p>
+      <div class="mermaid">
+flowchart TD
+  s([NV quét mã / nhập bookingId]) --> find[Tra cứu booking]
+  find --> exist{Tồn tại?}
+  exist -- Không --> nf[Không tìm thấy]:::err
+  exist -- Có --> st{Trạng thái hợp lệ?}
+  st -- pending chưa trả --> pay[Yêu cầu thanh toán trước]:::warn --> done
+  st -- confirmed / deposited --> in[Booking = playing<br/>ghi nhận check-in]:::ok
+  in --> done([Cho khách vào sân])
+  classDef err fill:#fde2e2,stroke:#dc2626,color:#7f1d1d;
+  classDef ok fill:#dcfce7,stroke:#16a34a,color:#14532d;
+  classDef warn fill:#fff4e5,stroke:#f59e0b,color:#92400e;
+      </div>
+    </section>
+
+    <section id="fd-pos">
+      <h2>G. Flow — Đơn bán tại quầy (POS) có duyệt</h2>
+      <p class="desc"><code>/sales-orders</code>: NV tạo đơn → cấp trên duyệt/từ chối → xác nhận thanh toán → hoàn tất (xuất phiếu kho trừ tồn). Trạng thái: <code>pending → approved → exported</code>.</p>
+      <div class="mermaid">
+flowchart TD
+  s([NV tạo đơn bán + chọn khách]) --> walk{Khách vãng lai?}
+  walk -- Có --> acc[Tạo tài khoản vãng lai]
+  walk -- Không --> srch[Tìm khách có sẵn]
+  acc --> create
+  srch --> create[Tạo SalesOrder = pending]
+  create --> review{Quản lý duyệt?}
+  review -- Từ chối --> rej[status = rejected<br/>lưu lý do]:::err
+  review -- Duyệt --> appr[status = approved]
+  appr --> paid[Xác nhận thanh toán]
+  paid --> exp[Tạo phiếu xuất kho<br/>trừ tồn → status = exported]:::ok
+  exp --> e([Giao hàng cho khách])
+  classDef err fill:#fde2e2,stroke:#dc2626,color:#7f1d1d;
+  classDef ok fill:#dcfce7,stroke:#16a34a,color:#14532d;
+      </div>
+    </section>
+
+    <section id="fd-stock">
+      <h2>H. Flow — Nhập kho qua đơn mua (Purchase Order)</h2>
+      <p class="desc"><code>/purchase-orders</code> → tạo PO gửi NCC; khi hàng về, tạo phiếu nhập (<code>/inventory/import</code>) → cộng tồn + ghi <code>InventoryTransaction</code>. PO: <code>draft → sent → confirmed → shipping → received</code>.</p>
+      <div class="mermaid">
+flowchart TD
+  s([Admin tạo PO cho NCC]) --> draft[PO = draft]
+  draft --> send[Gửi NCC → sent]
+  send --> conf{NCC xác nhận?}
+  conf -- Không --> can[PO = cancelled]:::err
+  conf -- Có --> shipping[confirmed → shipping]
+  shipping --> arrive[Hàng về kho]
+  arrive --> imp[Phiếu nhập: /inventory/import]
+  imp --> upd[Cộng on_hand + available<br/>ghi InventoryTransaction = import]:::ok
+  upd --> recv[PO = received]
+  recv --> e([Cập nhật tồn kho hoàn tất])
+  classDef err fill:#fde2e2,stroke:#dc2626,color:#7f1d1d;
+  classDef ok fill:#dcfce7,stroke:#16a34a,color:#14532d;
+      </div>
+    </section>
+
+    <section id="fd-transfer">
+      <h2>I. Flow — Chuyển kho giữa chi nhánh</h2>
+      <p class="desc"><code>/transfers</code>: tạo yêu cầu từ kho A → kho B; duyệt → đang vận chuyển → hoàn tất (trừ kho nguồn, cộng kho đích). Trạng thái: <code>pending → approved → in_transit → completed</code>.</p>
+      <div class="mermaid">
+flowchart TD
+  s([NV tạo yêu cầu chuyển A → B]) --> chk[Ghi tồn khả dụng tại thời điểm yêu cầu]
+  chk --> req[TransferRequest = pending]
+  req --> app{Duyệt?}
+  app -- Từ chối --> rej[status = rejected]:::err
+  app -- Duyệt --> ap[status = approved]
+  ap --> tr[Xuất kho A → in_transit<br/>txn = transfer_out]
+  tr --> arr[Hàng tới kho B]
+  arr --> done[Nhập kho B → completed<br/>txn = transfer_in]:::ok
+  done --> e([Cân bằng tồn hai kho])
+  classDef err fill:#fde2e2,stroke:#dc2626,color:#7f1d1d;
+  classDef ok fill:#dcfce7,stroke:#16a34a,color:#14532d;
+      </div>
+    </section>
+
+    <!-- ============ STATE DIAGRAMS ============ -->
+    <section id="st-booking">
+      <h2>State — Vòng đời Booking</h2>
+      <p class="desc">Enum <code>BookingStatus</code> trong schema.prisma.</p>
+      <div class="mermaid">
+stateDiagram-v2
+  [*] --> pending: Tạo booking
+  pending --> deposited: Đặt cọc
+  pending --> confirmed: Thanh toán đủ
+  deposited --> confirmed: Thanh toán phần còn lại
+  confirmed --> playing: Check-in
+  playing --> completed: Kết thúc buổi chơi
+  pending --> cancelled: Huỷ / hết hạn
+  deposited --> cancelled: Huỷ
+  confirmed --> cancelled: Huỷ
+  completed --> [*]
+  cancelled --> [*]
+      </div>
+    </section>
+
+    <section id="st-order">
+      <h2>State — Vòng đời Đơn hàng online</h2>
+      <p class="desc">Enum <code>OrderStatus</code> trong schema.prisma.</p>
+      <div class="mermaid">
+stateDiagram-v2
+  [*] --> pending: Đặt hàng
+  pending --> confirmed: NV xác nhận
+  confirmed --> processing: Đóng gói
+  processing --> shipping: Bàn giao vận chuyển
+  shipping --> delivered: Giao thành công
+  pending --> cancelled
+  confirmed --> cancelled
+  delivered --> refunded: Hoàn tiền / đổi trả
+  delivered --> [*]
+  cancelled --> [*]
+  refunded --> [*]
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script>
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: 'default',
+    flowchart: { curve: 'basis', useMaxWidth: true },
+    securityLevel: 'loose'
+  });
+</script>
+</body>
+</html>

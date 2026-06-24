@@ -21,6 +21,10 @@ export class MomoProvider {
     this.ipnUrl      = config.get<string>('MOMO_IPN_URL', '')
   }
 
+  isConfigured(): boolean {
+    return Boolean(this.partnerCode && this.accessKey && this.secretKey)
+  }
+
   async createPaymentUrl(params: {
     orderId: string
     requestId: string

@@ -2,8 +2,10 @@ import {
   Controller, Get, Post, Patch, Delete,
   Body, Param, Query,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { BookingsService } from './bookings.service';
 import {
+  CancelBookingDto,
   CreateBookingDto,
   CreateRecurringDto,
   UpdateServicesDto,
@@ -14,14 +16,28 @@ import {
   CheckSlotDto,
 } from './dto/booking.dto';
 import { Public, Roles, CurrentUser } from '../auth/decorators/index';
+import { fallbackDocumentCode } from './booking.helpers';
 
 // ─── Booking mapper ─────────────────────────────────────────────
 // FE's transformBooking() reads snake_case — mapper flattens Prisma camelCase → snake_case
 function mapBooking(b: any) {
-  if (!b) return b
+  if (!b) return b;
+  
+  let invoiceCodeVal = b.bookingCode || b.code || b.invoiceCode || '';
+  if (!invoiceCodeVal && Array.isArray(b.invoices) && b.invoices.length > 0) {
+    invoiceCodeVal = b.invoices[0]?.code || '';
+  }
+  if (!invoiceCodeVal && b.invoice?.code) {
+    invoiceCodeVal = b.invoice.code;
+  }
+  if (!invoiceCodeVal && b.id) {
+    const prefix = (b.fixedScheduleId || b.fixedOccurrenceId) ? 'FS' : 'MB';
+    invoiceCodeVal = fallbackDocumentCode(prefix, b);
+  }
+
   return {
     id:                 b.id,
-    booking_code:       b.bookingCode || b.code || '',
+    booking_code:       invoiceCodeVal,
     court_id:           b.courtId,
     court_name:         b.court?.name || b.courtName || '',
     branch_name:        b.branch?.name || b.branchName || b.court?.branch?.name || '',
@@ -42,11 +58,16 @@ function mapBooking(b: any) {
     status:             b.status,
     payment_method:     b.paymentMethod ?? null,
     note:               b.note ?? null,
+    customer_email:     b.customerEmail ?? b.user?.email ?? null,
+    cancellation_reason: b.cancellationReason ?? null,
+    cancelled_at:       b.cancelledAt ?? null,
+    cancelled_by_name:  b.cancelledByName ?? null,
+    cancelled_by_role:  b.cancelledByRole ?? null,
     service_lines:      b.serviceLines ?? null,
     service_paid_hash:  b.servicePaidHash ?? null,
     service_paid_at:    b.servicePaidAt ?? null,
     invoice_id:         b.invoiceId ?? (Array.isArray(b.invoices) ? b.invoices[0]?.id : null) ?? b.invoice?.id ?? null,
-    invoice_status:     Array.isArray(b.invoices) ? (b.invoices[0]?.status ?? null) : null,
+    invoice_status:     b.invoiceStatus ?? (Array.isArray(b.invoices) ? (b.invoices[0]?.status ?? null) : null),
     created_at:         b.createdAt,
   }
 }
@@ -64,9 +85,22 @@ export class BookingsController {
   constructor(private readonly bookingsService: BookingsService) {}
 
   // ─────────────────────────────────────────────────────
+  // POST /api/bookings/release-expired
+  // FE gọi khi đồng hồ đếm ngược về 0 để hủy chỗ hết hạn
+  // Public vì FE không có auth khi timer hết hạn
+  // ─────────────────────────────────────────────────────
+  @Public()
+  @Post('release-expired')
+  async releaseExpired() {
+    await this.bookingsService.releaseAllExpiredBookings()
+    return { success: true, message: 'Đã giải phóng các chỗ hết hạn' }
+  }
+
+  // ─────────────────────────────────────────────────────
   // POST /api/bookings — Đặt sân thường
   // ─────────────────────────────────────────────────────
   @Public()
+  @Throttle({ default: { ttl: 60000, limit: 10 } })  // 10 req / 60s — chống spam tạo booking
   @Post()
   async create(@Body() dto: CreateBookingDto) {
     const booking = await this.bookingsService.create(dto)
@@ -78,12 +112,14 @@ export class BookingsController {
   // POST /api/bookings/fixed/confirm
   // ─────────────────────────────────────────────────────
   @Public()
+  @Throttle({ default: { ttl: 60000, limit: 5 } })  // 5 req / 60s — chống spam đăng ký lịch cố định
   @Post('fixed/preview')
   previewFixed(@Body() dto: FixedSchedulePreviewDto) {
     return this.bookingsService.previewFixedSchedule(dto)
   }
 
   @Public()
+  @Throttle({ default: { ttl: 60000, limit: 5 } })  // 5 req / 60s
   @Post('fixed/confirm')
   confirmFixed(@Body() dto: FixedScheduleConfirmDto) {
     return this.bookingsService.confirmFixedSchedule(dto)
@@ -103,6 +139,7 @@ export class BookingsController {
   // Cùng luồng create nhưng FE dùng endpoint riêng
   // ─────────────────────────────────────────────────────
   @Public()
+  @Throttle({ default: { ttl: 60000, limit: 10 } })  // 10 req / 60s — chống spam lock slot
   @Post('hold')
   async createHold(@Body() dto: CreateBookingDto) {
     const booking = await this.bookingsService.create(dto);
@@ -236,8 +273,12 @@ export class BookingsController {
   // PATCH /api/bookings/:id/cancel
   // ─────────────────────────────────────────────────────
   @Patch(':id/cancel')
-  async cancel(@Param('id') id: string, @CurrentUser() user: any) {
-    const result = await this.bookingsService.cancelForUser(id, user)
+  async cancel(
+    @Param('id') id: string,
+    @Body() dto: CancelBookingDto,
+    @CurrentUser() user: any,
+  ) {
+    const result = await this.bookingsService.cancelForUser(id, user, dto)
     return { success: true, data: mapBooking(extractBooking(result)) }
   }
 

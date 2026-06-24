@@ -11,6 +11,7 @@ export class UsersController {
 
   // GET /users?role=admin&search=nguyen&page=1&limit=20
   @Get()
+  @Roles('admin', 'employee')
   findAll(
     @Query('role')   role?: string,
     @Query('search') search?: string,
@@ -27,6 +28,7 @@ export class UsersController {
 
   // GET /users/:id
   @Get(':id')
+  @Roles('admin', 'employee')
   findOne(@Param('id') id: string) {
     return this.usersService.findOne(id)
   }

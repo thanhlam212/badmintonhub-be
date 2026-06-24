@@ -118,6 +118,30 @@ export class ProductsService {
         images: { select: { url: true }, orderBy: { sortOrder: 'asc' } },
       },
     })
+
+    // Tự động khởi tạo bản ghi Inventory ở tất cả các kho hiện có với số lượng bằng 0
+    const warehouses = await this.prisma.warehouse.findMany({
+      select: { id: true }
+    })
+    if (warehouses.length > 0) {
+      await this.prisma.inventory.createMany({
+        data: warehouses.map(w => ({
+          sku: product.sku,
+          productId: product.id,
+          warehouseId: w.id,
+          name: product.name,
+          category: product.category,
+          onHand: 0,
+          reserved: 0,
+          available: 0,
+          reorderPoint: 5,
+          unitCost: product.price, // Dùng giá bán tạm thời làm giá vốn ban đầu
+          image: product.image ?? '',
+        })),
+        skipDuplicates: true,
+      })
+    }
+
     return this.transform(product)
   }
 
@@ -143,6 +167,17 @@ export class ProductsService {
         images: { select: { url: true }, orderBy: { sortOrder: 'asc' } },
       },
     })
+
+    // Đồng bộ thông tin được phi chuẩn hóa sang bảng Inventory
+    await this.prisma.inventory.updateMany({
+      where: { sku: product.sku },
+      data: {
+        name: product.name,
+        category: product.category,
+        image: product.image ?? '',
+      }
+    })
+
     return this.transform(product)
   }
 

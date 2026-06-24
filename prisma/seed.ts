@@ -1,7 +1,13 @@
 // prisma/seed.ts
 // Chạy: npx prisma db seed
 
-import { PrismaClient } from '@prisma/client'
+import {
+  CommunityDistrict,
+  CommunityLevel,
+  CommunityNotificationKind,
+  CommunityPostKind,
+  PrismaClient,
+} from '@prisma/client'
 import * as bcrypt from 'bcrypt'
 type Gender = 'nam' | 'nu'
 
@@ -642,7 +648,6 @@ async function main() {
     }
   }
   console.log(`✅ Tồn kho: ${skuList.length} sản phẩm × ${Object.keys(warehouseStock).length} kho = ${skuList.length * Object.keys(warehouseStock).length} bản ghi`)
-
   console.log('\n🎉 Seed hoàn tất!')
   console.log('─────────────────────────────────')
   console.log('📍 Chi nhánh: 3')

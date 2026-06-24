@@ -41,7 +41,8 @@
       "Bash(git -C \"D:/project/BADMINTONHUB\" status)",
       "Bash(curl -s http://localhost:3001/api/auth/me -H \"Authorization: Bearer test\")",
       "Bash(curl -s http://localhost:3000)",
-      "Bash(mkdir -p \"D:/project/BADMINTONHUB/.claude\")"
+      "Bash(mkdir -p \"D:/project/BADMINTONHUB/.claude\")",
+      "Bash(node -e ' *)"
     ]
   }
 }

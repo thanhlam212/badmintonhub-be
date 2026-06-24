@@ -1,4 +1,5 @@
-import { Controller, Post, Get, Body, Query, Param, Req, HttpCode } from '@nestjs/common'
+import { Controller, Post, Get, Body, Query, Param, Req, HttpCode, Headers } from '@nestjs/common'
+import { Throttle } from '@nestjs/throttler'
 import { PaymentService } from './payment.service'
 import { CreatePaymentDto } from './dto/payment.dto'
 import { Public, CurrentUser } from '../auth/decorators/index'
@@ -7,7 +8,7 @@ import { Public, CurrentUser } from '../auth/decorators/index'
 export class PaymentController {
   constructor(private readonly paymentService: PaymentService) {}
 
-  // POST /api/payment/create — Tạo link thanh toán (VNPay hoặc MoMo)
+  @Throttle({ default: { ttl: 60000, limit: 10 } })  // 10 req / 60s — chống spam tạo thanh toán
   @Post('create')
   create(@Body() dto: CreatePaymentDto, @Req() req: any) {
     const ip = req.ip || req.headers['x-forwarded-for'] || '127.0.0.1'
@@ -39,6 +40,14 @@ export class PaymentController {
   }
 
   // GET /api/payment/:id — Lấy trạng thái thanh toán (có kiểm tra ownership)
+  @Public()
+  @Throttle({ default: { ttl: 60000, limit: 30 } })  // 30 req / 60s — webhook cần rộng hơn vì SePay gọi liên tục
+  @Post('sepay/ipn')
+  @HttpCode(200)
+  sepayIpn(@Body() body: Record<string, any>, @Headers() headers: Record<string, any>) {
+    return this.paymentService.handleSepayIpn(body, headers)
+  }
+
   @Get(':id')
   getStatus(@Param('id') id: string, @CurrentUser() user: any) {
     return this.paymentService.getPaymentStatus(id, user)

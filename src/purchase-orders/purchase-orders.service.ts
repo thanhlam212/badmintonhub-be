@@ -108,8 +108,11 @@ export class PurchaseOrdersService {
   }
 
   // ─── PATCH /purchase-orders/:id/status ────────────────────
-  async updateStatus(id: string, dto: UpdatePOStatusDto) {
-    const po = await this.prisma.purchaseOrder.findUnique({ where: { id } })
+  async updateStatus(id: string, dto: UpdatePOStatusDto, user?: any) {
+    const po = await this.prisma.purchaseOrder.findUnique({
+      where: { id },
+      include: { items: true, warehouse: true },
+    })
     if (!po) throw new NotFoundException('Không tìm thấy đơn đặt hàng')
 
     const allowed = PO_TRANSITIONS[po.status] ?? []
@@ -120,6 +123,69 @@ export class PurchaseOrdersService {
       )
     }
 
+    // ── Nhận hàng: nhập vào tồn kho ───────────────────────────
+    if (dto.status === 'received') {
+      await this.prisma.$transaction(async (tx) => {
+        const now     = new Date()
+        const shortId = id.slice(0, 8).toUpperCase()
+        const statusUpdate = await tx.purchaseOrder.updateMany({
+          where: { id, status: 'shipping' },
+          data:  { status: 'received' },
+        })
+        if (statusUpdate.count === 0) {
+          throw new BadRequestException('PO da duoc nhan hoac khong con o trang thai van chuyen')
+        }
+
+        for (const item of po.items) {
+          // Tra cứu thông tin sản phẩm để lấy category và productId
+          const product = await tx.product.findFirst({
+            where: { sku: item.sku },
+            select: { id: true, category: true, image: true },
+          })
+
+          // Upsert inventory: tạo mới nếu SKU chưa có trong kho
+          await tx.inventory.upsert({
+            where: { sku_warehouseId: { sku: item.sku, warehouseId: po.warehouseId } },
+            create: {
+              sku:         item.sku,
+              warehouseId: po.warehouseId,
+              productId:   product?.id   ?? null,
+              name:        item.name,
+              category:    product?.category ?? 'Khác',
+              onHand:      item.qty,
+              available:   item.qty,
+              unitCost:    item.unitCost,
+              image:       product?.image ?? null,
+            },
+            update: {
+              onHand:    { increment: item.qty },
+              available: { increment: item.qty },
+              unitCost:  item.unitCost, // cập nhật giá nhập mới nhất
+            },
+          })
+
+          // Tạo phiếu giao dịch nhập kho
+          await tx.inventoryTransaction.create({
+            data: {
+              type:        'import',
+              date:        now,
+              sku:         item.sku,
+              warehouseId: po.warehouseId,
+              qty:         item.qty,
+              cost:        Number(item.unitCost),
+              note:        `Nhập theo PO [${shortId}] từ NCC`,
+              operatorId:  user.id,
+            },
+          })
+
+          await this.prisma.syncProductInStock(tx, item.sku)
+        }
+      })
+
+      return { success: true, message: 'Đã nhận hàng và cập nhật tồn kho thành công' }
+    }
+
+    // ── Các trạng thái khác ────────────────────────────────────
     await this.prisma.purchaseOrder.update({
       where: { id },
       data:  { status: dto.status as any },

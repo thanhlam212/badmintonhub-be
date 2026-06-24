@@ -224,14 +224,19 @@ export class UpdateServicesDto {
   paid_at?: string | null;
 }
 
+export class CancelBookingDto {
+  @IsString()
+  @IsOptional()
+  reason?: string;
+}
+
 // ═══════════════════════════════════════════════════════════════
 // SECTION 3: FIXED SCHEDULE - PREVIEW
 // ═══════════════════════════════════════════════════════════════
 
 /**
- * Bước 1: Khách điền form đặt lịch cố định.
- * KHÔNG cần thông tin khách ở bước này → chỉ check conflict + tính giá.
- * Thông tin khách sẽ điền ở bước Confirm.
+ * Một buổi trong tuần: thứ mấy + giờ bắt đầu/kết thúc.
+ * dayOfWeek: 0=CN, 1=T2, 2=T3, 3=T4, 4=T5, 5=T6, 6=T7
  */
 export class FixedScheduleRuleDto {
   @IsInt()
@@ -306,6 +311,30 @@ export class FixedSchedulePreviewDto {
   })
   @IsOptional()
   timeEnd?: string;
+}
+
+/**
+ * Bước 1: Khách chọn sân, ngày bắt đầu, số tuần và các buổi trong tuần.
+ * KHÔNG cần thông tin khách ở bước này → chỉ check conflict + tính giá.
+ */
+export class FixedSchedulePreviewDto {
+  @IsInt({ message: 'ID sân phải là số nguyên' })
+  @Min(1, { message: 'ID sân không hợp lệ' })
+  courtId: number;
+
+  @IsDateString({}, { message: 'Ngày bắt đầu phải đúng định dạng YYYY-MM-DD' })
+  startDate: string;
+
+  @IsInt({ message: 'Số tuần phải là số nguyên' })
+  @Min(4, { message: 'Tối thiểu 4 tuần' })
+  @Max(52, { message: 'Tối đa 52 tuần' })
+  numberOfWeeks: number;
+
+  @IsArray({ message: 'weeklySlots phải là mảng' })
+  @ArrayMinSize(1, { message: 'Phải chọn ít nhất 1 buổi trong tuần' })
+  @ValidateNested({ each: true })
+  @Type(() => WeeklySlotDto)
+  weeklySlots: WeeklySlotDto[];
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -449,7 +478,7 @@ export class FixedScheduleConfirmDto {
   @Min(0)
   @Max(5)
   @IsOptional()
-  adjustmentLimit?: number; // Mặc định: 2 (monthly) / 1 (weekly)
+  adjustmentLimit?: number;
 }
 
 // ═══════════════════════════════════════════════════════════════

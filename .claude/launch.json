@@ -7,6 +7,13 @@
       "runtimeArgs": ["--prefix", "D:/project/BADMINTONHUB", "run", "dev"],
       "port": 3000,
       "autoPort": false
+    },
+    {
+      "name": "docs",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["-y", "serve", "docs", "-l", "4599"],
+      "port": 4599,
+      "autoPort": false
     }
   ]
 }

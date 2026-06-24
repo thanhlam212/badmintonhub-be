@@ -3,7 +3,9 @@ import { NotFoundException, BadRequestException } from '@nestjs/common'
 import { PaymentService } from './payment.service'
 import { VnpayProvider } from './vnpay.provider'
 import { MomoProvider } from './momo.provider'
+import { SepayProvider } from './sepay.provider'
 import { PrismaService } from '../prisma/prisma.service'
+import { EmailService } from '../email/email.service'
 
 // ─── Mock factories ──────────────────────────────────────────
 
@@ -53,9 +55,19 @@ function makePrismaMock() {
       findFirst:  jest.fn(),
       findUnique: jest.fn(),
       update:     jest.fn(),
+      updateMany: jest.fn(),
     },
     order:          { update: jest.fn() },
-    booking:        { update: jest.fn() },
+    booking: {
+      findMany:   jest.fn().mockResolvedValue([]),
+      update:     jest.fn(),
+      updateMany: jest.fn(),
+    },
+    courtSlot: {
+      findMany:   jest.fn().mockResolvedValue([]),
+      deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+      updateMany: jest.fn(),
+    },
     fixedSchedule:  { update: jest.fn() },
     $transaction: jest.fn(),
   }
@@ -69,11 +81,28 @@ function makePrismaMock() {
 const mockVnpay = {
   createPaymentUrl: jest.fn(),
   verifyReturn:     jest.fn(),
+  isConfigured:     jest.fn().mockReturnValue(true),
 }
 
 const mockMomo = {
   createPaymentUrl: jest.fn(),
   verifyIpn:        jest.fn(),
+  isConfigured:     jest.fn().mockReturnValue(true),
+}
+
+const mockSepay = {
+  createCheckoutForm:    jest.fn(),
+  createQrPayment:       jest.fn(),
+  verifyIpnSecret:       jest.fn(),
+  isPaidIpn:             jest.fn(),
+  extractInvoiceNumber:  jest.fn(),
+  extractPaidAmount:     jest.fn(),
+  isQrConfigured:        jest.fn().mockReturnValue(true),
+  isCheckoutConfigured:  jest.fn().mockReturnValue(true),
+}
+
+const mockEmail = {
+  sendBookingConfirmed: jest.fn().mockResolvedValue({}),
 }
 
 // ─── Tests ───────────────────────────────────────────────────
@@ -90,8 +119,10 @@ describe('PaymentService', () => {
       providers: [
         PaymentService,
         { provide: PrismaService,  useValue: prisma },
+        { provide: EmailService,   useValue: mockEmail },
         { provide: VnpayProvider,  useValue: mockVnpay },
         { provide: MomoProvider,   useValue: mockMomo },
+        { provide: SepayProvider,  useValue: mockSepay },
       ],
     }).compile()
 
@@ -132,6 +163,28 @@ describe('PaymentService', () => {
       expect(result.payUrl).toContain('momo.vn')
     })
 
+    it('should create a SePay payment and return QR metadata', async () => {
+      prisma.invoice.findUnique.mockResolvedValue(makeInvoice({ code: 'BK-20260602-1234' }))
+      prisma.payment.findFirst.mockResolvedValue(null)
+      prisma.payment.create.mockResolvedValue(makePayment({ method: 'sepay' }))
+      mockSepay.createQrPayment.mockReturnValue({
+        qrImageUrl: 'https://qr.sepay.vn/img?acc=123',
+        bankCode: 'VCB',
+        accountNumber: '123',
+        transferContent: 'BK-20260602-1234',
+      })
+      mockSepay.createCheckoutForm.mockReturnValue({
+        checkoutUrl: 'https://pay-sandbox.sepay.vn/v1/checkout/init',
+        fields: { signature: 'sig' },
+      })
+
+      const result = await service.createPayment({ invoiceId: 'inv-uuid-001', method: 'sepay' }, ip)
+
+      expect(result.method).toBe('sepay')
+      expect(result.qrImageUrl).toContain('qr.sepay.vn')
+      expect(result.transferContent).toBe('BK-20260602-1234')
+    })
+
     it('should throw NotFoundException when invoice does not exist', async () => {
       prisma.invoice.findUnique.mockResolvedValue(null)
 
@@ -160,20 +213,34 @@ describe('PaymentService', () => {
       ).rejects.toThrow(BadRequestException)
     })
 
-    it('should reuse transactionRef if there is an existing pending payment', async () => {
+    it('should cancel existing pending payment and create a new payment with a new transactionRef', async () => {
       const existing = makePayment({ transactionRef: 'EXISTING-REF-123' })
       prisma.invoice.findUnique.mockResolvedValue(makeInvoice())
       prisma.payment.findFirst.mockResolvedValue(existing)
-      prisma.payment.create.mockResolvedValue(makePayment({ transactionRef: 'EXISTING-REF-123' }))
+      prisma.payment.updateMany.mockResolvedValue({ count: 1 })
+      prisma.payment.create.mockResolvedValue(makePayment({ transactionRef: 'NEW-REF-999' }))
       mockVnpay.createPaymentUrl.mockReturnValue('https://sandbox.vnpay.vn/pay')
 
       await service.createPayment(dto, ip)
 
+      // Verify that existing pending payments are updated to failed
+      expect(prisma.payment.updateMany).toHaveBeenCalledWith({
+        where: { invoiceId: dto.invoiceId, status: 'pending' },
+        data: { status: 'failed' },
+      })
+
+      // Verify that prisma.payment.create is called without reusing the old transactionRef
       expect(prisma.payment.create).toHaveBeenCalledWith(
         expect.objectContaining({
-          data: expect.objectContaining({ transactionRef: 'EXISTING-REF-123' }),
+          data: expect.objectContaining({
+            invoiceId: 'inv-uuid-001',
+            method: 'vnpay',
+          }),
         })
       )
+      
+      const createCall = prisma.payment.create.mock.calls[0][0];
+      expect(createCall.data.transactionRef).not.toBe('EXISTING-REF-123')
     })
   })
 
@@ -307,6 +374,173 @@ describe('PaymentService', () => {
     })
   })
 
+  describe('handleSepayIpn', () => {
+    it('should confirm a booking payment from an incoming SePay transfer', async () => {
+      const invoice = makeInvoice({ code: 'BK-20260602-1234', bookingId: 'book-001', orderId: null })
+      const payment = makePayment({ method: 'sepay', amount: 200000, invoice })
+      mockSepay.verifyIpnSecret.mockReturnValue(true)
+      mockSepay.isPaidIpn.mockReturnValue(true)
+      mockSepay.extractInvoiceNumber.mockReturnValue('BK-20260602-1234')
+      mockSepay.extractPaidAmount.mockReturnValue(200000)
+      prisma.invoice.findUnique.mockResolvedValue(invoice)
+      // First findFirst (pending) returns the payment
+      prisma.payment.findFirst.mockResolvedValueOnce(payment)
+      prisma.payment.findUnique.mockResolvedValue(payment)
+      prisma.payment.update.mockResolvedValue({})
+      prisma.invoice.update.mockResolvedValue({})
+      prisma.booking.update.mockResolvedValue({})
+      prisma.courtSlot.updateMany.mockResolvedValue({})
+
+      const result = await service.handleSepayIpn(
+        { code: 'BK-20260602-1234', transferType: 'in', transferAmount: 200000 },
+        { Authorization: 'Apikey secret' },
+      )
+
+      expect(result.success).toBe(true)
+      expect(prisma.invoice.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: { status: 'paid' } }),
+      )
+      expect(prisma.courtSlot.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({ data: { status: 'booked' } }),
+      )
+    })
+
+    it('should acknowledge unrelated SePay transfers without updating payment', async () => {
+      mockSepay.verifyIpnSecret.mockReturnValue(true)
+      mockSepay.isPaidIpn.mockReturnValue(true)
+      mockSepay.extractInvoiceNumber.mockReturnValue('')
+
+      const result = await service.handleSepayIpn({ content: 'random transfer' }, {})
+
+      expect(result.success).toBe(true)
+      expect(prisma.payment.update).not.toHaveBeenCalled()
+    })
+
+    it('should mark payment as failed when paid amount is less than expected (underpay)', async () => {
+      const invoice = makeInvoice({ code: 'BK-20260602-5555', bookingId: 'book-002', orderId: null })
+      const payment = makePayment({ method: 'sepay', amount: 200000, invoice })
+      mockSepay.verifyIpnSecret.mockReturnValue(true)
+      mockSepay.isPaidIpn.mockReturnValue(true)
+      mockSepay.extractInvoiceNumber.mockReturnValue('BK-20260602-5555')
+      mockSepay.extractPaidAmount.mockReturnValue(100000) // Only paid half
+      prisma.invoice.findUnique.mockResolvedValue(invoice)
+      prisma.payment.findFirst.mockResolvedValueOnce(payment)
+      prisma.payment.findUnique.mockResolvedValue(payment)
+      prisma.payment.update.mockResolvedValue({})
+
+      const result = await service.handleSepayIpn(
+        { code: 'BK-20260602-5555', transferType: 'in', transferAmount: 100000 },
+        { Authorization: 'Apikey secret' },
+      )
+
+      expect(result.success).toBe(true)
+      // Payment should be marked failed, NOT success
+      expect(prisma.payment.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ status: 'failed' }) }),
+      )
+      // Booking should NOT be confirmed
+      expect(prisma.booking.update).not.toHaveBeenCalled()
+    })
+
+    it('should return early when payment is already confirmed (idempotent)', async () => {
+      const invoice = makeInvoice({ code: 'BK-20260602-9999' })
+      mockSepay.verifyIpnSecret.mockReturnValue(true)
+      mockSepay.isPaidIpn.mockReturnValue(true)
+      mockSepay.extractInvoiceNumber.mockReturnValue('BK-20260602-9999')
+      prisma.invoice.findUnique.mockResolvedValue(invoice)
+      // No pending payment found
+      prisma.payment.findFirst
+        .mockResolvedValueOnce(null) // pending query
+        .mockResolvedValueOnce(makePayment({ status: 'success' })) // success query
+
+      const result = await service.handleSepayIpn(
+        { code: 'BK-20260602-9999', transferType: 'in', transferAmount: 200000 },
+        { Authorization: 'Apikey secret' },
+      )
+
+      expect(result.success).toBe(true)
+      // Should NOT update anything — already confirmed
+      expect(prisma.payment.update).not.toHaveBeenCalled()
+    })
+
+    it('should auto-create a payment when no pending payment exists', async () => {
+      const invoice = makeInvoice({ code: 'BK-20260602-7777', bookingId: 'book-003', orderId: null })
+      const newPayment = makePayment({ method: 'sepay', amount: 200000, invoice })
+      mockSepay.verifyIpnSecret.mockReturnValue(true)
+      mockSepay.isPaidIpn.mockReturnValue(true)
+      mockSepay.extractInvoiceNumber.mockReturnValue('BK-20260602-7777')
+      mockSepay.extractPaidAmount.mockReturnValue(200000)
+      prisma.invoice.findUnique.mockResolvedValue(invoice)
+      // No pending, no success → must create
+      prisma.payment.findFirst
+        .mockResolvedValueOnce(null)  // pending query
+        .mockResolvedValueOnce(null)  // success query
+      prisma.payment.create.mockResolvedValue(newPayment)
+      prisma.payment.findUnique.mockResolvedValue(newPayment)
+      prisma.payment.update.mockResolvedValue({})
+      prisma.invoice.update.mockResolvedValue({})
+      prisma.booking.update.mockResolvedValue({})
+      prisma.courtSlot.updateMany.mockResolvedValue({})
+
+      const result = await service.handleSepayIpn(
+        { code: 'BK-20260602-7777', transferType: 'in', transferAmount: 200000 },
+        { Authorization: 'Apikey secret' },
+      )
+
+      expect(result.success).toBe(true)
+      expect(prisma.payment.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ method: 'sepay', status: 'pending' }),
+        }),
+      )
+    })
+
+    it('should reject unauthorized IPN requests', async () => {
+      mockSepay.verifyIpnSecret.mockReturnValue(false)
+
+      const result = await service.handleSepayIpn(
+        { transferType: 'in', transferAmount: 200000 },
+        { Authorization: 'Apikey bad-key' },
+      )
+
+      expect(result.success).toBe(false)
+      expect(result.message).toBe('Unauthorized')
+      expect(prisma.payment.update).not.toHaveBeenCalled()
+    })
+
+    it('should confirm fixed schedule payment when invoice has fixedScheduleId', async () => {
+      const invoice = makeInvoice({
+        code: 'FS-20260602-8888',
+        bookingId: null,
+        orderId: null,
+        fixedScheduleId: 'fs-001',
+      })
+      const payment = makePayment({ method: 'sepay', amount: 500000, invoice })
+      mockSepay.verifyIpnSecret.mockReturnValue(true)
+      mockSepay.isPaidIpn.mockReturnValue(true)
+      mockSepay.extractInvoiceNumber.mockReturnValue('FS-20260602-8888')
+      mockSepay.extractPaidAmount.mockReturnValue(500000)
+      prisma.invoice.findUnique.mockResolvedValue(invoice)
+      prisma.payment.findFirst.mockResolvedValueOnce(payment)
+      prisma.payment.findUnique.mockResolvedValue(payment)
+      prisma.payment.update.mockResolvedValue({})
+      prisma.invoice.update.mockResolvedValue({})
+      prisma.fixedSchedule.update.mockResolvedValue({})
+      prisma.booking.updateMany.mockResolvedValue({})
+      prisma.courtSlot.updateMany.mockResolvedValue({})
+
+      const result = await service.handleSepayIpn(
+        { code: 'FS-20260602-8888', transferType: 'in', transferAmount: 500000 },
+        { Authorization: 'Apikey secret' },
+      )
+
+      expect(result.success).toBe(true)
+      expect(prisma.fixedSchedule.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: { status: 'confirmed' } }),
+      )
+    })
+  })
+
   // ─── getPaymentStatus ──────────────────────────────────────
   describe('getPaymentStatus', () => {
     const adminUser = { id: 'admin-001', role: 'admin' }
@@ -383,7 +617,8 @@ describe('PaymentService', () => {
       prisma.payment.findUnique.mockResolvedValue(fullPayment)
       prisma.payment.update.mockResolvedValue({})
       prisma.invoice.update.mockResolvedValue({})
-      prisma.booking = { update: jest.fn().mockResolvedValue({}) } as any
+      prisma.booking = { update: jest.fn().mockResolvedValue({}), updateMany: jest.fn() } as any
+      prisma.courtSlot = { updateMany: jest.fn().mockResolvedValue({}) } as any
 
       await service.handleVnpayIpn({ vnp_TxnRef: 'TXN-BK' })
 
