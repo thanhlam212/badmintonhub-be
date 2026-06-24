@@ -221,24 +221,22 @@ export class BookingsService {
           this.prisma, c.id, dateObj, hours,
         );
         return {
-          id: c.id,
-          name: c.name,
-          type: c.type,
-          price: Number(c.price),
-          available: slotConflicts.length === 0,
-          isSelected: c.id === courtId,
+          id:         c.id,
+          name:       c.name,
+          type:       c.type,
+          price:      Number(c.price),
+          available:  slotConflicts.length === 0,
+          isOriginal: c.id === courtId, // FIX: đổi isSelected → isOriginal để khớp CheckSlotCourtResult type
         };
       }),
     );
 
     return {
-      courtId,
-      date: formatDate(dateObj),
+      date:         formatDate(dateObj),
       timeStart,
       timeEnd,
-      available: conflicts.length === 0,
-      conflicts,
-      courts: courtsWithAvailability, // FE dùng để render danh sách sân
+      courts:       courtsWithAvailability,
+      hasAvailable: courtsWithAvailability.some((c) => c.available), // FIX: thêm shortcut
     };
   }
 

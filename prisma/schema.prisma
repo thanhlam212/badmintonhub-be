@@ -215,6 +215,9 @@ model FixedSchedule {
   userId                String?                   @map("user_id") @db.Uuid
   courtId               Int                       @map("court_id")
   cycle                 FixedScheduleCycle
+  bookingMode           String                    @default("date_range") @map("booking_mode") @db.VarChar(30)
+  requestedOccurrenceCount Int?                   @map("requested_occurrence_count")
+  rules                 Json?
   startDate             DateTime                  @map("start_date") @db.Date
   endDate               DateTime                  @map("end_date") @db.Date
   timeStart             String                    @map("time_start") @db.VarChar(5)

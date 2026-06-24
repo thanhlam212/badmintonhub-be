@@ -83,6 +83,7 @@ async function main() {
       available: true,
       description: 'Sân tiêu chuẩn, phù hợp cho mọi trình độ. Sàn gỗ cao cấp, đèn LED đầy đủ ánh sáng.',
       hours: '06:00 - 22:00',
+      image: 'https://images.unsplash.com/photo-1626224583764-f87db24ac4ea?w=800&q=80',
     },
   })
 
@@ -111,6 +112,7 @@ async function main() {
       available: true,
       description: 'Sân Premium với sàn PU chuyên nghiệp, hệ thống đèn LED cao cấp và điều hòa 2 chiều.',
       hours: '06:00 - 22:00',
+      image: 'https://images.unsplash.com/photo-1599474924187-334a4ae5bd3c?w=800&q=80',
     },
   })
 
@@ -141,6 +143,7 @@ async function main() {
       available: true,
       description: 'Sân VIP đẳng cấp với sàn gỗ nhập khẩu, phòng chờ riêng và dịch vụ khăn lạnh.',
       hours: '06:00 - 22:00',
+      image: 'https://images.unsplash.com/photo-1613918431703-aa50889e3be7?w=800&q=80',
     },
   })
 
@@ -173,6 +176,7 @@ async function main() {
       available: true,
       description: 'Sân tiêu chuẩn thoáng mát, vị trí thuận tiện tại Thanh Xuân.',
       hours: '05:30 - 22:00',
+      image: 'https://images.unsplash.com/photo-1574629810360-7efbbe195018?w=800&q=80',
     },
   })
 
@@ -200,6 +204,7 @@ async function main() {
       available: true,
       description: 'Sân ngoài trời Premium với mái che chống nắng, phù hợp buổi sáng và chiều mát.',
       hours: '05:30 - 21:00',
+      image: 'https://images.unsplash.com/photo-1544117519-31a4b719223d?w=800&q=80',
     },
   })
 
@@ -229,6 +234,7 @@ async function main() {
       available: true,
       description: 'Sân tiêu chuẩn giá tốt tại Long Biên, gần cầu Long Biên.',
       hours: '06:00 - 22:00',
+      image: 'https://images.unsplash.com/photo-1521537634581-0dced2fee2ef?w=800&q=80',
     },
   })
 
@@ -256,6 +262,7 @@ async function main() {
       available: true,
       description: 'Sân Premium mới khai trương, trang thiết bị hiện đại nhất hệ thống.',
       hours: '06:00 - 22:00',
+      image: 'https://images.unsplash.com/photo-1587280501635-68a0e82cd5ff?w=800&q=80',
     },
   })
 
@@ -308,7 +315,21 @@ async function main() {
       isActive: true,
     },
   })
-  console.log('✅ 3 kho hàng')
+
+  await prisma.warehouse.upsert({
+    where: { id: 4 },
+    update: {
+      isHub: true,
+    },
+    create: {
+      id: 4,
+      name: 'Kho Hub',
+      branchId: null,
+      isHub: true,
+      isActive: true,
+    },
+  })
+  console.log('✅ 4 kho hàng')
 
   // ═══════════════════════════════════════════════
   // 3. ADMIN USER — Tài khoản quản trị
@@ -331,19 +352,34 @@ async function main() {
   })
 
   await prisma.user.upsert({
-    where: { username: 'employee1' },
-    update: { warehouseId: 1 },
+    where: { username: 'employeecg' },
+    update: { warehouseId: 2 },
     create: {
-      username: 'employee1',
-      passwordHash: await bcrypt.hash('Employee@123', 10),
+      username: 'employeecg',
+      passwordHash: await bcrypt.hash('Employee@456', 10),
       fullName: 'Nhân viên Cầu Giấy',
-      email: 'nv1@badmintonhub.vn',
-      phone: '0902222222',
+      email: 'nvcg@badmintonhub.vn',
+      phone: '09887766554',
       role: 'employee',
+      warehouseId: 2,
     },
   })
 
-  console.log('✅ Đã tạo tài khoản admin và employee')
+  await prisma.user.upsert({
+    where: { username: 'hub' },
+    update: { warehouseId: 4 },
+    create: {
+      username: 'hub',
+      passwordHash: await bcrypt.hash('Employee@123', 10),
+      fullName: 'Thủ kho HUB',
+      email: 'hub@badmintonhub.vn',
+      phone: '0905555555',
+      role: 'employee',
+      warehouseId: 4,
+    },
+  })
+
+  console.log('✅ Đã tạo tài khoản admin, employee và thủ kho hub')
 
   // ═══════════════════════════════════════════════
   // 4. PRODUCTS — 14 sản phẩm
@@ -359,6 +395,11 @@ async function main() {
       features: ['Tấn công mạnh', 'Khung carbon Nanomesh', 'Trọng lượng 4U (83g)', 'Cân bằng đầu vợt'],
       specs: { 'Trọng lượng': '4U (83g)', 'Độ cứng': 'Cứng', 'Chiều dài': '675mm', 'Chất liệu': 'Carbon + Nanomesh' },
       badges: ['Bán chạy', 'Tấn công'],
+      image: 'https://images.unsplash.com/photo-1626224583764-f87db24ac4ea?w=800&q=80',
+      extraImages: [
+        'https://images.unsplash.com/photo-1593341646782-e0b495cff86d?w=800&q=80',
+        'https://images.unsplash.com/photo-1626224538720-649b38e52e62?w=800&q=80',
+      ],
     },
     {
       sku: 'VOT-YNX-002', name: 'Vợt Yonex Nanoflare 700', brand: 'Yonex', category: 'Vợt cầu lông',
@@ -367,6 +408,10 @@ async function main() {
       features: ['Tốc độ cao', 'Linh hoạt', 'Trọng lượng 5U (78g)', 'Cân bằng tay cầm'],
       specs: { 'Trọng lượng': '5U (78g)', 'Độ cứng': 'Trung bình', 'Chiều dài': '675mm' },
       badges: ['Tốc độ'],
+      image: 'https://images.unsplash.com/photo-1599474924187-334a4ae5bd3c?w=800&q=80',
+      extraImages: [
+        'https://images.unsplash.com/photo-1626224583764-f87db24ac4ea?w=800&q=80',
+      ],
     },
     {
       sku: 'VOT-LIN-001', name: 'Vợt Li-Ning Axforce 80', brand: 'Li-Ning', category: 'Vợt cầu lông',
@@ -375,6 +420,8 @@ async function main() {
       features: ['Toàn diện', 'Độ bền cao', 'Dễ kiểm soát'],
       specs: { 'Trọng lượng': '4U (83g)', 'Độ cứng': 'Trung bình' },
       badges: ['Toàn diện'],
+      image: 'https://images.unsplash.com/photo-1613918431703-aa50889e3be7?w=800&q=80',
+      extraImages: [],
     },
     {
       sku: 'VOT-VIC-001', name: 'Vợt Victor Thruster K 9000', brand: 'Victor', category: 'Vợt cầu lông',
@@ -383,6 +430,8 @@ async function main() {
       features: ['Chuyên nghiệp', 'Tấn công mạnh', 'Carbon nano'],
       specs: { 'Trọng lượng': '4U (83g)', 'Độ cứng': 'Cứng' },
       badges: ['Chuyên nghiệp'],
+      image: 'https://images.unsplash.com/photo-1574629810360-7efbbe195018?w=800&q=80',
+      extraImages: [],
     },
     // ── Cầu lông ──────────────────────────────
     {
@@ -392,6 +441,8 @@ async function main() {
       features: ['Lông nhựa bền', 'Bay ổn định', 'Phù hợp trong nhà', 'Hộp 6 quả'],
       specs: { 'Loại': 'Nhựa', 'Số lượng': '6 quả/hộp', 'Tốc độ': 'Trung bình' },
       badges: ['Bán chạy'],
+      image: 'https://images.unsplash.com/photo-1521537634581-0dced2fee2ef?w=800&q=80',
+      extraImages: [],
     },
     {
       sku: 'CAU-YNX-002', name: 'Cầu lông lông vũ Yonex AS-50', brand: 'Yonex', category: 'Cầu lông',
@@ -400,6 +451,8 @@ async function main() {
       features: ['Lông vũ tự nhiên', 'Thi đấu chuyên nghiệp', 'Hộp 12 quả', 'Bay chuẩn xác'],
       specs: { 'Loại': 'Lông vũ', 'Số lượng': '12 quả/hộp', 'Tốc độ': 'Cao' },
       badges: ['Cao cấp', 'Thi đấu'],
+      image: 'https://images.unsplash.com/photo-1544117519-31a4b719223d?w=800&q=80',
+      extraImages: [],
     },
     // ── Giày cầu lông ─────────────────────────
     {
@@ -409,6 +462,10 @@ async function main() {
       features: ['Đế cao su bám sân', 'Đệm khí giảm chấn', 'Thoáng khí', 'Nhẹ'],
       specs: { 'Đế': 'Cao su', 'Trọng lượng': '320g', 'Phù hợp': 'Sân trong nhà' },
       badges: ['Giảm giá'],
+      image: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=800&q=80',
+      extraImages: [
+        'https://images.unsplash.com/photo-1608231387042-66d1773070a5?w=800&q=80',
+      ],
     },
     {
       sku: 'GIY-YNX-001', name: 'Giày Yonex Power Cushion 65Z3', brand: 'Yonex', category: 'Giày cầu lông',
@@ -417,6 +474,10 @@ async function main() {
       features: ['Power Cushion 3', 'Đế gốm', 'Ổn định cao', 'Hỗ trợ mắt cá'],
       specs: { 'Đế': 'Gốm/Cao su', 'Công nghệ': 'Power Cushion 3', 'Phù hợp': 'Sân trong nhà' },
       badges: ['Cao cấp'],
+      image: 'https://images.unsplash.com/photo-1587280501635-68a0e82cd5ff?w=800&q=80',
+      extraImages: [
+        'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=800&q=80',
+      ],
     },
     // ── Túi & Balo ────────────────────────────
     {
@@ -426,6 +487,10 @@ async function main() {
       features: ['6 ngăn', 'Chống thấm', 'Ngăn giày riêng', 'Đựng được 6 vợt'],
       specs: { 'Số ngăn': '6', 'Sức chứa': '6 vợt', 'Chất liệu': 'Polyester chống thấm' },
       badges: ['Giảm giá'],
+      image: 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=800&q=80',
+      extraImages: [
+        'https://images.unsplash.com/photo-1622560480654-d96214fdc887?w=800&q=80',
+      ],
     },
     {
       sku: 'BAG-LIN-001', name: 'Balo Li-Ning ABSQ316', brand: 'Li-Ning', category: 'Túi & Balo',
@@ -434,6 +499,8 @@ async function main() {
       features: ['Đựng 2 vợt', 'Ngăn laptop', 'Thoáng khí', 'Đai vai êm'],
       specs: { 'Sức chứa': '2 vợt + đồ dùng', 'Chất liệu': 'Polyester' },
       badges: [],
+      image: 'https://images.unsplash.com/photo-1622560480654-d96214fdc887?w=800&q=80',
+      extraImages: [],
     },
     // ── Dây đan ───────────────────────────────
     {
@@ -443,6 +510,8 @@ async function main() {
       features: ['Độ bền cao', 'Cảm giác tốt', 'Phổ thông', 'Dễ đan'],
       specs: { 'Đường kính': '0.70mm', 'Vật liệu': 'Nylon', 'Độ căng max': '28 lbs' },
       badges: ['Bán chạy', 'Phổ biến nhất'],
+      image: 'https://images.unsplash.com/photo-1593341646782-e0b495cff86d?w=800&q=80',
+      extraImages: [],
     },
     {
       sku: 'DAY-YNX-002', name: 'Dây đan BG80 Yonex', brand: 'Yonex', category: 'Dây đan',
@@ -451,6 +520,8 @@ async function main() {
       features: ['Cảm giác sắc nét', 'Tiếng vang', 'Thi đấu', 'Độ bền tốt'],
       specs: { 'Đường kính': '0.68mm', 'Vật liệu': 'Nylon cao cấp', 'Độ căng max': '30 lbs' },
       badges: ['Thi đấu'],
+      image: 'https://images.unsplash.com/photo-1626224538720-649b38e52e62?w=800&q=80',
+      extraImages: [],
     },
     // ── Quần áo ───────────────────────────────
     {
@@ -460,6 +531,8 @@ async function main() {
       features: ['Cool Dry thoáng khí', 'Co giãn 4 chiều', 'Chống tia UV', 'Nhẹ'],
       specs: { 'Chất liệu': 'Polyester Cool Dry', 'Size': 'S-XL', 'Giới tính': 'Nam' },
       badges: ['Giảm giá'],
+      image: 'https://images.unsplash.com/photo-1571945153237-4929e783af4a?w=800&q=80',
+      extraImages: [],
     },
     {
       sku: 'QAO-LIN-001', name: 'Váy thể thao Li-Ning ASKR394 Nữ', brand: 'Li-Ning', category: 'Quần áo',
@@ -468,22 +541,46 @@ async function main() {
       features: ['Tích hợp quần lót', 'Chất liệu mềm mại', 'Co giãn tốt', 'Năng động'],
       specs: { 'Chất liệu': 'Polyester + Spandex', 'Size': 'XS-L', 'Giới tính': 'Nữ' },
       badges: [],
+      image: 'https://images.unsplash.com/photo-1539794830467-1f1755804d13?w=800&q=80',
+      extraImages: [],
     },
   ]
 
   for (const p of products) {
-  const { badges, features, specs, gender, ...productData } = p  // ← tách gender ra riêng
-  const product = await prisma.product.upsert({
-    where: { sku: p.sku },
-    update: {},
-    create: {
-      ...productData,
-      features: features as any,
-      specs: specs as any,
-      inStock: true,
-      gender: gender as Gender ?? null,  // ← cast riêng
-    },
-   })
+    const { badges, features, specs, gender, image, extraImages, ...productData } = p
+    const product = await prisma.product.upsert({
+      where: { sku: p.sku },
+      update: {},
+      create: {
+        ...productData,
+        features: features as any,
+        specs: specs as any,
+        inStock: true,
+        gender: gender as Gender ?? null,
+        image: image ?? null,
+      },
+    })
+
+    // Tạo ProductBadge
+    if (badges.length > 0) {
+      await prisma.productBadge.createMany({
+        data: badges.map((badge) => ({ productId: product.id, badge })),
+        skipDuplicates: true,
+      })
+    }
+
+    // Tạo ProductImage (ảnh chính + ảnh phụ)
+    const allImages = [image, ...(extraImages ?? [])].filter(Boolean) as string[]
+    if (allImages.length > 0) {
+      await prisma.productImage.createMany({
+        data: allImages.map((url, idx) => ({
+          productId: product.id,
+          url,
+          sortOrder: idx,
+        })),
+        skipDuplicates: true,
+      })
+    }
   }
 
   console.log(`✅ Đã tạo ${products.length} sản phẩm`)
@@ -513,6 +610,7 @@ async function main() {
     1: { onHand: 50, reorderPoint: 10 }, // Kho Cầu Giấy
     2: { onHand: 30, reorderPoint: 8  }, // Kho Thanh Xuân
     3: { onHand: 20, reorderPoint: 5  }, // Kho Long Biên
+    4: { onHand: 150, reorderPoint: 15 }, // Kho Hub
   }
 
   for (const item of skuList) {
@@ -543,7 +641,7 @@ async function main() {
       `
     }
   }
-  console.log(`✅ Tồn kho: ${skuList.length} sản phẩm × 3 kho = ${skuList.length * 3} bản ghi`)
+  console.log(`✅ Tồn kho: ${skuList.length} sản phẩm × ${Object.keys(warehouseStock).length} kho = ${skuList.length * Object.keys(warehouseStock).length} bản ghi`)
 
   console.log('\n🎉 Seed hoàn tất!')
   console.log('─────────────────────────────────')
@@ -552,6 +650,7 @@ async function main() {
   console.log(`📦 Sản phẩm: ${products.length}`)
   console.log('👤 Admin: admin / Admin@123')
   console.log('👤 Employee: employee1 / Employee@123')
+  console.log('👤 Thủ kho HUB: hub / Employee@123')
   console.log('─────────────────────────────────')
 
   // SUPPLIERS

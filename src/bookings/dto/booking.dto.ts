@@ -24,6 +24,11 @@ export enum FixedScheduleCycle {
   MONTHLY = 'monthly',
 }
 
+export enum FixedScheduleBookingMode {
+  OCCURRENCE_COUNT = 'occurrence_count',
+  DATE_RANGE = 'date_range',
+}
+
 export enum PaymentMethod {
   CASH = 'cash',
   BANK_TRANSFER = 'bank_transfer',
@@ -228,6 +233,32 @@ export class UpdateServicesDto {
  * KHÔNG cần thông tin khách ở bước này → chỉ check conflict + tính giá.
  * Thông tin khách sẽ điền ở bước Confirm.
  */
+export class FixedScheduleRuleDto {
+  @IsInt()
+  @Min(0)
+  @Max(6)
+  @IsOptional()
+  dayOfWeek?: number;
+
+  @IsInt()
+  @Min(1)
+  @Max(31)
+  @IsOptional()
+  dayOfMonth?: number;
+
+  @IsString()
+  @Matches(/^([0-1]?[0-9]|2[0-3]):00$/, {
+    message: 'Giờ bắt đầu phải là giờ tròn, định dạng HH:00',
+  })
+  timeStart: string;
+
+  @IsString()
+  @Matches(/^([0-1]?[0-9]|2[0-3]):00$/, {
+    message: 'Giờ kết thúc phải là giờ tròn, định dạng HH:00',
+  })
+  timeEnd: string;
+}
+
 export class FixedSchedulePreviewDto {
   @IsInt({ message: 'ID sân phải là số nguyên' })
   @Min(1, { message: 'ID sân không hợp lệ' })
@@ -238,23 +269,43 @@ export class FixedSchedulePreviewDto {
   })
   cycle: FixedScheduleCycle;
 
+  @IsEnum(FixedScheduleBookingMode)
+  @IsOptional()
+  bookingMode?: FixedScheduleBookingMode;
+
   @IsDateString({}, { message: 'Ngày bắt đầu phải đúng định dạng YYYY-MM-DD' })
   startDate: string;
 
   @IsDateString({}, { message: 'Ngày kết thúc phải đúng định dạng YYYY-MM-DD' })
-  endDate: string;
+  @IsOptional()
+  endDate?: string;
+
+  @IsInt()
+  @Min(2)
+  @Max(52)
+  @IsOptional()
+  occurrenceCount?: number;
+
+  @IsArray()
+  @ArrayMinSize(1)
+  @ValidateNested({ each: true })
+  @Type(() => FixedScheduleRuleDto)
+  @IsOptional()
+  rules?: FixedScheduleRuleDto[];
 
   @IsString()
   @Matches(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, {
     message: 'Giờ bắt đầu phải đúng định dạng HH:mm',
   })
-  timeStart: string;
+  @IsOptional()
+  timeStart?: string;
 
   @IsString()
   @Matches(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, {
     message: 'Giờ kết thúc phải đúng định dạng HH:mm',
   })
-  timeEnd: string;
+  @IsOptional()
+  timeEnd?: string;
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -330,19 +381,39 @@ export class FixedScheduleConfirmDto {
   @IsEnum(FixedScheduleCycle)
   cycle: FixedScheduleCycle;
 
+  @IsEnum(FixedScheduleBookingMode)
+  @IsOptional()
+  bookingMode?: FixedScheduleBookingMode;
+
   @IsDateString()
   startDate: string;
 
   @IsDateString()
-  endDate: string;
+  @IsOptional()
+  endDate?: string;
+
+  @IsInt()
+  @Min(2)
+  @Max(52)
+  @IsOptional()
+  occurrenceCount?: number;
+
+  @IsArray()
+  @ArrayMinSize(1)
+  @ValidateNested({ each: true })
+  @Type(() => FixedScheduleRuleDto)
+  @IsOptional()
+  rules?: FixedScheduleRuleDto[];
 
   @IsString()
   @Matches(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/)
-  timeStart: string;
+  @IsOptional()
+  timeStart?: string;
 
   @IsString()
   @Matches(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/)
-  timeEnd: string;
+  @IsOptional()
+  timeEnd?: string;
 
   // ─── Thông tin khách hàng ───
   @IsString()

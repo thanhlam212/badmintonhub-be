@@ -1,12 +1,8 @@
 /**
  * Service xử lý Fixed Schedule (đặt sân cố định).
- *
- * Tách khỏi BookingsService để:
- * - Single Responsibility (mỗi service 1 việc)
- * - Dễ test
- * - bookings.service.ts không phình to khi thêm tính năng
- *
- * Helper functions dùng chung với BookingsService → import từ booking.helpers.ts
+ * CHANGES:
+ * - Thêm checkSlot(): trả về danh sách sân cùng chi nhánh + availability
+ *   theo khung giờ mới user muốn đổi. FE dùng trong modal "Đổi giờ / Chọn sân".
  */
 
 import {
@@ -20,6 +16,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import {
   FixedSchedulePreviewDto,
   FixedScheduleConfirmDto,
+  CheckSlotDto,
   OccurrenceAction,
   PaymentMethod,
 } from './dto/booking.dto';
@@ -28,12 +25,9 @@ import {
   formatDate,
   dayLabel,
   buildHourSlots,
-  generateFixedDates,
-  validateFixedScheduleInput,
+  resolveFixedSchedulePlan,
   invoiceCode,
   checkSlotConflict,
-  ConflictSlot,
-  SuggestedReplacement,
   PreviewOccurrence,
 } from './booking.helpers';
 
@@ -49,12 +43,8 @@ export class FixedScheduleService {
   // PUBLIC: PREVIEW
   // ───────────────────────────────────────────────────────────
 
-  /**
-   * Bước 1: Khách điền form → BE trả về danh sách buổi + conflict + suggestion.
-   * KHÔNG tạo data. Idempotent.
-   */
   async preview(dto: FixedSchedulePreviewDto) {
-    validateFixedScheduleInput(dto);
+    const plan = resolveFixedSchedulePlan(dto);
 
     const court = await this.prisma.court.findUnique({
       where: { id: dto.courtId },
@@ -72,17 +62,22 @@ export class FixedScheduleService {
       throw new BadRequestException('Sân hiện đang đóng cửa');
     }
 
-    const dates = generateFixedDates(dto.startDate, dto.endDate, dto.cycle);
+    const dates = plan.occurrences.map((occurrence) => occurrence.date);
     if (dates.length === 0) {
       throw new BadRequestException('Không có buổi nào trong khoảng đã chọn');
     }
 
-    const hours = buildHourSlots(dto.timeStart, dto.timeEnd);
+    const hours = plan.occurrences[0].hours;
 
-    // Check conflict + suggest replacement cho từng buổi
     const occurrences: PreviewOccurrence[] = await Promise.all(
-      dates.map((date) =>
-        this.buildPreviewOccurrence(date, court, hours, dto.timeStart, dto.timeEnd),
+      plan.occurrences.map((occurrence) =>
+        this.buildPreviewOccurrence(
+          occurrence.date,
+          court,
+          occurrence.hours,
+          occurrence.timeStart,
+          occurrence.timeEnd,
+        ),
       ),
     );
 
@@ -97,7 +92,15 @@ export class FixedScheduleService {
     const pricePerHour = Number(court.price);
     const pricePerSession = pricePerHour * hours.length;
     const billableCount = availableCount + replaceableCount;
-    const estimatedTotal = pricePerSession * billableCount;
+    const estimatedTotal = occurrences.reduce((total, occurrence) => {
+      if (occurrence.hasConflict && occurrence.suggestedReplacement === null) {
+        return total;
+      }
+      const sourceOccurrence = plan.occurrences.find(
+        (item) => item.dateKey === occurrence.date,
+      );
+      return total + pricePerHour * (sourceOccurrence?.hours.length ?? 0);
+    }, 0);
 
     return {
       court: {
@@ -108,10 +111,13 @@ export class FixedScheduleService {
         branchId: court.branchId,
       },
       cycle: dto.cycle,
-      startDate: formatDate(normalizeDate(dto.startDate)),
-      endDate: formatDate(normalizeDate(dto.endDate)),
-      timeStart: dto.timeStart,
-      timeEnd: dto.timeEnd,
+      bookingMode: plan.bookingMode,
+      occurrenceCount: plan.requestedOccurrenceCount,
+      rules: plan.rules,
+      startDate: formatDate(plan.startDate),
+      endDate: formatDate(plan.endDate),
+      timeStart: plan.primaryTimeStart,
+      timeEnd: plan.primaryTimeEnd,
       hoursPerSession: hours.length,
       occurrences,
       summary: {
@@ -130,15 +136,84 @@ export class FixedScheduleService {
   }
 
   // ───────────────────────────────────────────────────────────
-  // PUBLIC: CONFIRM
+  // PUBLIC: CHECK SLOT  ← NEW
   // ───────────────────────────────────────────────────────────
 
   /**
-   * Bước 2: User chốt gói với decisions[] cho từng buổi.
-   * BE re-validate + tạo records trong 1 transaction.
+   * Kiểm tra availability của TẤT CẢ sân cùng chi nhánh + cùng type
+   * theo ngày + khung giờ mới mà user muốn đổi.
+   *
+   * FE gọi khi:
+   * 1. User bấm "Đổi giờ" trên 1 occurrence → chọn giờ mới → bấm "Kiểm tra"
+   * 2. Response trả về danh sách sân với available: true/false
+   * 3. User chọn 1 sân → FE gán action='custom' + replaceWithCourtId + customTimeStart/End
+   *
+   * Yêu cầu:
+   * - courtId: sân GỐC của gói (để lấy branchId + type)
+   * - date: ngày của buổi cần đổi (YYYY-MM-DD)
+   * - timeStart / timeEnd: khung giờ MỚI user muốn
    */
+  async checkSlot(dto: CheckSlotDto) {
+    // Validate giờ hợp lệ
+    const hours = buildHourSlots(dto.timeStart, dto.timeEnd);
+
+    // Lấy thông tin sân gốc để biết branchId + type
+    const originalCourt = await this.prisma.court.findUnique({
+      where: { id: dto.courtId },
+      select: { id: true, name: true, type: true, branchId: true, price: true },
+    });
+    if (!originalCourt) throw new NotFoundException('Sân không tồn tại');
+
+    const date = normalizeDate(dto.date);
+
+    // Lấy TẤT CẢ sân cùng chi nhánh, cùng type (bao gồm cả sân gốc)
+    const allCourts = await this.prisma.court.findMany({
+      where: {
+        branchId: originalCourt.branchId,
+        type: originalCourt.type,
+        available: true,
+      },
+      select: { id: true, name: true, type: true, price: true },
+      orderBy: { id: 'asc' },
+    });
+
+    // Check conflict cho từng sân
+    const courtsWithAvailability = await Promise.all(
+      allCourts.map(async (court) => {
+        const conflicts = await checkSlotConflict(
+          this.prisma,
+          court.id,
+          date,
+          hours,
+        );
+        return {
+          id: court.id,
+          name: court.name,
+          type: court.type,
+          price: Number(court.price),
+          available: conflicts.length === 0,
+          // isOriginal giúp FE highlight sân gốc
+          isOriginal: court.id === dto.courtId,
+        };
+      }),
+    );
+
+    return {
+      date: formatDate(date),
+      timeStart: dto.timeStart,
+      timeEnd: dto.timeEnd,
+      courts: courtsWithAvailability,
+      // Summary nhanh để FE biết có available không
+      hasAvailable: courtsWithAvailability.some((c) => c.available),
+    };
+  }
+
+  // ───────────────────────────────────────────────────────────
+  // PUBLIC: CONFIRM
+  // ───────────────────────────────────────────────────────────
+
   async confirm(dto: FixedScheduleConfirmDto) {
-    validateFixedScheduleInput(dto);
+    const plan = resolveFixedSchedulePlan(dto);
 
     const billable = dto.decisions.filter(
       (d) =>
@@ -172,6 +247,35 @@ export class FixedScheduleService {
       }
     }
 
+    const occurrenceByDate = new Map(
+      plan.occurrences.map((occurrence) => [occurrence.dateKey, occurrence]),
+    );
+    const decisionDates = new Set<string>();
+
+    for (const decision of dto.decisions) {
+      const dateKey = formatDate(normalizeDate(decision.date));
+      if (decisionDates.has(dateKey)) {
+        throw new BadRequestException(
+          `Buổi ${decision.date} bị gửi quyết định trùng.`,
+        );
+      }
+      if (!occurrenceByDate.has(dateKey)) {
+        throw new BadRequestException(
+          `Buổi ${decision.date} không thuộc lịch cố định đã chọn.`,
+        );
+      }
+      decisionDates.add(dateKey);
+    }
+
+    const missingOccurrence = plan.occurrences.find(
+      (occurrence) => !decisionDates.has(occurrence.dateKey),
+    );
+    if (missingOccurrence) {
+      throw new BadRequestException(
+        `Thiếu quyết định cho buổi ${missingOccurrence.dateKey}.`,
+      );
+    }
+
     return this.prisma.$transaction(async (tx) => {
       const originalCourt = await tx.court.findUnique({
         where: { id: dto.courtId },
@@ -189,23 +293,34 @@ export class FixedScheduleService {
         throw new BadRequestException('Sân hiện đang đóng cửa');
       }
 
-      const hours = buildHourSlots(dto.timeStart, dto.timeEnd);
       const pricePerHour = Number(originalCourt.price);
-      const pricePerSession = pricePerHour * hours.length;
-      const totalAmount = pricePerSession * billable.length;
+      const totalAmount = billable.reduce((total, decision) => {
+        const occurrence = occurrenceByDate.get(
+          formatDate(normalizeDate(decision.date)),
+        )!;
+        const hours =
+          decision.action === OccurrenceAction.CUSTOM &&
+          decision.customTimeStart &&
+          decision.customTimeEnd
+            ? buildHourSlots(decision.customTimeStart, decision.customTimeEnd)
+            : occurrence.hours;
+        return total + pricePerHour * hours.length;
+      }, 0);
 
-      const adjustmentLimit =
-        dto.adjustmentLimit ?? (dto.cycle === 'monthly' ? 2 : 1);
+      const adjustmentLimit = dto.cycle === 'monthly' ? 2 : 1;
 
       const fixedSchedule = await tx.fixedSchedule.create({
         data: {
           userId: dto.userId || null,
           courtId: dto.courtId,
           cycle: dto.cycle,
-          startDate: normalizeDate(dto.startDate),
-          endDate: normalizeDate(dto.endDate),
-          timeStart: dto.timeStart,
-          timeEnd: dto.timeEnd,
+          bookingMode: plan.bookingMode,
+          requestedOccurrenceCount: plan.requestedOccurrenceCount ?? null,
+          rules: plan.rules as any,
+          startDate: plan.startDate,
+          endDate: plan.endDate,
+          timeStart: plan.primaryTimeStart,
+          timeEnd: plan.primaryTimeEnd,
           customerName: dto.customerName,
           customerPhone: dto.customerPhone,
           customerEmail: dto.customerEmail || null,
@@ -223,21 +338,25 @@ export class FixedScheduleService {
       const invoiceItems: any[] = [];
 
       for (const decision of dto.decisions) {
+        const plannedOccurrence = occurrenceByDate.get(
+          formatDate(normalizeDate(decision.date)),
+        )!;
         if (decision.action === OccurrenceAction.SKIP) {
           await this.handleSkipDecision(tx, fixedSchedule.id, decision, {
             courtId: dto.courtId,
-            timeStart: dto.timeStart,
-            timeEnd: dto.timeEnd,
+            timeStart: plannedOccurrence.timeStart,
+            timeEnd: plannedOccurrence.timeEnd,
             pricePerHour,
           });
           continue;
         }
 
+        const pricePerSession = pricePerHour * plannedOccurrence.hours.length;
         const result = await this.handleBillableDecision(tx, {
           decision,
           fixedScheduleId: fixedSchedule.id,
           originalCourt,
-          hours,
+          hours: plannedOccurrence.hours,
           pricePerHour,
           pricePerSession,
           customerName: dto.customerName,
@@ -245,8 +364,8 @@ export class FixedScheduleService {
           customerEmail: dto.customerEmail,
           userId: dto.userId,
           paymentMethod: dto.paymentMethod,
-          timeStart: dto.timeStart,
-          timeEnd: dto.timeEnd,
+          timeStart: plannedOccurrence.timeStart,
+          timeEnd: plannedOccurrence.timeEnd,
         });
         createdBookings.push(result.booking);
         invoiceItems.push(result.invoiceItem);
@@ -296,7 +415,6 @@ export class FixedScheduleService {
     },
   ) {
     const occDate = normalizeDate(decision.date);
-
     await tx.fixedScheduleOccurrence.create({
       data: {
         fixedScheduleId,
@@ -325,7 +443,7 @@ export class FixedScheduleService {
   }
 
   // ───────────────────────────────────────────────────────────
-  // PRIVATE: HANDLE KEEP/REPLACE DECISION
+  // PRIVATE: HANDLE KEEP/REPLACE/CUSTOM DECISION
   // ───────────────────────────────────────────────────────────
 
   private async handleBillableDecision(
@@ -361,16 +479,15 @@ export class FixedScheduleService {
     const { decision, fixedScheduleId, originalCourt } = args;
     const occDate = normalizeDate(decision.date);
 
-    // CUSTOM action: user tự chọn sân + giờ khác hẳn
     const isCustom = decision.action === OccurrenceAction.CUSTOM;
-    const effectiveTimeStart = isCustom && decision.customTimeStart
-      ? decision.customTimeStart
-      : args.timeStart;
-    const effectiveTimeEnd = isCustom && decision.customTimeEnd
-      ? decision.customTimeEnd
-      : args.timeEnd;
-
-    // Dùng giờ mới để tính lại hours nếu là custom
+    const effectiveTimeStart =
+      isCustom && decision.customTimeStart
+        ? decision.customTimeStart
+        : args.timeStart;
+    const effectiveTimeEnd =
+      isCustom && decision.customTimeEnd
+        ? decision.customTimeEnd
+        : args.timeEnd;
     const effectiveHours = isCustom
       ? buildHourSlots(effectiveTimeStart, effectiveTimeEnd)
       : args.hours;
@@ -395,11 +512,8 @@ export class FixedScheduleService {
             },
           });
 
-    if (!targetCourt) {
-      throw new NotFoundException(
-        `Sân ID ${targetCourtId} không tồn tại`,
-      );
-    }
+    if (!targetCourt)
+      throw new NotFoundException(`Sân ID ${targetCourtId} không tồn tại`);
 
     if (
       decision.action !== OccurrenceAction.KEEP &&
@@ -410,16 +524,29 @@ export class FixedScheduleService {
       );
     }
 
-    // Re-check conflict với giờ thực tế
-    const conflicts = await checkSlotConflict(tx, targetCourtId, occDate, effectiveHours);
+    if ('available' in targetCourt && targetCourt.available === false) {
+      throw new BadRequestException('Sân thay thế hiện đang đóng cửa');
+    }
+
+    if (
+      decision.action !== OccurrenceAction.KEEP &&
+      targetCourt.type !== originalCourt.type
+    ) {
+      throw new BadRequestException('Sân thay thế phải cùng loại với sân gốc');
+    }
+
+    const conflicts = await checkSlotConflict(
+      tx,
+      targetCourtId,
+      occDate,
+      effectiveHours,
+    );
     if (conflicts.length > 0) {
       throw new ConflictException(
         `Buổi ${decision.date} sân ID ${targetCourtId} (${effectiveTimeStart}-${effectiveTimeEnd}) đã có người đặt: ${conflicts.map((c) => c.time).join(', ')}`,
       );
     }
 
-    // Giá: custom dùng giờ mới → tính lại theo số giờ thực tế
-    // Nhưng vẫn dùng pricePerHour của sân gốc (policy bù miễn phí)
     const occurrenceAmount = args.pricePerHour * effectiveHours.length;
 
     const occurrence = await tx.fixedScheduleOccurrence.create({
@@ -471,7 +598,6 @@ export class FixedScheduleService {
       })),
     });
 
-    // Log adjustment nếu là replace hoặc custom
     if (decision.action !== OccurrenceAction.KEEP) {
       await tx.fixedScheduleAdjustment.create({
         data: {
@@ -493,14 +619,15 @@ export class FixedScheduleService {
       });
     }
 
-    const invoiceItem = {
-      description: `${targetCourt.name} - ${formatDate(occDate)} ${effectiveTimeStart}-${effectiveTimeEnd}`,
-      quantity: effectiveHours.length,
-      unitPriceSnapshot: args.pricePerHour,
-      lineTotalSnapshot: occurrenceAmount,
+    return {
+      booking,
+      invoiceItem: {
+        description: `${targetCourt.name} - ${formatDate(occDate)} ${effectiveTimeStart}-${effectiveTimeEnd}`,
+        quantity: effectiveHours.length,
+        unitPriceSnapshot: args.pricePerHour,
+        lineTotalSnapshot: occurrenceAmount,
+      },
     };
-
-    return { booking, invoiceItem };
   }
 
   // ───────────────────────────────────────────────────────────
@@ -528,6 +655,7 @@ export class FixedScheduleService {
 
     if (conflicts.length === 0) {
       return {
+        courtId: originalCourt.id,
         date: formatDate(date),
         dayLabel: dayLabel(date),
         timeStart,
@@ -547,6 +675,7 @@ export class FixedScheduleService {
     );
 
     return {
+      courtId: originalCourt.id,
       date: formatDate(date),
       dayLabel: dayLabel(date),
       timeStart,
@@ -569,9 +698,6 @@ export class FixedScheduleService {
   // PRIVATE: FIND ALTERNATIVE COURT
   // ───────────────────────────────────────────────────────────
 
-  /**
-   * Tìm sân thay thế cùng branch, cùng type, cùng ngày/giờ.
-   */
   private async findAlternativeCourt(
     branchId: number,
     excludeCourtId: number,
@@ -597,9 +723,7 @@ export class FixedScheduleService {
         date,
         hours,
       );
-      if (conflicts.length === 0) {
-        return court;
-      }
+      if (conflicts.length === 0) return court;
     }
     return null;
   }
