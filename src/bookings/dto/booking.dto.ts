@@ -24,6 +24,11 @@ export enum FixedScheduleCycle {
   MONTHLY = 'monthly',
 }
 
+export enum FixedScheduleBookingMode {
+  OCCURRENCE_COUNT = 'occurrence_count',
+  DATE_RANGE = 'date_range',
+}
+
 export enum PaymentMethod {
   CASH = 'cash',
   BANK_TRANSFER = 'bank_transfer',
@@ -233,23 +238,79 @@ export class CancelBookingDto {
  * Một buổi trong tuần: thứ mấy + giờ bắt đầu/kết thúc.
  * dayOfWeek: 0=CN, 1=T2, 2=T3, 3=T4, 4=T5, 5=T6, 6=T7
  */
-export class WeeklySlotDto {
-  @IsInt({ message: 'Thứ trong tuần phải là số nguyên' })
-  @Min(0, { message: 'Thứ trong tuần từ 0 (CN) đến 6 (T7)' })
-  @Max(6, { message: 'Thứ trong tuần từ 0 (CN) đến 6 (T7)' })
-  dayOfWeek: number;
+export class FixedScheduleRuleDto {
+  @IsInt()
+  @Min(0)
+  @Max(6)
+  @IsOptional()
+  dayOfWeek?: number;
+
+  @IsInt()
+  @Min(1)
+  @Max(31)
+  @IsOptional()
+  dayOfMonth?: number;
+
+  @IsString()
+  @Matches(/^([0-1]?[0-9]|2[0-3]):00$/, {
+    message: 'Giờ bắt đầu phải là giờ tròn, định dạng HH:00',
+  })
+  timeStart: string;
+
+  @IsString()
+  @Matches(/^([0-1]?[0-9]|2[0-3]):00$/, {
+    message: 'Giờ kết thúc phải là giờ tròn, định dạng HH:00',
+  })
+  timeEnd: string;
+}
+
+export class FixedSchedulePreviewDto {
+  @IsInt({ message: 'ID sân phải là số nguyên' })
+  @Min(1, { message: 'ID sân không hợp lệ' })
+  courtId: number;
+
+  @IsEnum(FixedScheduleCycle, {
+    message: 'Chu kỳ phải là "weekly" hoặc "monthly"',
+  })
+  cycle: FixedScheduleCycle;
+
+  @IsEnum(FixedScheduleBookingMode)
+  @IsOptional()
+  bookingMode?: FixedScheduleBookingMode;
+
+  @IsDateString({}, { message: 'Ngày bắt đầu phải đúng định dạng YYYY-MM-DD' })
+  startDate: string;
+
+  @IsDateString({}, { message: 'Ngày kết thúc phải đúng định dạng YYYY-MM-DD' })
+  @IsOptional()
+  endDate?: string;
+
+  @IsInt()
+  @Min(2)
+  @Max(52)
+  @IsOptional()
+  occurrenceCount?: number;
+
+  @IsArray()
+  @ArrayMinSize(1)
+  @ValidateNested({ each: true })
+  @Type(() => FixedScheduleRuleDto)
+  @IsOptional()
+  rules?: FixedScheduleRuleDto[];
 
   @IsString()
   @Matches(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, {
     message: 'Giờ bắt đầu phải đúng định dạng HH:mm',
   })
-  timeStart: string;
+  @IsOptional()
+  timeStart?: string;
 
   @IsString()
   @Matches(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, {
     message: 'Giờ kết thúc phải đúng định dạng HH:mm',
   })
-  timeEnd: string;
+  @IsOptional()
+  timeEnd?: string;
 }
 
 /**
@@ -346,19 +407,42 @@ export class FixedScheduleConfirmDto {
   @Min(1)
   courtId: number;
 
+  @IsEnum(FixedScheduleCycle)
+  cycle: FixedScheduleCycle;
+
+  @IsEnum(FixedScheduleBookingMode)
+  @IsOptional()
+  bookingMode?: FixedScheduleBookingMode;
+
   @IsDateString()
   startDate: string;
 
+  @IsDateString()
+  @IsOptional()
+  endDate?: string;
+
   @IsInt()
-  @Min(4)
+  @Min(2)
   @Max(52)
-  numberOfWeeks: number;
+  @IsOptional()
+  occurrenceCount?: number;
 
   @IsArray()
   @ArrayMinSize(1)
   @ValidateNested({ each: true })
-  @Type(() => WeeklySlotDto)
-  weeklySlots: WeeklySlotDto[];
+  @Type(() => FixedScheduleRuleDto)
+  @IsOptional()
+  rules?: FixedScheduleRuleDto[];
+
+  @IsString()
+  @Matches(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/)
+  @IsOptional()
+  timeStart?: string;
+
+  @IsString()
+  @Matches(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/)
+  @IsOptional()
+  timeEnd?: string;
 
   // ─── Thông tin khách hàng ───
   @IsString()

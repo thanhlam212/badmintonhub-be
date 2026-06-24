@@ -89,6 +89,7 @@ async function main() {
       available: true,
       description: 'Sân tiêu chuẩn, phù hợp cho mọi trình độ. Sàn gỗ cao cấp, đèn LED đầy đủ ánh sáng.',
       hours: '06:00 - 22:00',
+      image: 'https://images.unsplash.com/photo-1626224583764-f87db24ac4ea?w=800&q=80',
     },
   })
 
@@ -117,6 +118,7 @@ async function main() {
       available: true,
       description: 'Sân Premium với sàn PU chuyên nghiệp, hệ thống đèn LED cao cấp và điều hòa 2 chiều.',
       hours: '06:00 - 22:00',
+      image: 'https://images.unsplash.com/photo-1599474924187-334a4ae5bd3c?w=800&q=80',
     },
   })
 
@@ -147,6 +149,7 @@ async function main() {
       available: true,
       description: 'Sân VIP đẳng cấp với sàn gỗ nhập khẩu, phòng chờ riêng và dịch vụ khăn lạnh.',
       hours: '06:00 - 22:00',
+      image: 'https://images.unsplash.com/photo-1613918431703-aa50889e3be7?w=800&q=80',
     },
   })
 
@@ -179,6 +182,7 @@ async function main() {
       available: true,
       description: 'Sân tiêu chuẩn thoáng mát, vị trí thuận tiện tại Thanh Xuân.',
       hours: '05:30 - 22:00',
+      image: 'https://images.unsplash.com/photo-1574629810360-7efbbe195018?w=800&q=80',
     },
   })
 
@@ -206,6 +210,7 @@ async function main() {
       available: true,
       description: 'Sân ngoài trời Premium với mái che chống nắng, phù hợp buổi sáng và chiều mát.',
       hours: '05:30 - 21:00',
+      image: 'https://images.unsplash.com/photo-1544117519-31a4b719223d?w=800&q=80',
     },
   })
 
@@ -235,6 +240,7 @@ async function main() {
       available: true,
       description: 'Sân tiêu chuẩn giá tốt tại Long Biên, gần cầu Long Biên.',
       hours: '06:00 - 22:00',
+      image: 'https://images.unsplash.com/photo-1521537634581-0dced2fee2ef?w=800&q=80',
     },
   })
 
@@ -262,6 +268,7 @@ async function main() {
       available: true,
       description: 'Sân Premium mới khai trương, trang thiết bị hiện đại nhất hệ thống.',
       hours: '06:00 - 22:00',
+      image: 'https://images.unsplash.com/photo-1587280501635-68a0e82cd5ff?w=800&q=80',
     },
   })
 
@@ -351,16 +358,16 @@ async function main() {
   })
 
   await prisma.user.upsert({
-    where: { username: 'employee1' },
-    update: { warehouseId: 1 },
+    where: { username: 'employeecg' },
+    update: { warehouseId: 2 },
     create: {
-      username: 'employee1',
-      passwordHash: await bcrypt.hash('Employee@123', 10),
+      username: 'employeecg',
+      passwordHash: await bcrypt.hash('Employee@456', 10),
       fullName: 'Nhân viên Cầu Giấy',
-      email: 'nv1@badmintonhub.vn',
-      phone: '0902222222',
+      email: 'nvcg@badmintonhub.vn',
+      phone: '09887766554',
       role: 'employee',
-      warehouseId: 1,
+      warehouseId: 2,
     },
   })
 
@@ -394,6 +401,11 @@ async function main() {
       features: ['Tấn công mạnh', 'Khung carbon Nanomesh', 'Trọng lượng 4U (83g)', 'Cân bằng đầu vợt'],
       specs: { 'Trọng lượng': '4U (83g)', 'Độ cứng': 'Cứng', 'Chiều dài': '675mm', 'Chất liệu': 'Carbon + Nanomesh' },
       badges: ['Bán chạy', 'Tấn công'],
+      image: 'https://images.unsplash.com/photo-1626224583764-f87db24ac4ea?w=800&q=80',
+      extraImages: [
+        'https://images.unsplash.com/photo-1593341646782-e0b495cff86d?w=800&q=80',
+        'https://images.unsplash.com/photo-1626224538720-649b38e52e62?w=800&q=80',
+      ],
     },
     {
       sku: 'VOT-YNX-002', name: 'Vợt Yonex Nanoflare 700', brand: 'Yonex', category: 'Vợt cầu lông',
@@ -402,6 +414,10 @@ async function main() {
       features: ['Tốc độ cao', 'Linh hoạt', 'Trọng lượng 5U (78g)', 'Cân bằng tay cầm'],
       specs: { 'Trọng lượng': '5U (78g)', 'Độ cứng': 'Trung bình', 'Chiều dài': '675mm' },
       badges: ['Tốc độ'],
+      image: 'https://images.unsplash.com/photo-1599474924187-334a4ae5bd3c?w=800&q=80',
+      extraImages: [
+        'https://images.unsplash.com/photo-1626224583764-f87db24ac4ea?w=800&q=80',
+      ],
     },
     {
       sku: 'VOT-LIN-001', name: 'Vợt Li-Ning Axforce 80', brand: 'Li-Ning', category: 'Vợt cầu lông',
@@ -410,6 +426,8 @@ async function main() {
       features: ['Toàn diện', 'Độ bền cao', 'Dễ kiểm soát'],
       specs: { 'Trọng lượng': '4U (83g)', 'Độ cứng': 'Trung bình' },
       badges: ['Toàn diện'],
+      image: 'https://images.unsplash.com/photo-1613918431703-aa50889e3be7?w=800&q=80',
+      extraImages: [],
     },
     {
       sku: 'VOT-VIC-001', name: 'Vợt Victor Thruster K 9000', brand: 'Victor', category: 'Vợt cầu lông',
@@ -418,6 +436,8 @@ async function main() {
       features: ['Chuyên nghiệp', 'Tấn công mạnh', 'Carbon nano'],
       specs: { 'Trọng lượng': '4U (83g)', 'Độ cứng': 'Cứng' },
       badges: ['Chuyên nghiệp'],
+      image: 'https://images.unsplash.com/photo-1574629810360-7efbbe195018?w=800&q=80',
+      extraImages: [],
     },
     // ── Cầu lông ──────────────────────────────
     {
@@ -427,6 +447,8 @@ async function main() {
       features: ['Lông nhựa bền', 'Bay ổn định', 'Phù hợp trong nhà', 'Hộp 6 quả'],
       specs: { 'Loại': 'Nhựa', 'Số lượng': '6 quả/hộp', 'Tốc độ': 'Trung bình' },
       badges: ['Bán chạy'],
+      image: 'https://images.unsplash.com/photo-1521537634581-0dced2fee2ef?w=800&q=80',
+      extraImages: [],
     },
     {
       sku: 'CAU-YNX-002', name: 'Cầu lông lông vũ Yonex AS-50', brand: 'Yonex', category: 'Cầu lông',
@@ -435,6 +457,8 @@ async function main() {
       features: ['Lông vũ tự nhiên', 'Thi đấu chuyên nghiệp', 'Hộp 12 quả', 'Bay chuẩn xác'],
       specs: { 'Loại': 'Lông vũ', 'Số lượng': '12 quả/hộp', 'Tốc độ': 'Cao' },
       badges: ['Cao cấp', 'Thi đấu'],
+      image: 'https://images.unsplash.com/photo-1544117519-31a4b719223d?w=800&q=80',
+      extraImages: [],
     },
     // ── Giày cầu lông ─────────────────────────
     {
@@ -444,6 +468,10 @@ async function main() {
       features: ['Đế cao su bám sân', 'Đệm khí giảm chấn', 'Thoáng khí', 'Nhẹ'],
       specs: { 'Đế': 'Cao su', 'Trọng lượng': '320g', 'Phù hợp': 'Sân trong nhà' },
       badges: ['Giảm giá'],
+      image: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=800&q=80',
+      extraImages: [
+        'https://images.unsplash.com/photo-1608231387042-66d1773070a5?w=800&q=80',
+      ],
     },
     {
       sku: 'GIY-YNX-001', name: 'Giày Yonex Power Cushion 65Z3', brand: 'Yonex', category: 'Giày cầu lông',
@@ -452,6 +480,10 @@ async function main() {
       features: ['Power Cushion 3', 'Đế gốm', 'Ổn định cao', 'Hỗ trợ mắt cá'],
       specs: { 'Đế': 'Gốm/Cao su', 'Công nghệ': 'Power Cushion 3', 'Phù hợp': 'Sân trong nhà' },
       badges: ['Cao cấp'],
+      image: 'https://images.unsplash.com/photo-1587280501635-68a0e82cd5ff?w=800&q=80',
+      extraImages: [
+        'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=800&q=80',
+      ],
     },
     // ── Túi & Balo ────────────────────────────
     {
@@ -461,6 +493,10 @@ async function main() {
       features: ['6 ngăn', 'Chống thấm', 'Ngăn giày riêng', 'Đựng được 6 vợt'],
       specs: { 'Số ngăn': '6', 'Sức chứa': '6 vợt', 'Chất liệu': 'Polyester chống thấm' },
       badges: ['Giảm giá'],
+      image: 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=800&q=80',
+      extraImages: [
+        'https://images.unsplash.com/photo-1622560480654-d96214fdc887?w=800&q=80',
+      ],
     },
     {
       sku: 'BAG-LIN-001', name: 'Balo Li-Ning ABSQ316', brand: 'Li-Ning', category: 'Túi & Balo',
@@ -469,6 +505,8 @@ async function main() {
       features: ['Đựng 2 vợt', 'Ngăn laptop', 'Thoáng khí', 'Đai vai êm'],
       specs: { 'Sức chứa': '2 vợt + đồ dùng', 'Chất liệu': 'Polyester' },
       badges: [],
+      image: 'https://images.unsplash.com/photo-1622560480654-d96214fdc887?w=800&q=80',
+      extraImages: [],
     },
     // ── Dây đan ───────────────────────────────
     {
@@ -478,6 +516,8 @@ async function main() {
       features: ['Độ bền cao', 'Cảm giác tốt', 'Phổ thông', 'Dễ đan'],
       specs: { 'Đường kính': '0.70mm', 'Vật liệu': 'Nylon', 'Độ căng max': '28 lbs' },
       badges: ['Bán chạy', 'Phổ biến nhất'],
+      image: 'https://images.unsplash.com/photo-1593341646782-e0b495cff86d?w=800&q=80',
+      extraImages: [],
     },
     {
       sku: 'DAY-YNX-002', name: 'Dây đan BG80 Yonex', brand: 'Yonex', category: 'Dây đan',
@@ -486,6 +526,8 @@ async function main() {
       features: ['Cảm giác sắc nét', 'Tiếng vang', 'Thi đấu', 'Độ bền tốt'],
       specs: { 'Đường kính': '0.68mm', 'Vật liệu': 'Nylon cao cấp', 'Độ căng max': '30 lbs' },
       badges: ['Thi đấu'],
+      image: 'https://images.unsplash.com/photo-1626224538720-649b38e52e62?w=800&q=80',
+      extraImages: [],
     },
     // ── Quần áo ───────────────────────────────
     {
@@ -495,6 +537,8 @@ async function main() {
       features: ['Cool Dry thoáng khí', 'Co giãn 4 chiều', 'Chống tia UV', 'Nhẹ'],
       specs: { 'Chất liệu': 'Polyester Cool Dry', 'Size': 'S-XL', 'Giới tính': 'Nam' },
       badges: ['Giảm giá'],
+      image: 'https://images.unsplash.com/photo-1571945153237-4929e783af4a?w=800&q=80',
+      extraImages: [],
     },
     {
       sku: 'QAO-LIN-001', name: 'Váy thể thao Li-Ning ASKR394 Nữ', brand: 'Li-Ning', category: 'Quần áo',
@@ -503,22 +547,46 @@ async function main() {
       features: ['Tích hợp quần lót', 'Chất liệu mềm mại', 'Co giãn tốt', 'Năng động'],
       specs: { 'Chất liệu': 'Polyester + Spandex', 'Size': 'XS-L', 'Giới tính': 'Nữ' },
       badges: [],
+      image: 'https://images.unsplash.com/photo-1539794830467-1f1755804d13?w=800&q=80',
+      extraImages: [],
     },
   ]
 
   for (const p of products) {
-  const { badges, features, specs, gender, ...productData } = p  // ← tách gender ra riêng
-  const product = await prisma.product.upsert({
-    where: { sku: p.sku },
-    update: {},
-    create: {
-      ...productData,
-      features: features as any,
-      specs: specs as any,
-      inStock: true,
-      gender: gender as Gender ?? null,  // ← cast riêng
-    },
-   })
+    const { badges, features, specs, gender, image, extraImages, ...productData } = p
+    const product = await prisma.product.upsert({
+      where: { sku: p.sku },
+      update: {},
+      create: {
+        ...productData,
+        features: features as any,
+        specs: specs as any,
+        inStock: true,
+        gender: gender as Gender ?? null,
+        image: image ?? null,
+      },
+    })
+
+    // Tạo ProductBadge
+    if (badges.length > 0) {
+      await prisma.productBadge.createMany({
+        data: badges.map((badge) => ({ productId: product.id, badge })),
+        skipDuplicates: true,
+      })
+    }
+
+    // Tạo ProductImage (ảnh chính + ảnh phụ)
+    const allImages = [image, ...(extraImages ?? [])].filter(Boolean) as string[]
+    if (allImages.length > 0) {
+      await prisma.productImage.createMany({
+        data: allImages.map((url, idx) => ({
+          productId: product.id,
+          url,
+          sortOrder: idx,
+        })),
+        skipDuplicates: true,
+      })
+    }
   }
 
   console.log(`✅ Đã tạo ${products.length} sản phẩm`)
@@ -580,452 +648,6 @@ async function main() {
     }
   }
   console.log(`✅ Tồn kho: ${skuList.length} sản phẩm × ${Object.keys(warehouseStock).length} kho = ${skuList.length * Object.keys(warehouseStock).length} bản ghi`)
-
-  // ═══════════════════════════════════════════════════════
-  // 7. COMMUNITY — dữ liệu mạng xã hội mini
-  // ═══════════════════════════════════════════════════════
-  console.log('🏸 Tạo dữ liệu community...')
-
-  await prisma.communityNotification.deleteMany()
-  await prisma.communityMatchParticipant.deleteMany()
-  await prisma.communityMatch.deleteMany()
-  await prisma.communityCommentLike.deleteMany()
-  await prisma.communityComment.deleteMany()
-  await prisma.communityPostLike.deleteMany()
-  await prisma.communityPostSave.deleteMany()
-  await prisma.communityPostHashtag.deleteMany()
-  await prisma.communityPostMedia.deleteMany()
-  await prisma.communityPost.deleteMany()
-  await prisma.communityHashtag.deleteMany()
-  await prisma.communityFollow.deleteMany()
-  await prisma.communityProfile.deleteMany()
-
-  const communityPassword = await bcrypt.hash('Community@123', 10)
-
-  const communityUsers = {
-    minhsmash: await prisma.user.upsert({
-      where: { username: 'minhsmash' },
-      update: { passwordHash: communityPassword },
-      create: {
-        username: 'minhsmash',
-        passwordHash: communityPassword,
-        fullName: 'Trần Nhật Minh',
-        email: 'minhsmash@badmintonhub.vn',
-        phone: '0903000001',
-        role: 'user',
-      },
-    }),
-    linhdrop: await prisma.user.upsert({
-      where: { username: 'linhdrop' },
-      update: { passwordHash: communityPassword },
-      create: {
-        username: 'linhdrop',
-        passwordHash: communityPassword,
-        fullName: 'Phạm Khánh Linh',
-        email: 'linhdrop@badmintonhub.vn',
-        phone: '0903000002',
-        role: 'user',
-      },
-    }),
-    quannet: await prisma.user.upsert({
-      where: { username: 'quannet' },
-      update: { passwordHash: communityPassword },
-      create: {
-        username: 'quannet',
-        passwordHash: communityPassword,
-        fullName: 'Lê Anh Quân',
-        email: 'quannet@badmintonhub.vn',
-        phone: '0903000003',
-        role: 'user',
-      },
-    }),
-    huedefense: await prisma.user.upsert({
-      where: { username: 'huedefense' },
-      update: { passwordHash: communityPassword },
-      create: {
-        username: 'huedefense',
-        passwordHash: communityPassword,
-        fullName: 'Đỗ Thu Huế',
-        email: 'huedefense@badmintonhub.vn',
-        phone: '0903000004',
-        role: 'user',
-      },
-    }),
-    tungrally: await prisma.user.upsert({
-      where: { username: 'tungrally' },
-      update: { passwordHash: communityPassword },
-      create: {
-        username: 'tungrally',
-        passwordHash: communityPassword,
-        fullName: 'Vũ Thanh Tùng',
-        email: 'tungrally@badmintonhub.vn',
-        phone: '0903000005',
-        role: 'user',
-      },
-    }),
-  }
-
-  const allCourts = await prisma.court.findMany({
-    include: { branch: true },
-    orderBy: { id: 'asc' },
-  })
-
-  const courtCauGiay = allCourts.find((court) => court.branchId === 1) ?? allCourts[0]
-  const courtThanhXuan = allCourts.find((court) => court.branchId === 2) ?? allCourts[1]
-  const courtLongBien = allCourts.find((court) => court.branchId === 3) ?? allCourts[2]
-
-  await prisma.communityProfile.createMany({
-    data: [
-      {
-        userId: communityUsers.minhsmash.id,
-        avatar: null,
-        coverImage: '/community/hero.png',
-        bio: 'Đập cầu là đam mê. Chơi tối T2-T4-T6 ở Cầu Giấy. Tìm bạn đánh đôi ổn định.',
-        district: CommunityDistrict.cau_giay,
-        level: CommunityLevel.expert,
-        followersCount: 3,
-        followingCount: 2,
-        matchesCount: 2,
-        checkinsCount: 1,
-      },
-      {
-        userId: communityUsers.linhdrop.id,
-        avatar: null,
-        coverImage: '/community/hero.png',
-        bio: 'Cầu lông + cà phê = cuối tuần hoàn hảo. Hay tổ chức kèo đôi nữ.',
-        district: CommunityDistrict.thanh_xuan,
-        level: CommunityLevel.advanced,
-        followersCount: 3,
-        followingCount: 2,
-        matchesCount: 1,
-        checkinsCount: 1,
-      },
-      {
-        userId: communityUsers.quannet.id,
-        avatar: null,
-        coverImage: '/community/hero.png',
-        bio: 'Mới quay lại sau 2 năm nghỉ. Đang tìm nhóm trình trung bình đánh vui.',
-        district: CommunityDistrict.long_bien,
-        level: CommunityLevel.intermediate,
-        followersCount: 0,
-        followingCount: 2,
-        matchesCount: 1,
-        checkinsCount: 0,
-      },
-      {
-        userId: communityUsers.huedefense.id,
-        avatar: null,
-        coverImage: '/community/hero.png',
-        bio: 'Phòng thủ là nghệ thuật. HLV bán thời gian, nhận kèo giao lưu.',
-        district: CommunityDistrict.cau_giay,
-        level: CommunityLevel.expert,
-        followersCount: 3,
-        followingCount: 1,
-        matchesCount: 1,
-        checkinsCount: 0,
-      },
-      {
-        userId: communityUsers.tungrally.id,
-        avatar: null,
-        coverImage: '/community/hero.png',
-        bio: 'Mê những pha cầu dài. Săn vợt cũ, chia sẻ review giày.',
-        district: CommunityDistrict.thanh_xuan,
-        level: CommunityLevel.advanced,
-        followersCount: 0,
-        followingCount: 3,
-        matchesCount: 0,
-        checkinsCount: 0,
-      },
-    ],
-  })
-
-  await prisma.communityFollow.createMany({
-    data: [
-      { followerId: communityUsers.minhsmash.id, followingId: communityUsers.linhdrop.id },
-      { followerId: communityUsers.minhsmash.id, followingId: communityUsers.huedefense.id },
-      { followerId: communityUsers.linhdrop.id, followingId: communityUsers.minhsmash.id },
-      { followerId: communityUsers.linhdrop.id, followingId: communityUsers.huedefense.id },
-      { followerId: communityUsers.quannet.id, followingId: communityUsers.minhsmash.id },
-      { followerId: communityUsers.quannet.id, followingId: communityUsers.linhdrop.id },
-      { followerId: communityUsers.huedefense.id, followingId: communityUsers.minhsmash.id },
-      { followerId: communityUsers.tungrally.id, followingId: communityUsers.minhsmash.id },
-      { followerId: communityUsers.tungrally.id, followingId: communityUsers.linhdrop.id },
-      { followerId: communityUsers.tungrally.id, followingId: communityUsers.huedefense.id },
-    ],
-    skipDuplicates: true,
-  })
-
-  const postMinh = await prisma.communityPost.create({
-    data: {
-      authorId: communityUsers.minhsmash.id,
-      kind: CommunityPostKind.find_team,
-      body: 'Tối nay 20h cần thêm 2 bạn đánh đôi nam trình Khá trở lên tại Cầu Giấy. Sân đã đặt, chia tiền sân nhẹ nhàng. Ai máu thì vào kèo nhé!',
-      district: CommunityDistrict.cau_giay,
-      level: CommunityLevel.advanced,
-      branchId: branch1.id,
-      courtId: courtCauGiay?.id ?? null,
-      media: {
-        create: [
-          {
-            url: '/community/hero.png',
-            sortOrder: 0,
-          },
-        ],
-      },
-    },
-  })
-
-  const postLinh = await prisma.communityPost.create({
-    data: {
-      authorId: communityUsers.linhdrop.id,
-      kind: CommunityPostKind.check_in,
-      body: 'Vừa xong 2 tiếng cháy hết mình ở Thanh Xuân. Cảm giác smash trúng tim cầu đã không tả nổi. Cảm ơn team nữ chiến đã quẩy cùng!',
-      district: CommunityDistrict.thanh_xuan,
-      branchId: branch2.id,
-      courtId: courtThanhXuan?.id ?? null,
-      media: {
-        create: [
-          { url: '/community/hero.png', sortOrder: 0 },
-          { url: '/community/hero.png', sortOrder: 1 },
-        ],
-      },
-    },
-  })
-
-  const postTung = await prisma.communityPost.create({
-    data: {
-      authorId: communityUsers.tungrally.id,
-      kind: CommunityPostKind.court_review,
-      body: 'Review nhanh sân Long Biên: mặt sàn bám tốt, ánh sáng đều không chói, ít gió. Điểm trừ duy nhất là chỗ để xe hơi chật giờ cao điểm. Tổng 9/10.',
-      district: CommunityDistrict.long_bien,
-      branchId: branch3.id,
-      courtId: courtLongBien?.id ?? null,
-      media: {
-        create: [
-          { url: '/community/hero.png', sortOrder: 0 },
-        ],
-      },
-    },
-  })
-
-  const postHue = await prisma.communityPost.create({
-    data: {
-      authorId: communityUsers.huedefense.id,
-      kind: CommunityPostKind.tip,
-      body: 'Mẹo phòng thủ cho người mới: đừng nhìn vợt đối thủ, hãy nhìn vai và cổ tay họ để đoán hướng cầu sớm hơn nửa nhịp. Cực kỳ hiệu quả trong đánh đôi.',
-      district: CommunityDistrict.cau_giay,
-      level: CommunityLevel.intermediate,
-      branchId: branch1.id,
-    },
-  })
-
-  const hashtags = ['timdoi', 'checkin', 'reviewsan', 'meochoi', 'caugiay', 'thanhxuan', 'longbien']
-  const hashtagMap = new Map<string, number>()
-  for (const slug of hashtags) {
-    const hashtag = await prisma.communityHashtag.create({
-      data: { slug, label: slug },
-    })
-    hashtagMap.set(slug, hashtag.id)
-  }
-
-  await prisma.communityPostHashtag.createMany({
-    data: [
-      { postId: postMinh.id, hashtagId: hashtagMap.get('timdoi')! },
-      { postId: postMinh.id, hashtagId: hashtagMap.get('caugiay')! },
-      { postId: postLinh.id, hashtagId: hashtagMap.get('checkin')! },
-      { postId: postLinh.id, hashtagId: hashtagMap.get('thanhxuan')! },
-      { postId: postTung.id, hashtagId: hashtagMap.get('reviewsan')! },
-      { postId: postTung.id, hashtagId: hashtagMap.get('longbien')! },
-      { postId: postHue.id, hashtagId: hashtagMap.get('meochoi')! },
-      { postId: postHue.id, hashtagId: hashtagMap.get('caugiay')! },
-    ],
-    skipDuplicates: true,
-  })
-
-  const comment1 = await prisma.communityComment.create({
-    data: {
-      postId: postMinh.id,
-      authorId: communityUsers.tungrally.id,
-      body: 'Cho mình 1 slot với, trình Khá ổn áp luôn.',
-    },
-  })
-  const comment2 = await prisma.communityComment.create({
-    data: {
-      postId: postMinh.id,
-      authorId: communityUsers.quannet.id,
-      body: 'Lần sau rủ mình nha, tối nay bận mất rồi.',
-    },
-  })
-  const comment3 = await prisma.communityComment.create({
-    data: {
-      postId: postLinh.id,
-      authorId: communityUsers.huedefense.id,
-      body: 'Nhìn là biết đã lắm! Hôm nào giao lưu nhé.',
-    },
-  })
-
-  await prisma.communityPostLike.createMany({
-    data: [
-      { postId: postMinh.id, userId: communityUsers.tungrally.id },
-      { postId: postMinh.id, userId: communityUsers.quannet.id },
-      { postId: postLinh.id, userId: communityUsers.minhsmash.id },
-      { postId: postLinh.id, userId: communityUsers.huedefense.id },
-      { postId: postTung.id, userId: communityUsers.minhsmash.id },
-      { postId: postTung.id, userId: communityUsers.linhdrop.id },
-      { postId: postHue.id, userId: communityUsers.minhsmash.id },
-      { postId: postHue.id, userId: communityUsers.linhdrop.id },
-      { postId: postHue.id, userId: communityUsers.quannet.id },
-    ],
-    skipDuplicates: true,
-  })
-
-  await prisma.communityPostSave.createMany({
-    data: [
-      { postId: postHue.id, userId: communityUsers.minhsmash.id },
-      { postId: postHue.id, userId: communityUsers.linhdrop.id },
-      { postId: postTung.id, userId: communityUsers.minhsmash.id },
-      { postId: postMinh.id, userId: communityUsers.quannet.id },
-    ],
-    skipDuplicates: true,
-  })
-
-  await prisma.communityCommentLike.createMany({
-    data: [
-      { commentId: comment1.id, userId: communityUsers.minhsmash.id },
-      { commentId: comment1.id, userId: communityUsers.linhdrop.id },
-      { commentId: comment2.id, userId: communityUsers.minhsmash.id },
-      { commentId: comment3.id, userId: communityUsers.linhdrop.id },
-    ],
-    skipDuplicates: true,
-  })
-
-  const match1 = await prisma.communityMatch.create({
-    data: {
-      hostId: communityUsers.minhsmash.id,
-      title: 'Đánh đôi nam tối thứ 6',
-      district: CommunityDistrict.cau_giay,
-      level: CommunityLevel.advanced,
-      branchId: branch1.id,
-      courtId: courtCauGiay?.id ?? null,
-      date: new Date('2026-06-13'),
-      slotStart: '20:00',
-      slotEnd: '22:00',
-      currentPlayers: 2,
-      neededPlayers: 4,
-      pricePerPerson: 60000,
-      note: 'Cần thêm 2 bạn đánh đôi nam, trình Khá trở lên, đánh nhiệt tình vui vẻ.',
-    },
-  })
-
-  const match2 = await prisma.communityMatch.create({
-    data: {
-      hostId: communityUsers.linhdrop.id,
-      title: 'Kèo đôi nữ cuối tuần',
-      district: CommunityDistrict.thanh_xuan,
-      level: CommunityLevel.intermediate,
-      branchId: branch2.id,
-      courtId: courtThanhXuan?.id ?? null,
-      date: new Date('2026-06-14'),
-      slotStart: '08:00',
-      slotEnd: '10:00',
-      currentPlayers: 3,
-      neededPlayers: 4,
-      pricePerPerson: 50000,
-      note: 'Nhóm nữ vui tính, chỉ thiếu 1 bạn. Ưu tiên gần Thanh Xuân.',
-    },
-  })
-
-  const match3 = await prisma.communityMatch.create({
-    data: {
-      hostId: communityUsers.quannet.id,
-      title: 'Giao lưu trình trung bình',
-      district: CommunityDistrict.long_bien,
-      level: CommunityLevel.intermediate,
-      branchId: branch3.id,
-      courtId: courtLongBien?.id ?? null,
-      date: new Date('2026-06-15'),
-      slotStart: '17:00',
-      slotEnd: '19:00',
-      currentPlayers: 4,
-      neededPlayers: 8,
-      pricePerPerson: 45000,
-      note: 'Đánh vui là chính, không quan trọng thắng thua. Còn 4 slot.',
-    },
-  })
-
-  const match4 = await prisma.communityMatch.create({
-    data: {
-      hostId: communityUsers.huedefense.id,
-      title: 'Buổi tập kỹ thuật phòng thủ',
-      district: CommunityDistrict.cau_giay,
-      level: CommunityLevel.expert,
-      branchId: branch1.id,
-      courtId: courtCauGiay?.id ?? null,
-      date: new Date('2026-06-12'),
-      slotStart: '19:00',
-      slotEnd: '21:00',
-      currentPlayers: 5,
-      neededPlayers: 6,
-      pricePerPerson: 70000,
-      note: 'Có HLV hướng dẫn. Phù hợp bạn muốn nâng trình phòng thủ.',
-    },
-  })
-
-  await prisma.communityMatchParticipant.createMany({
-    data: [
-      { matchId: match1.id, userId: communityUsers.tungrally.id, status: 'joined' },
-      { matchId: match2.id, userId: communityUsers.huedefense.id, status: 'joined' },
-      { matchId: match2.id, userId: communityUsers.minhsmash.id, status: 'joined' },
-      { matchId: match3.id, userId: communityUsers.minhsmash.id, status: 'joined' },
-      { matchId: match3.id, userId: communityUsers.linhdrop.id, status: 'joined' },
-      { matchId: match3.id, userId: communityUsers.tungrally.id, status: 'joined' },
-      { matchId: match4.id, userId: communityUsers.minhsmash.id, status: 'joined' },
-      { matchId: match4.id, userId: communityUsers.linhdrop.id, status: 'joined' },
-      { matchId: match4.id, userId: communityUsers.tungrally.id, status: 'joined' },
-      { matchId: match4.id, userId: communityUsers.quannet.id, status: 'joined' },
-    ],
-    skipDuplicates: true,
-  })
-
-  await prisma.communityNotification.createMany({
-    data: [
-      {
-        userId: communityUsers.minhsmash.id,
-        actorId: communityUsers.tungrally.id,
-        kind: CommunityNotificationKind.match,
-        text: 'đã xin tham gia kèo "Đánh đôi nam tối thứ 6" của bạn.',
-        targetType: 'match',
-        targetId: match1.id,
-      },
-      {
-        userId: communityUsers.linhdrop.id,
-        actorId: communityUsers.huedefense.id,
-        kind: CommunityNotificationKind.like,
-        text: 'đã thích bài check-in của bạn ở Thanh Xuân.',
-        targetType: 'post',
-        targetId: postLinh.id,
-      },
-      {
-        userId: communityUsers.minhsmash.id,
-        actorId: communityUsers.quannet.id,
-        kind: CommunityNotificationKind.comment,
-        text: 'đã bình luận: "Lần sau rủ mình nha".',
-        targetType: 'post',
-        targetId: postMinh.id,
-      },
-      {
-        userId: communityUsers.minhsmash.id,
-        actorId: communityUsers.linhdrop.id,
-        kind: CommunityNotificationKind.follow,
-        text: 'đã bắt đầu theo dõi bạn.',
-        targetType: 'profile',
-        targetId: communityUsers.minhsmash.username,
-      },
-    ],
-  })
-
-  console.log('✅ Community: 5 người chơi, 4 bài viết, 4 kèo, notifications mẫu')
-
   console.log('\n🎉 Seed hoàn tất!')
   console.log('─────────────────────────────────')
   console.log('📍 Chi nhánh: 3')
