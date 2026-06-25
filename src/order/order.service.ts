@@ -39,9 +39,17 @@ function haversineDistance(lat1: number, lng1: number, lat2: number, lng2: numbe
   return R * c;
 }
 
-async function checkStockForWarehouse(tx: any, warehouseId: number, items: any[]): Promise<boolean> {
+type StockCheckItem = {
+  sku?: string
+  qty: number
+  productName?: string
+  product?: { sku?: string }
+}
+
+async function checkStockForWarehouse(tx: any, warehouseId: number, items: StockCheckItem[]): Promise<boolean> {
   for (const item of items) {
-    const sku = item.product.sku;
+    const sku = item.sku || item.product?.sku;
+    if (!sku) return false;
     const inv = await tx.inventory.findUnique({
       where: { sku_warehouseId: { sku, warehouseId } }
     });
@@ -50,6 +58,76 @@ async function checkStockForWarehouse(tx: any, warehouseId: number, items: any[]
     }
   }
   return true;
+}
+
+function getOrderCoords(order: any): { lat: number; lng: number } | null {
+  if (!order.customerCoords || typeof order.customerCoords !== 'object') return null
+  const coords = order.customerCoords as any
+  const lat = parseFloat(String(coords.lat))
+  const lng = parseFloat(String(coords.lng))
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null
+  return { lat, lng }
+}
+
+async function selectWarehouseWithStock(tx: any, order: any, items: StockCheckItem[]) {
+  const candidates: any[] = []
+  const seen = new Set<number>()
+  const push = (warehouse: any) => {
+    if (warehouse && !seen.has(warehouse.id)) {
+      seen.add(warehouse.id)
+      candidates.push(warehouse)
+    }
+  }
+
+  const branchWarehouses = await tx.warehouse.findMany({
+    where: { branchId: { not: null }, isActive: true },
+    include: { branch: true },
+    orderBy: { id: 'asc' },
+  })
+
+  let origin = getOrderCoords(order)
+  if (order.deliveryMethod === 'pickup' && order.pickupBranchId) {
+    const pickupBranch = await tx.branch.findUnique({ where: { id: order.pickupBranchId } })
+    const pickupWarehouse = branchWarehouses.find((w: any) => w.branchId === order.pickupBranchId)
+    push(pickupWarehouse)
+    if (pickupBranch) {
+      origin = {
+        lat: parseFloat(String(pickupBranch.lat)),
+        lng: parseFloat(String(pickupBranch.lng)),
+      }
+    }
+  }
+
+  const sortedBranches = origin
+    ? branchWarehouses
+        .map((warehouse: any) => ({
+          warehouse,
+          distance: haversineDistance(
+            origin!.lat,
+            origin!.lng,
+            parseFloat(String(warehouse.branch?.lat || 0)),
+            parseFloat(String(warehouse.branch?.lng || 0)),
+          ),
+        }))
+        .sort((a: any, b: any) => a.distance - b.distance)
+        .map((entry: any) => entry.warehouse)
+    : branchWarehouses
+
+  sortedBranches.forEach(push)
+
+  const hubs = await tx.warehouse.findMany({
+    where: { isHub: true, isActive: true },
+    orderBy: { id: 'asc' },
+  })
+  hubs.forEach(push)
+
+  for (const warehouse of candidates) {
+    if (await checkStockForWarehouse(tx, warehouse.id, items)) {
+      return warehouse
+    }
+  }
+
+  return null
 }
 
 @Injectable()
@@ -92,6 +170,27 @@ export class OrderService {
       const subtotal = itemsWithPrice.reduce((sum, i) => sum + i.price * i.qty, 0)
       const shippingFee = dto.shipping_fee ?? 0
       const total = subtotal + shippingFee
+      const deliveryMethod = (dto.delivery_method || 'delivery') as any
+      const stockItems = itemsWithPrice.map(item => {
+        const product = products.find(p => p.id === item.product_id)!
+        return {
+          sku: product.sku,
+          qty: item.qty,
+          productName: product.name,
+        }
+      })
+      const selectedWarehouse = await selectWarehouseWithStock(
+        tx,
+        {
+          deliveryMethod,
+          pickupBranchId: dto.pickup_branch_id || null,
+          customerCoords: dto.customer_coords ? (dto.customer_coords as any) : null,
+        },
+        stockItems,
+      )
+      if (!selectedWarehouse) {
+        throw new BadRequestException('Khong du ton kho kha dung tai cac kho gan khach hoac kho Hub')
+      }
 
       const order = await tx.order.create({
         data: {
@@ -107,8 +206,9 @@ export class OrderService {
           subtotal,
           total,
           status: autoConfirmed ? 'confirmed' : 'pending',
-          deliveryMethod:  (dto.delivery_method || 'delivery') as any,
+          deliveryMethod,
           pickupBranchId:  dto.pickup_branch_id || null,
+          fulfillingWarehouseId: selectedWarehouse.id,
           customerCoords:  dto.customer_coords ? (dto.customer_coords as any) : null,
           items: {
             create: itemsWithPrice.map(i => ({
@@ -161,6 +261,10 @@ export class OrderService {
           invoiceCode: code,
           invoice_code: code,
           sales_code: code,
+          fulfillingWarehouseId: selectedWarehouse.id,
+          fulfilling_warehouse_id: selectedWarehouse.id,
+          fulfillingWarehouseName: selectedWarehouse.name,
+          fulfilling_warehouse_name: selectedWarehouse.name,
         },
       }
     })
@@ -175,7 +279,7 @@ export class OrderService {
       include: { items: true, invoices: true },
       orderBy: { createdAt: 'desc' },
     })
-    return orders.map(this.transform)
+    return (await this.attachWarehouseNames(orders)).map(this.transform)
   }
 
   // ─── Tất cả đơn hàng (admin) ──────────────────────────────
@@ -187,7 +291,7 @@ export class OrderService {
       include: { items: true, invoices: true, user: { select: { fullName: true } } },
       orderBy: { createdAt: 'desc' },
     })
-    return orders.map(this.transform)
+    return (await this.attachWarehouseNames(orders)).map(this.transform)
   }
 
   // ─── Chi tiết đơn hàng ────────────────────────────────────
@@ -202,7 +306,7 @@ export class OrderService {
       include: { items: true, invoices: { include: { items: true } } },
     })
     if (!order) throw new NotFoundException('Không tìm thấy đơn hàng')
-    return this.transform(order)
+    return this.transform((await this.attachWarehouseNames([order]))[0])
   }
 
   async findOneForUser(id: string, user: any) {
@@ -216,8 +320,9 @@ export class OrderService {
       include: { items: true, invoices: { include: { items: true } } },
     })
     if (!order) throw new NotFoundException('Không tìm thấy đơn hàng')
-    if (user.role === 'admin' || user.role === 'employee') return this.transform(order)
-    if (order.userId && order.userId === user.id) return this.transform(order)
+    const enriched = (await this.attachWarehouseNames([order]))[0]
+    if (user.role === 'admin' || user.role === 'employee') return this.transform(enriched)
+    if (order.userId && order.userId === user.id) return this.transform(enriched)
     throw new ForbiddenException('Bạn không có quyền xem đơn hàng này')
   }
 
@@ -245,69 +350,52 @@ export class OrderService {
     return this.prisma.$transaction(async (tx) => {
       let selectedWarehouseId: number | null = null;
       if (newStatus === 'processing') {
-        if (order.deliveryMethod === 'pickup') {
-          if (!order.pickupBranchId) {
-            throw new BadRequestException('Đơn hàng nhận tại cửa hàng nhưng không có chi nhánh nhận');
-          }
-          const wh = await tx.warehouse.findFirst({
-            where: { branchId: order.pickupBranchId, isActive: true }
-          });
-          if (!wh) {
-            throw new BadRequestException('Không tìm thấy kho hoạt động cho chi nhánh nhận hàng');
-          }
-          const hasEnough = await checkStockForWarehouse(tx, wh.id, order.items);
-          if (!hasEnough) {
-            throw new BadRequestException(`Kho ${wh.name} không đủ tồn kho để hoàn thành đơn hàng`);
-          }
-          selectedWarehouseId = wh.id;
-        } else {
-          // Delivery order: find nearest warehouse with stock
-          let lat: number | null = null;
-          let lng: number | null = null;
-          if (order.customerCoords && typeof order.customerCoords === 'object') {
-            const coords = order.customerCoords as any;
-            lat = parseFloat(coords.lat);
-            lng = parseFloat(coords.lng);
-          }
+        const stockItems = order.items.map((item: any) => ({
+          sku: item.product.sku,
+          qty: item.qty,
+          productName: item.productName,
+        }))
 
-          if (lat !== null && !isNaN(lat) && lng !== null && !isNaN(lng)) {
-            const branchWarehouses = await tx.warehouse.findMany({
-              where: { branchId: { not: null }, isActive: true },
-              include: { branch: true },
-            });
-            const sortedCandidates = branchWarehouses.map(w => {
-              const wLat = parseFloat(String(w.branch?.lat || 0));
-              const wLng = parseFloat(String(w.branch?.lng || 0));
-              const distance = haversineDistance(lat!, lng!, wLat, wLng);
-              return { warehouse: w, distance };
-            }).sort((a, b) => a.distance - b.distance);
-
-            for (const candidate of sortedCandidates) {
-              const whId = candidate.warehouse.id;
-              if (await checkStockForWarehouse(tx, whId, order.items)) {
-                selectedWarehouseId = whId;
-                break;
-              }
-            }
-          }
-
-          // If no branch warehouse has enough stock, or if customerCoords is missing, check Kho Hub
-          if (!selectedWarehouseId) {
-            const hub = await tx.warehouse.findFirst({
-              where: { isHub: true, isActive: true }
-            });
-            if (hub && await checkStockForWarehouse(tx, hub.id, order.items)) {
-              selectedWarehouseId = hub.id;
-            }
-          }
-
-          // If still no warehouse has enough stock, default to nearest branch or Kho Hub and throw exception
-          if (!selectedWarehouseId) {
-            throw new BadRequestException('Không đủ tồn kho khả dụng tại bất kỳ chi nhánh nào hoặc kho Hub');
-          }
+        if (order.fulfillingWarehouseId && await checkStockForWarehouse(tx, order.fulfillingWarehouseId, stockItems)) {
+          selectedWarehouseId = order.fulfillingWarehouseId
         }
 
-        // Deduct stock from the selected warehouse
+        if (!selectedWarehouseId) {
+          const selectedWarehouse = await selectWarehouseWithStock(tx, order, stockItems)
+          if (!selectedWarehouse) {
+            throw new BadRequestException('Khong du ton kho kha dung tai cac kho gan khach hoac kho Hub')
+          }
+          selectedWarehouseId = selectedWarehouse.id
+        }
+
+        const invoiceCode = order.invoices[0]?.code || fallbackOrderCode(order)
+        const warrantyCode = `BH-${invoiceCode}`
+        const documentUserId = user?.id || order.approvedBy || order.userId
+        if (!documentUserId) {
+          throw new BadRequestException('Khong xac dinh duoc nhan vien xuat kho')
+        }
+        const slip = await tx.adminWarehouseSlip.create({
+          data: {
+            type: 'export',
+            warehouseId: selectedWarehouseId,
+            note: `Xuat kho don online ${invoiceCode}; phieu bao hanh ${warrantyCode}`,
+            status: 'processed',
+            createdBy: documentUserId,
+            assignedTo: documentUserId,
+            processedAt: new Date(),
+            processedBy: documentUserId,
+            items: {
+              create: order.items.map((item: any) => ({
+                sku: item.product.sku,
+                name: item.productName,
+                qty: item.qty,
+                unitCost: item.price,
+              })),
+            },
+          },
+        })
+        const slipCode = `PXK-${slip.id.slice(0, 8).toUpperCase()}`
+
         await tx.order.update({
           where: { id: resolvedId },
           data: { fulfillingWarehouseId: selectedWarehouseId }
@@ -325,7 +413,7 @@ export class OrderService {
               available: { decrement: item.qty }
             }
           });
-          await tx.inventoryTransaction.create({
+          const inventoryTxn = await tx.inventoryTransaction.create({
             data: {
               type: 'export',
               date: new Date(),
@@ -337,6 +425,12 @@ export class OrderService {
               operatorId: user?.id || null,
             }
           });
+          await tx.inventoryTransaction.update({
+            where: { id: inventoryTxn.id },
+            data: {
+              note: `Xuat hang ban online | Hoa don: ${invoiceCode} | Phieu xuat: ${slipCode} | Bao hanh: ${warrantyCode}`,
+            },
+          })
           await this.prisma.syncProductInStock(tx, sku);
         }
       }
@@ -387,7 +481,7 @@ export class OrderService {
       }
 
       // FE reads res.data — trả về { success: true, data: {...} }
-      return { success: true, data: this.transform(updated) }
+      return { success: true, data: this.transform((await this.attachWarehouseNames([updated]))[0]) }
     })
   }
 
@@ -457,6 +551,30 @@ export class OrderService {
     })
   }
 
+  private async attachWarehouseNames<T extends { fulfillingWarehouseId?: number | null }>(orders: T[]) {
+    const warehouseIds = Array.from(new Set(
+      orders
+        .map(order => order.fulfillingWarehouseId)
+        .filter((id): id is number => typeof id === 'number'),
+    ))
+    if (warehouseIds.length === 0) return orders
+
+    const warehouses = await this.prisma.warehouse.findMany({
+      where: { id: { in: warehouseIds } },
+      select: { id: true, name: true },
+    })
+    const names = new Map(warehouses.map(warehouse => [warehouse.id, warehouse.name]))
+    return orders.map(order => ({
+      ...order,
+      fulfillingWarehouseName: order.fulfillingWarehouseId
+        ? names.get(order.fulfillingWarehouseId) ?? null
+        : null,
+      fulfilling_warehouse_name: order.fulfillingWarehouseId
+        ? names.get(order.fulfillingWarehouseId) ?? null
+        : null,
+    }))
+  }
+
   private transform(raw: any) {
     const latestInvoice = [...(raw.invoices || [])].sort(
       (a: any, b: any) => +new Date(b.createdAt) - +new Date(a.createdAt)
@@ -495,6 +613,9 @@ export class OrderService {
       deliveryMethod:  raw.deliveryMethod,
       pickupBranchId:  raw.pickupBranchId,
       fulfillingWarehouseId: raw.fulfillingWarehouseId,
+      fulfilling_warehouse_id: raw.fulfillingWarehouseId,
+      fulfillingWarehouseName: raw.fulfillingWarehouseName ?? null,
+      fulfilling_warehouse_name: raw.fulfilling_warehouse_name ?? raw.fulfillingWarehouseName ?? null,
       customerCoords:  raw.customerCoords,
       allowedNextStatuses: ORDER_TRANSITIONS[raw.status] ?? [],
       items: (raw.items || []).map((i: any) => ({
