@@ -26,10 +26,9 @@ import {
   dayLabel,
   buildHourSlots,
   resolveFixedSchedulePlan,
-  invoiceCode,
+  nextInvoiceCode,
   checkSlotConflict,
   PreviewOccurrence,
-  SlotOccurrence,
 } from './booking.helpers';
 
 // ═══════════════════════════════════════════════════════════════
