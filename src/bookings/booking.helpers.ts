@@ -9,6 +9,7 @@
 import { BadRequestException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { FixedScheduleCycle } from './dto/booking.dto';
 
 // ═══════════════════════════════════════════════════════════════
 // TYPE EXPORTS
@@ -209,59 +210,6 @@ export function assertSlotNotPast(date: Date, time: string): void {
 // ═══════════════════════════════════════════════════════════════
 // OCCURRENCE GENERATION
 // ═══════════════════════════════════════════════════════════════
-
-export interface WeeklySlot {
-  dayOfWeek: number; // 0=CN, 1=T2, 2=T3, 3=T4, 4=T5, 5=T6, 6=T7
-  timeStart: string;
-  timeEnd: string;
-}
-
-export interface SlotOccurrence {
-  date: Date;
-  timeStart: string;
-  timeEnd: string;
-}
-
-/**
- * Tìm ngày đầu tiên >= startDate có dayOfWeek khớp với slot.
- */
-export function getFirstOccurrenceOnOrAfter(startDate: Date, dayOfWeek: number): Date {
-  const startDay = startDate.getUTCDay();
-  let offset = dayOfWeek - startDay;
-  if (offset < 0) offset += 7;
-  return addDays(startDate, offset);
-}
-
-/**
- * Sinh danh sách ngày theo cycle:
- * - weekly: lặp mỗi 7 ngày
- * - monthly: lặp theo ngày trong tháng, clamp nếu tháng sau không có ngày đó
- */
-export function generateWeeklySlotDates(
-  startDate: string,
-  numberOfWeeks: number,
-  weeklySlots: WeeklySlot[],
-): SlotOccurrence[] {
-  const start = normalizeDate(startDate);
-  const end = normalizeDate(endDate);
-  const dates: Date[] = [];
-  let cursor = new Date(start);
-
-  while (cursor <= end) {
-    dates.push(new Date(cursor));
-    cursor =
-      cycle === FixedScheduleCycle.WEEKLY
-        ? addDays(cursor, 7)
-        : addMonthsClamped(cursor, 1);
-  }
-
-  // Sắp xếp theo ngày, sau đó theo giờ bắt đầu
-  return occurrences.sort((a, b) => {
-    const dateDiff = a.date.getTime() - b.date.getTime();
-    if (dateDiff !== 0) return dateDiff;
-    return a.timeStart.localeCompare(b.timeStart);
-  });
-}
 
 function lastDayOfMonth(year: number, monthIndex: number): number {
   return new Date(Date.UTC(year, monthIndex + 1, 0)).getUTCDate();
@@ -523,58 +471,6 @@ export function resolveFixedSchedulePlan(input: {
 // VALIDATION
 // ═══════════════════════════════════════════════════════════════
 
-/**
- * Validate input cho cả Preview và Confirm fixed schedule.
- *
- * FIX so với cũ:
- * 1. Dùng getTodayVN() thay vì normalizeDate(new Date()) để tránh lệch timezone.
- * 2. Validate số occurrences THỰC TẾ (gọi generateFixedDates) thay vì
- *    check daysDiff thô — vì user có thể chọn startDate=2025-06-19,
- *    endDate=2025-07-10 (21 ngày) mà vẫn đủ 4 buổi weekly.
- *
- * Ví dụ trước (BUG):
- *   startDate=2025-06-19, endDate=2025-07-10, cycle=weekly
- *   → daysDiff = 21 < 28 → throw "tối thiểu 28 ngày" ← SAI
- *
- * Ví dụ sau (ĐÚNG):
- *   dates = [Jun 19, Jun 26, Jul 3, Jul 10] → length=4 → pass ✅
- */
-export function validateWeeklySlotInput(input: {
-  startDate: string;
-  numberOfWeeks: number;
-  weeklySlots: WeeklySlot[];
-}): void {
-  const start = normalizeDate(input.startDate);
-  const end = normalizeDate(input.endDate);
-
-  // FIX #1: dùng ngày VN thay vì UTC
-  const today = getTodayVN();
-
-  if (start < today) {
-    throw new BadRequestException('Ngày bắt đầu phải từ hôm nay trở đi');
-  }
-  if (input.numberOfWeeks < 4) {
-    throw new BadRequestException('Gói đặt sân cố định tối thiểu 4 tuần');
-  }
-
-  // Validate giờ trước khi generate dates (throw nếu giờ sai)
-  buildHourSlots(input.timeStart, input.timeEnd);
-
-  // FIX #2: đếm số buổi thực tế thay vì đo khoảng cách ngày
-  const dates = generateFixedDates(input.startDate, input.endDate, input.cycle);
-
-  if (input.cycle === FixedScheduleCycle.WEEKLY && dates.length < 4) {
-    throw new BadRequestException(
-      `Gói theo tuần tối thiểu 4 buổi. Hiện tại chỉ có ${dates.length} buổi trong khoảng đã chọn.`,
-    );
-  }
-  if (input.cycle === FixedScheduleCycle.MONTHLY && dates.length < 2) {
-    throw new BadRequestException(
-      `Gói theo tháng tối thiểu 2 buổi. Hiện tại chỉ có ${dates.length} buổi trong khoảng đã chọn.`,
-    );
-  }
-}
-
 // ═══════════════════════════════════════════════════════════════
 // CODE GENERATORS
 // ═══════════════════════════════════════════════════════════════
@@ -660,4 +556,76 @@ export async function checkSlotConflict(
     },
     select: { time: true, status: true, bookedBy: true },
   });
+}
+
+export const HOLD_EXPIRES_MINUTES = 10;
+
+export async function expireStaleBookingHolds(
+  client: DbClient,
+  now: Date = new Date(),
+): Promise<number> {
+  const expiresBefore = new Date(now.getTime() - HOLD_EXPIRES_MINUTES * 60 * 1000);
+  const where: any = {
+    status: 'hold',
+    createdAt: { lt: expiresBefore },
+    booking: {
+      is: {
+        status: 'pending',
+        fixedScheduleId: null,
+        fixedOccurrenceId: null,
+      },
+    },
+  };
+
+  const staleSlots = await client.courtSlot.findMany({
+    where,
+    select: { bookingId: true },
+  }) || [];
+  const staleUnpaidBookings = await client.booking.findMany({
+    where: {
+      status: 'pending',
+      createdAt: { lt: expiresBefore },
+      fixedScheduleId: null,
+      fixedOccurrenceId: null,
+      invoices: { some: { status: 'unpaid' } },
+    },
+    select: { id: true },
+  }) || [];
+  const bookingIds = Array.from(
+    new Set([
+      ...(staleSlots.map((slot) => slot.bookingId).filter(Boolean) as string[]),
+      ...staleUnpaidBookings.map((booking) => booking.id),
+    ]),
+  );
+
+  if (bookingIds.length === 0) return 0;
+
+  const deletedSlots = await client.courtSlot.deleteMany({
+    where: {
+      OR: [
+        where,
+        { bookingId: { in: bookingIds }, status: 'hold' },
+      ],
+    },
+  });
+
+  await client.booking.updateMany({
+    where: {
+      id: { in: bookingIds },
+      status: 'pending',
+      fixedScheduleId: null,
+      fixedOccurrenceId: null,
+    },
+    data: { status: 'cancelled' },
+  });
+
+  await client.invoice.updateMany({
+    where: {
+      bookingId: { in: bookingIds },
+      status: 'unpaid',
+    },
+    data: { status: 'cancelled' },
+  });
+
+  return deletedSlots.count;
 }
