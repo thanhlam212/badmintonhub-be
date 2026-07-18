@@ -270,11 +270,7 @@ export class CommunityService {
 
     const where: Prisma.CommunityMatchWhereInput = {
       status: {
-        in: [
-          CommunityMatchStatus.open,
-          CommunityMatchStatus.full,
-          CommunityMatchStatus.expired,
-        ],
+        in: [CommunityMatchStatus.open, CommunityMatchStatus.full],
       },
     };
 
@@ -287,7 +283,7 @@ export class CommunityService {
 
     const matches = await this.prisma.communityMatch.findMany({
       where,
-      orderBy: [{ date: 'asc' }, { createdAt: 'desc' }],
+      orderBy: [{ createdAt: 'desc' }],
       include: this.buildMatchInclude(currentUserId),
     });
 
@@ -299,14 +295,18 @@ export class CommunityService {
     });
 
     return {
-      matches: filtered.map((match) => this.mapMatch(match, currentUserId)),
+      matches: filtered
+        .map((match) => this.mapMatch(match, currentUserId))
+        .filter((match) => !match.expired && match.status !== CommunityMatchStatus.expired),
     };
   }
 
   async getNotifications(userId: string) {
     await this.ensureProfile(userId);
 
-    const [notifications, user, upcomingBookings] = await Promise.all([
+    const today = normalizeDate(getBusinessNowParts(new Date()).dateToken);
+
+    const [notifications, user, upcomingBookings, todayFixedOccurrences] = await Promise.all([
       this.prisma.communityNotification.findMany({
         where: { userId },
         orderBy: { createdAt: 'desc' },
@@ -332,6 +332,34 @@ export class CommunityService {
           branch: true,
         },
       }),
+      this.prisma.fixedScheduleOccurrence.findMany({
+        where: {
+          occurrenceDate: today,
+          status: { in: ['scheduled', 'rescheduled', 'completed'] },
+          fixedSchedule: { userId },
+          booking: {
+            is: {
+              status: { in: ['confirmed', 'playing', 'completed'] },
+            },
+          },
+        },
+        orderBy: [{ timeStart: 'asc' }],
+        include: {
+          court: { select: { name: true } },
+          fixedSchedule: {
+            select: {
+              id: true,
+              court: {
+                select: {
+                  name: true,
+                  branch: { select: { name: true } },
+                },
+              },
+            },
+          },
+          booking: { select: { id: true, status: true } },
+        },
+      }),
     ]);
 
     if (!user) throw new NotFoundException('Không tìm thấy người dùng');
@@ -341,6 +369,16 @@ export class CommunityService {
       kind: CommunityNotificationKind.reminder,
       text: `Nhắc lịch: bạn có trận tại ${booking.branch.name} lúc ${booking.timeStart} ngày ${this.formatDateOnly(booking.bookingDate)}.`,
       time: this.formatRelativeTime(booking.createdAt),
+      unread: false,
+      link: '/my-bookings',
+      actor: this.mapPlayer(user, user.communityProfile),
+    }));
+
+    const fixedQrReminderItems = todayFixedOccurrences.map((occurrence) => ({
+      id: `fixed-qr-${occurrence.id}`,
+      kind: CommunityNotificationKind.reminder,
+      text: `QR lich co dinh cua ban hom nay: ${occurrence.court?.name || occurrence.fixedSchedule.court.name} luc ${occurrence.timeStart}-${occurrence.timeEnd}. Bam de mo QR check-in.`,
+      time: 'Tu 00:00 hom nay',
       unread: false,
       link: '/my-bookings',
       actor: this.mapPlayer(user, user.communityProfile),
@@ -366,6 +404,7 @@ export class CommunityService {
             ? this.mapPlayer(item.actor, item.actor.communityProfile)
             : null,
         })),
+        ...fixedQrReminderItems,
         ...reminderItems,
       ],
     };
@@ -1627,6 +1666,7 @@ export class CommunityService {
     return {
       id: match.id,
       title: match.title,
+      createdAt: match.createdAt,
       status,
       statusLabel: this.getMatchStatusLabel(status),
       district: DISTRICT_ENUM_TO_LABEL[match.district],

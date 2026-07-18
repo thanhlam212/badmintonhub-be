@@ -30,6 +30,7 @@ import { PaymentModule } from './payment/payment.module';
 import { UsersModule } from './users/users.module';
 import { SalesOrdersModule } from './sales-orders/sales-orders.module';
 import { CommunityModule } from './community/community.module';
+import { AiModule } from './ai/ai.module';
 
 
 @Module({
@@ -44,6 +45,7 @@ import { CommunityModule } from './community/community.module';
             UsersModule,
             SalesOrdersModule,
             CommunityModule,
+            AiModule,
             ],
    providers: [
     {

@@ -1,6 +1,6 @@
 import { Controller, Get, Post, Body, Param, Query, ParseIntPipe, Request } from '@nestjs/common'
 import { InventoryService } from './inventory.service'
-import { ImportStockDto, ExportStockDto } from './dto/inventory.dto'
+import { CreateAdminSlipDto, ImportStockDto, ExportStockDto } from './dto/inventory.dto'
 import { Roles } from 'src/auth/decorators'
 
 // Global JwtAuthGuard + RolesGuard already applied via APP_GUARD in app.module
@@ -29,6 +29,30 @@ export class InventoryController {
   }
 
   // GET /inventory/warehouse/:id  — inventory của 1 kho cụ thể
+  @Get('admin-slips')
+  getAdminSlips(
+    @Request() req: any,
+    @Query('status') status?: string,
+    @Query('type') type?: string,
+    @Query('warehouseId') warehouseId?: string,
+  ) {
+    return this.inventoryService.getAdminSlips(req.user, {
+      status,
+      type,
+      warehouseId: warehouseId ? +warehouseId : undefined,
+    })
+  }
+
+  @Post('admin-slips')
+  createAdminSlip(@Body() dto: CreateAdminSlipDto, @Request() req: any) {
+    return this.inventoryService.createAdminSlip(dto, req.user)
+  }
+
+  @Post('admin-slips/:id/process')
+  processAdminSlip(@Param('id') id: string, @Request() req: any) {
+    return this.inventoryService.processAdminSlip(id, req.user)
+  }
+
   @Get('warehouse/:id')
   getByWarehouse(@Param('id', ParseIntPipe) id: number) {
     return this.inventoryService.getByWarehouse(id)

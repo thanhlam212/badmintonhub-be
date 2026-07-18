@@ -93,6 +93,7 @@ export class SepayProvider {
     amount: number
     description: string
     customerId?: string | null
+    cancelPath?: string
   }): SepayCheckoutForm {
     if (!this.isCheckoutConfigured()) {
       throw new Error('SePay checkout chưa được cấu hình đầy đủ')
@@ -107,7 +108,9 @@ export class SepayProvider {
       payment_method: this.paymentMethod,
       success_url: this.successUrl,
       error_url: this.errorUrl,
-      cancel_url: this.cancelUrl,
+      cancel_url: params.cancelPath
+        ? this.resolveCallbackUrl('', params.cancelPath)
+        : this.cancelUrl,
       merchant: this.merchantId,
       operation: 'PURCHASE',
     }

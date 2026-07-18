@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import 'reflect-metadata';
 import { FixedScheduleCycle } from './dto/booking.dto';
 import { resolveFixedSchedulePlan } from './booking.helpers';
 
@@ -36,6 +36,58 @@ describe('resolveFixedSchedulePlan', () => {
     expect(plan.endDate).toEqual(plan.occurrences[7].date);
   });
 
+  it('limits fixed weekly occurrences by each rule repeatWeeks value', () => {
+    const plan = resolveFixedSchedulePlan({
+      startDate: futureDate(),
+      cycle: FixedScheduleCycle.WEEKLY,
+      bookingMode: 'occurrence_count',
+      occurrenceCount: 9,
+      rules: [
+        {
+          dayOfWeek: 1,
+          timeStart: '18:00',
+          timeEnd: '20:00',
+          repeatWeeks: 4,
+        },
+        {
+          dayOfWeek: 4,
+          timeStart: '19:00',
+          timeEnd: '21:00',
+          repeatWeeks: 5,
+        },
+      ],
+    });
+
+    expect(plan.occurrences).toHaveLength(9);
+    expect(plan.occurrences.filter((item) => item.timeStart === '18:00')).toHaveLength(4);
+    expect(plan.occurrences.filter((item) => item.timeStart === '19:00')).toHaveLength(5);
+    expect(plan.endDate).toEqual(plan.occurrences[8].date);
+  });
+
+  it('allows odd specific-date rules to repeat for a custom number of weeks', () => {
+    const startYear = new Date().getUTCFullYear() + 1;
+    const plan = resolveFixedSchedulePlan({
+      startDate: `${startYear}-01-01`,
+      cycle: FixedScheduleCycle.WEEKLY,
+      bookingMode: 'occurrence_count',
+      occurrenceCount: 2,
+      rules: [
+        {
+          specificDate: `${startYear}-01-14`,
+          timeStart: '18:00',
+          timeEnd: '20:00',
+          repeat: false,
+          repeatWeeks: 2,
+        },
+      ],
+    });
+
+    expect(plan.occurrences.map((item) => item.dateKey)).toEqual([
+      `${startYear}-01-14`,
+      `${startYear}-01-21`,
+    ]);
+  });
+
   it('clamps day 31 independently for each monthly occurrence', () => {
     const startYear = new Date().getUTCFullYear() + 1;
     const plan = resolveFixedSchedulePlan({
@@ -59,26 +111,80 @@ describe('resolveFixedSchedulePlan', () => {
     ]);
   });
 
-  it('rejects multiple rules that generate two sessions on the same date', () => {
+  it('allows multiple non-overlapping sessions on the same date', () => {
+    const plan = resolveFixedSchedulePlan({
+      startDate: futureDate(),
+      cycle: FixedScheduleCycle.WEEKLY,
+      bookingMode: 'occurrence_count',
+      occurrenceCount: 8,
+      rules: [
+        {
+          dayOfWeek: 1,
+          timeStart: '18:00',
+          timeEnd: '19:00',
+        },
+        {
+          dayOfWeek: 1,
+          timeStart: '20:00',
+          timeEnd: '21:00',
+        },
+      ],
+    });
+
+    expect(plan.occurrences).toHaveLength(8);
+    expect(plan.occurrences.slice(0, 2).map((item) => item.timeStart)).toEqual([
+      '18:00',
+      '20:00',
+    ]);
+  });
+
+  it('rejects overlapping sessions generated on the same date', () => {
     expect(() =>
       resolveFixedSchedulePlan({
         startDate: futureDate(),
         cycle: FixedScheduleCycle.WEEKLY,
         bookingMode: 'occurrence_count',
-        occurrenceCount: 4,
+        occurrenceCount: 8,
         rules: [
           {
             dayOfWeek: 1,
             timeStart: '18:00',
-            timeEnd: '19:00',
+            timeEnd: '20:00',
           },
           {
             dayOfWeek: 1,
-            timeStart: '20:00',
+            timeStart: '19:00',
             timeEnd: '21:00',
           },
         ],
       }),
-    ).toThrow(BadRequestException);
+    ).toThrow(/bị trùng/);
+  });
+
+  it('keeps one-time rules as single occurrences alongside repeating rules', () => {
+    const startYear = new Date().getUTCFullYear() + 1;
+    const plan = resolveFixedSchedulePlan({
+      startDate: `${startYear}-01-01`,
+      cycle: FixedScheduleCycle.WEEKLY,
+      bookingMode: 'occurrence_count',
+      occurrenceCount: 5,
+      rules: [
+        {
+          dayOfWeek: 1,
+          timeStart: '18:00',
+          timeEnd: '20:00',
+          repeat: true,
+        },
+        {
+          specificDate: `${startYear}-02-14`,
+          timeStart: '09:00',
+          timeEnd: '10:00',
+          repeat: false,
+        },
+      ],
+    });
+
+    expect(plan.occurrences.filter((item) => item.timeStart === '09:00')).toHaveLength(1);
+    expect(plan.occurrences).toHaveLength(5);
   });
 });

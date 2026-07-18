@@ -13,6 +13,7 @@ import {
   FixedScheduleConfirmDto,
   FixedSchedulePreviewDto,
   UpdateBookingStatusDto,
+  UpdateFixedScheduleAdjustmentLimitDto,
   CheckSlotDto,
 } from './dto/booking.dto';
 import { Public, Roles, CurrentUser } from '../auth/decorators/index';
@@ -68,6 +69,8 @@ function mapBooking(b: any) {
     service_paid_at:    b.servicePaidAt ?? null,
     invoice_id:         b.invoiceId ?? (Array.isArray(b.invoices) ? b.invoices[0]?.id : null) ?? b.invoice?.id ?? null,
     invoice_status:     b.invoiceStatus ?? (Array.isArray(b.invoices) ? (b.invoices[0]?.status ?? null) : null),
+    fixed_schedule_id:  b.fixedScheduleId ?? null,
+    fixed_occurrence_id: b.fixedOccurrenceId ?? null,
     created_at:         b.createdAt,
   }
 }
@@ -102,8 +105,8 @@ export class BookingsController {
   @Public()
   @Throttle({ default: { ttl: 60000, limit: 10 } })  // 10 req / 60s — chống spam tạo booking
   @Post()
-  async create(@Body() dto: CreateBookingDto) {
-    const booking = await this.bookingsService.create(dto)
+  async create(@Body() dto: CreateBookingDto, @CurrentUser() user: any) {
+    const booking = await this.bookingsService.create(dto, user)
     return { success: true, data: mapBooking(booking) }
   }
 
@@ -118,11 +121,13 @@ export class BookingsController {
     return this.bookingsService.previewFixedSchedule(dto)
   }
 
-  @Public()
   @Throttle({ default: { ttl: 60000, limit: 5 } })  // 5 req / 60s
   @Post('fixed/confirm')
-  confirmFixed(@Body() dto: FixedScheduleConfirmDto) {
-    return this.bookingsService.confirmFixedSchedule(dto)
+  confirmFixed(
+    @Body() dto: FixedScheduleConfirmDto,
+    @CurrentUser() user: any,
+  ) {
+    return this.bookingsService.confirmFixedSchedule(dto, user.id)
   }
 
   // ─────────────────────────────────────────────────────
@@ -141,8 +146,8 @@ export class BookingsController {
   @Public()
   @Throttle({ default: { ttl: 60000, limit: 10 } })  // 10 req / 60s — chống spam lock slot
   @Post('hold')
-  async createHold(@Body() dto: CreateBookingDto) {
-    const booking = await this.bookingsService.create(dto);
+  async createHold(@Body() dto: CreateBookingDto, @CurrentUser() user: any) {
+    const booking = await this.bookingsService.create(dto, user);
     return { success: true, data: mapBooking(booking) };
   }
 
@@ -151,8 +156,8 @@ export class BookingsController {
   // ─────────────────────────────────────────────────────
   @Post('recurring')
   @Roles('admin', 'employee')
-  async createRecurring(@Body() dto: CreateRecurringDto) {
-    const result = await this.bookingsService.createRecurring(dto);
+  async createRecurring(@Body() dto: CreateRecurringDto, @CurrentUser() user: any) {
+    const result = await this.bookingsService.createRecurring(dto, user);
     return {
       success: true,
       data: result.data?.map(mapBooking),
@@ -167,9 +172,12 @@ export class BookingsController {
   // ─────────────────────────────────────────────────────
   @Post('checkin')
   @Roles('admin', 'employee')
-  async checkin(@Body() body: { bookingId?: string; bookingCode?: string }) {
+  async checkin(
+    @Body() body: { bookingId?: string; bookingCode?: string },
+    @CurrentUser() user: any,
+  ) {
     const id = body.bookingId || body.bookingCode
-    const result = await this.bookingsService.checkin(id!)
+    const result = await this.bookingsService.checkin(id!, user)
     // Return booking with camelCase keys matching the FE CheckinResult interface
     return {
       message: result.message || 'Check-in thành công',
@@ -242,6 +250,14 @@ export class BookingsController {
   // ─────────────────────────────────────────────────────
   // GET /api/bookings/fixed/:scheduleId — Chi tiết gói cố định
   // ─────────────────────────────────────────────────────
+  @Roles('admin', 'employee')
+  @Get('fixed/all')
+  getAllFixedSchedules(@Query('branchId') branchId?: string) {
+    return this.bookingsService.findAllFixedSchedules(
+      branchId ? Number(branchId) : undefined,
+    )
+  }
+
   @Get('fixed/:scheduleId')
   getFixedScheduleDetail(
     @Param('scheduleId') scheduleId: string,
@@ -318,14 +334,28 @@ export class BookingsController {
   async updateStatus(
     @Param('id') id: string,
     @Body() dto: UpdateBookingStatusDto,
+    @CurrentUser() user: any,
   ) {
-    const result = await this.bookingsService.updateStatus(id, dto)
+    const result = await this.bookingsService.updateStatus(id, dto, user)
     return { success: true, data: mapBooking(extractBooking(result)) }
   }
 
   // ─────────────────────────────────────────────────────
   // PATCH /bookings/fixed/:scheduleId/occurrences/:occurrenceId/adjust
   // ─────────────────────────────────────────────────────
+  @Roles('admin', 'employee')
+  @Patch('fixed/:scheduleId/confirm-payment')
+  async confirmFixedSchedulePayment(
+    @Param('scheduleId') scheduleId: string,
+    @Body() body: { paymentMethod?: string },
+  ) {
+    const result = await this.bookingsService.confirmFixedSchedulePayment(
+      scheduleId,
+      body?.paymentMethod,
+    )
+    return { success: true, data: result, message: result.message }
+  }
+
   @Patch('fixed/:scheduleId/occurrences/:occurrenceId/adjust')
   adjustFixed(
     @Param('scheduleId') scheduleId: string,
@@ -334,6 +364,51 @@ export class BookingsController {
     @CurrentUser() user: any,
   ) {
     return this.bookingsService.adjustFixedOccurrence(scheduleId, occurrenceId, dto, user)
+  }
+
+  @Patch('fixed/:scheduleId/occurrences/:occurrenceId/adjust-request')
+  requestFixedAdjust(
+    @Param('scheduleId') scheduleId: string,
+    @Param('occurrenceId') occurrenceId: string,
+    @Body() dto: FixedScheduleAdjustDto,
+    @CurrentUser() user: any,
+  ) {
+    return this.bookingsService.requestFixedOccurrenceAdjustment(scheduleId, occurrenceId, dto, user)
+  }
+
+  @Roles('admin', 'employee')
+  @Patch('fixed/adjustments/:adjustmentId/review')
+  reviewFixedAdjust(
+    @Param('adjustmentId') adjustmentId: string,
+    @Body() body: { approve: boolean; reason?: string },
+    @CurrentUser() user: any,
+  ) {
+    return this.bookingsService.reviewFixedAdjustmentRequest(adjustmentId, body, user)
+  }
+
+  @Roles('admin', 'employee')
+  @Patch('fixed/:scheduleId/adjustment-limit')
+  async updateFixedScheduleAdjustmentLimit(
+    @Param('scheduleId') scheduleId: string,
+    @Body() dto: UpdateFixedScheduleAdjustmentLimitDto,
+    @CurrentUser() user: any,
+  ) {
+    const result = await this.bookingsService.updateFixedScheduleAdjustmentLimit(scheduleId, dto, user)
+    return { success: true, data: result, message: 'Đã cập nhật số lượt đổi lịch cố định' }
+  }
+
+  @Roles('admin', 'employee')
+  @Delete('fixed/:scheduleId')
+  async deleteFixedScheduleTrash(@Param('scheduleId') scheduleId: string) {
+    const result = await this.bookingsService.deleteFixedScheduleTrash(scheduleId)
+    return { success: true, data: result, message: result.message }
+  }
+
+  @Roles('admin', 'employee')
+  @Patch('fixed/:scheduleId/delete-trash')
+  async deleteFixedScheduleTrashAction(@Param('scheduleId') scheduleId: string) {
+    const result = await this.bookingsService.deleteFixedScheduleTrash(scheduleId)
+    return { success: true, data: result, message: result.message }
   }
 
   // ─────────────────────────────────────────────────────

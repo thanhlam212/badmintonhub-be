@@ -97,7 +97,10 @@ export class FixedScheduleService {
         return total;
       }
       const sourceOccurrence = plan.occurrences.find(
-        (item) => item.dateKey === occurrence.date,
+        (item) =>
+          item.dateKey === occurrence.date &&
+          item.timeStart === occurrence.timeStart &&
+          item.timeEnd === occurrence.timeEnd,
       );
       return total + pricePerHour * (sourceOccurrence?.hours.length ?? 0);
     }, 0);
@@ -211,7 +214,7 @@ export class FixedScheduleService {
   // PUBLIC: CONFIRM
   // ───────────────────────────────────────────────────────────
 
-  async confirm(dto: FixedScheduleConfirmDto) {
+  async confirm(dto: FixedScheduleConfirmDto, userId: string) {
     const plan = resolveFixedSchedulePlan(dto);
 
     const billable = dto.decisions.filter(
@@ -246,28 +249,57 @@ export class FixedScheduleService {
       }
     }
 
+    const occurrenceKey = (value: {
+      date?: string | Date;
+      dateKey?: string;
+      timeStart?: string;
+      timeEnd?: string;
+    }) => {
+      const dateKey =
+        value.dateKey ??
+        (value.date ? formatDate(normalizeDate(value.date)) : '');
+      return `${dateKey}:${value.timeStart ?? ''}:${value.timeEnd ?? ''}`;
+    };
+    const occurrenceByKey = new Map(
+      plan.occurrences.map((occurrence) => [
+        occurrenceKey(occurrence),
+        occurrence,
+      ]),
+    );
     const occurrenceByDate = new Map(
       plan.occurrences.map((occurrence) => [occurrence.dateKey, occurrence]),
     );
-    const decisionDates = new Set<string>();
+    const decisionKeys = new Set<string>();
 
     for (const decision of dto.decisions) {
       const dateKey = formatDate(normalizeDate(decision.date));
-      if (decisionDates.has(dateKey)) {
+      const decisionKey =
+        decision.timeStart && decision.timeEnd
+          ? occurrenceKey({
+              dateKey,
+              timeStart: decision.timeStart,
+              timeEnd: decision.timeEnd,
+            })
+          : dateKey;
+      if (decisionKeys.has(decisionKey)) {
         throw new BadRequestException(
           `Buổi ${decision.date} bị gửi quyết định trùng.`,
         );
       }
-      if (!occurrenceByDate.has(dateKey)) {
+      const exists =
+        decision.timeStart && decision.timeEnd
+          ? occurrenceByKey.has(decisionKey)
+          : occurrenceByDate.has(dateKey);
+      if (!exists) {
         throw new BadRequestException(
           `Buổi ${decision.date} không thuộc lịch cố định đã chọn.`,
         );
       }
-      decisionDates.add(dateKey);
+      decisionKeys.add(decisionKey);
     }
 
     const missingOccurrence = plan.occurrences.find(
-      (occurrence) => !decisionDates.has(occurrence.dateKey),
+      (occurrence) => !decisionKeys.has(occurrenceKey(occurrence)),
     );
     if (missingOccurrence) {
       throw new BadRequestException(
@@ -294,9 +326,17 @@ export class FixedScheduleService {
 
       const pricePerHour = Number(originalCourt.price);
       const totalAmount = billable.reduce((total, decision) => {
-        const occurrence = occurrenceByDate.get(
-          formatDate(normalizeDate(decision.date)),
-        )!;
+        const dateKey = formatDate(normalizeDate(decision.date));
+        const occurrence =
+          decision.timeStart && decision.timeEnd
+            ? occurrenceByKey.get(
+                occurrenceKey({
+                  dateKey,
+                  timeStart: decision.timeStart,
+                  timeEnd: decision.timeEnd,
+                }),
+              )!
+            : occurrenceByDate.get(dateKey)!;
         const hours =
           decision.action === OccurrenceAction.CUSTOM &&
           decision.customTimeStart &&
@@ -306,13 +346,14 @@ export class FixedScheduleService {
         return total + pricePerHour * hours.length;
       }, 0);
 
-      const adjustmentLimit = dto.cycle === 'monthly' ? 2 : 1;
+      const adjustmentLimit =
+        dto.adjustmentLimit ?? (dto.cycle === 'monthly' ? 2 : 1);
 
       const fixedSchedule = await tx.fixedSchedule.create({
         data: {
-          userId: dto.userId || null,
+          userId,
           courtId: dto.courtId,
-          cycle: dto.cycle,
+          cycle: dto.cycle as any,
           bookingMode: plan.bookingMode,
           requestedOccurrenceCount: plan.requestedOccurrenceCount ?? null,
           rules: plan.rules as any,
@@ -329,17 +370,26 @@ export class FixedScheduleService {
           occurrenceCount: billable.length,
           adjustmentLimit,
           adjustmentUsed: 0,
-          status: this.deriveInitialScheduleStatus(dto.paymentMethod),
+          status: 'pending',
         },
+        select: { id: true, status: true },
       });
 
       const createdBookings: any[] = [];
       const invoiceItems: any[] = [];
 
       for (const decision of dto.decisions) {
-        const plannedOccurrence = occurrenceByDate.get(
-          formatDate(normalizeDate(decision.date)),
-        )!;
+        const dateKey = formatDate(normalizeDate(decision.date));
+        const plannedOccurrence =
+          decision.timeStart && decision.timeEnd
+            ? occurrenceByKey.get(
+                occurrenceKey({
+                  dateKey,
+                  timeStart: decision.timeStart,
+                  timeEnd: decision.timeEnd,
+                }),
+              )!
+            : occurrenceByDate.get(dateKey)!;
         if (decision.action === OccurrenceAction.SKIP) {
           await this.handleSkipDecision(tx, fixedSchedule.id, decision, {
             courtId: dto.courtId,
@@ -361,7 +411,7 @@ export class FixedScheduleService {
           customerName: dto.customerName,
           customerPhone: dto.customerPhone,
           customerEmail: dto.customerEmail,
-          userId: dto.userId,
+          userId,
           paymentMethod: dto.paymentMethod,
           timeStart: plannedOccurrence.timeStart,
           timeEnd: plannedOccurrence.timeEnd,
@@ -381,6 +431,7 @@ export class FixedScheduleService {
         await tx.fixedSchedule.update({
           where: { id: fixedSchedule.id },
           data: { totalAmountSnapshot: actualTotal },
+          select: { id: true },
         });
       }
 
@@ -394,8 +445,7 @@ export class FixedScheduleService {
           subtotalSnapshot: actualTotal,
           totalSnapshot: actualTotal,
           paymentMethod: dto.paymentMethod,
-          status:
-            dto.paymentMethod === PaymentMethod.CASH ? 'unpaid' : 'deposited',
+          status: 'unpaid',
           items: { create: invoiceItems },
         },
       });
@@ -408,6 +458,7 @@ export class FixedScheduleService {
         bookingsCreated: createdBookings.length,
         skipped: dto.decisions.length - billable.length,
         status: fixedSchedule.status,
+        paymentMethod: dto.paymentMethod,
       };
     });
   }
@@ -466,6 +517,7 @@ export class FixedScheduleService {
         date: string;
         action: OccurrenceAction;
         replaceWithCourtId?: number;
+        customDate?: string;
         customTimeStart?: string;
         customTimeEnd?: string;
       };
@@ -483,16 +535,18 @@ export class FixedScheduleService {
       customerName: string;
       customerPhone: string;
       customerEmail?: string;
-      userId?: string;
+      userId: string;
       paymentMethod: PaymentMethod;
       timeStart: string;
       timeEnd: string;
     },
   ) {
     const { decision, fixedScheduleId, originalCourt } = args;
-    const occDate = normalizeDate(decision.date);
-
     const isCustom = decision.action === OccurrenceAction.CUSTOM;
+    const originalOccDate = normalizeDate(decision.date);
+    const occDate = normalizeDate(
+      isCustom && decision.customDate ? decision.customDate : decision.date,
+    );
     const effectiveTimeStart =
       isCustom && decision.customTimeStart
         ? decision.customTimeStart
@@ -556,7 +610,7 @@ export class FixedScheduleService {
     );
     if (conflicts.length > 0) {
       throw new ConflictException(
-        `Buổi ${decision.date} sân ID ${targetCourtId} (${effectiveTimeStart}-${effectiveTimeEnd}) đã có người đặt: ${conflicts.map((c) => c.time).join(', ')}`,
+        `Buổi ${formatDate(occDate)} sân ID ${targetCourtId} (${effectiveTimeStart}-${effectiveTimeEnd}) đã có người đặt: ${conflicts.map((c) => c.time).join(', ')}`,
       );
     }
 
@@ -580,7 +634,7 @@ export class FixedScheduleService {
       data: {
         courtId: targetCourtId,
         branchId: targetCourt.branchId,
-        userId: args.userId || null,
+        userId: args.userId,
         bookingDate: occDate,
         dayLabel: dayLabel(occDate),
         timeStart: effectiveTimeStart,
@@ -592,7 +646,7 @@ export class FixedScheduleService {
         customerName: args.customerName,
         customerPhone: args.customerPhone,
         customerEmail: args.customerEmail || null,
-        status: this.deriveInitialBookingStatus(args.paymentMethod),
+        status: 'pending',
         fixedScheduleId,
         fixedOccurrenceId: occurrence.id,
       },
@@ -604,7 +658,7 @@ export class FixedScheduleService {
         slotDate: occDate,
         dateLabel: dayLabel(occDate),
         time,
-        status: args.paymentMethod === PaymentMethod.CASH ? 'hold' : 'booked',
+        status: 'hold',
         bookedBy: args.customerName,
         phone: args.customerPhone,
         bookingId: booking.id,
@@ -619,14 +673,14 @@ export class FixedScheduleService {
           type: isCustom ? 'reschedule' : 'change_court',
           oldCourtId: originalCourt.id,
           newCourtId: targetCourtId,
-          oldDate: occDate,
+          oldDate: originalOccDate,
           newDate: occDate,
           oldTimeStart: args.timeStart,
           newTimeStart: effectiveTimeStart,
           oldTimeEnd: args.timeEnd,
           newTimeEnd: effectiveTimeEnd,
           note: isCustom
-            ? `Đổi giờ + sân khi confirm gói: ${effectiveTimeStart}-${effectiveTimeEnd}`
+            ? `Đổi ngày/giờ + sân khi confirm gói: ${formatDate(originalOccDate)} -> ${formatDate(occDate)} ${effectiveTimeStart}-${effectiveTimeEnd}`
             : 'Tự động bù sân khi confirm gói',
         },
       });
@@ -741,15 +795,4 @@ export class FixedScheduleService {
     return null;
   }
 
-  // ───────────────────────────────────────────────────────────
-  // PRIVATE: STATUS HELPERS
-  // ───────────────────────────────────────────────────────────
-
-  private deriveInitialScheduleStatus(payment: PaymentMethod) {
-    return payment === PaymentMethod.CASH ? 'pending' : 'deposited';
-  }
-
-  private deriveInitialBookingStatus(payment: PaymentMethod) {
-    return payment === PaymentMethod.CASH ? 'pending' : 'confirmed';
-  }
 }

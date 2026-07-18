@@ -17,11 +17,13 @@ export class CourtsController {
     @Query('branchId') branchId?: string,
     @Query('type') type?: string,
     @Query('indoor') indoor?: string,
+    @Query('includeUnavailable') includeUnavailable?: string,
   ) {
     return this.courtsService.findAll({
       branchId: branchId ? +branchId : undefined,
       type,
       indoor: indoor !== undefined ? indoor === 'true' : undefined,
+      includeUnavailable: includeUnavailable === 'true',
     });
   }
 

@@ -6,7 +6,7 @@ import { PrismaService } from '../prisma/prisma.service'
 // ─── Helpers ─────────────────────────────────────────────────
 
 function makeProduct(id: number, price: number, name = `Product ${id}`) {
-  return { id, name, price: price.toString() }
+  return { id, name, sku: `SKU-${id}`, price: price.toString() }
 }
 
 function makeOrder(overrides: Partial<any> = {}): any {
@@ -65,15 +65,32 @@ function makePrismaMock() {
       findFirst:  jest.fn(),
       findMany:   jest.fn(),
     },
+    branch: {
+      findUnique: jest.fn(),
+    },
     inventory: {
       findUnique: jest.fn(),
       update:     jest.fn(),
     },
     inventoryTransaction: {
       create:     jest.fn(),
+      update:     jest.fn(),
     },
+    adminWarehouseSlip: {
+      create:     jest.fn(),
+    },
+    syncProductInStock: jest.fn(),
     $transaction: jest.fn(),
   }
+  mock.warehouse.findMany.mockResolvedValue([
+    { id: 1, name: 'Kho Cầu Giấy', branchId: 1, isActive: true, branch: { lat: 21.0379, lng: 105.7826 } },
+  ])
+  mock.inventory.findUnique.mockResolvedValue({ id: 1, available: 100, onHand: 100, unitCost: 10000 })
+  mock.inventory.update.mockResolvedValue({ id: 1 })
+  mock.inventoryTransaction.create.mockResolvedValue({ id: 'txn-1' })
+  mock.inventoryTransaction.update.mockResolvedValue({ id: 'txn-1' })
+  mock.adminWarehouseSlip.create.mockResolvedValue({ id: 'slip-uuid-001' })
+  mock.syncProductInStock.mockResolvedValue(undefined)
   mock.$transaction.mockImplementation(async (fn: (tx: any) => any) => fn(mock))
   return mock
 }
@@ -245,7 +262,7 @@ describe('OrderService', () => {
 
     it('should allow confirmed → processing', async () => {
       mockOrderWithStatus('confirmed')
-      const result = await service.updateStatus('order-uuid-001', 'processing')
+      const result = await service.updateStatus('order-uuid-001', 'processing', { id: 'staff-1' })
       expect(result.success).toBe(true)
     })
 

@@ -15,7 +15,7 @@ const TRANSFER_TRANSITIONS: Record<string, string[]> = {
 const TRANSFER_INCLUDE = {
   fromWarehouse: { select: { name: true } },
   toWarehouse:   { select: { name: true } },
-  creator:       { select: { fullName: true } },
+  creator:       { select: { fullName: true, role: true, warehouse: { select: { name: true } } } },
   approver:      { select: { fullName: true } },
   items:         true,
 } as const
@@ -60,6 +60,13 @@ export class TransfersService {
     }
 
     // Verify cả 2 kho tồn tại
+    if (user.role === 'employee' && user.warehouseId) {
+      const involved = dto.from_warehouse_id === user.warehouseId || dto.to_warehouse_id === user.warehouseId
+      if (!involved) {
+        throw new BadRequestException('Nhan vien chi duoc tao phieu dieu chuyen lien quan den kho cua minh')
+      }
+    }
+
     const [fromWh, toWh] = await Promise.all([
       this.prisma.warehouse.findUnique({ where: { id: dto.from_warehouse_id } }),
       this.prisma.warehouse.findUnique({ where: { id: dto.to_warehouse_id } }),
@@ -117,9 +124,25 @@ export class TransfersService {
   async updateStatus(id: string, dto: UpdateTransferStatusDto, user: any) {
     const transfer = await this.prisma.transferRequest.findUnique({
       where: { id },
-      include: { items: true },
+      include: {
+        items: true,
+        fromWarehouse: { select: { name: true } },
+        toWarehouse: { select: { name: true } },
+      },
     })
     if (!transfer) throw new NotFoundException('Không tìm thấy yêu cầu điều chuyển')
+
+    if (user.role === 'employee' && user.warehouseId) {
+      const isSource = transfer.fromWarehouseId === user.warehouseId
+      const isDestination = transfer.toWarehouseId === user.warehouseId
+      const allowedForEmployee =
+        ((dto.status === 'approved' || dto.status === 'rejected' || dto.status === 'in_transit') && isSource) ||
+        (dto.status === 'completed' && isDestination)
+
+      if (!allowedForEmployee) {
+        throw new BadRequestException('Nhan vien khong co quyen cap nhat trang thai nay cho phieu dieu chuyen')
+      }
+    }
 
     const allowed = TRANSFER_TRANSITIONS[transfer.status] ?? []
     if (!allowed.includes(dto.status)) {
@@ -133,7 +156,6 @@ export class TransfersService {
     if (dto.status === 'in_transit') {
       await this.prisma.$transaction(async (tx) => {
         const now = new Date()
-        const shortId = id.slice(0, 8).toUpperCase()
         const statusUpdate = await tx.transferRequest.updateMany({
           where: { id, status: 'approved' },
           data: { status: 'in_transit' },
@@ -166,7 +188,7 @@ export class TransfersService {
               warehouseId: transfer.fromWarehouseId,
               qty:         item.qty,
               cost:        Number(srcInv.unitCost),
-              note:        `Xuat dieu chuyen [${shortId}] -> Kho ${transfer.toWarehouseId}`,
+              note:        `Xuat dieu chuyen [${id}] -> ${transfer.toWarehouse.name}`,
               operatorId:  user.id,
             },
           })
@@ -181,7 +203,6 @@ export class TransfersService {
     if (dto.status === 'completed') {
       await this.prisma.$transaction(async (tx) => {
         const now = new Date()
-        const shortId = id.slice(0, 8).toUpperCase()
         const statusUpdate = await tx.transferRequest.updateMany({
           where: { id, status: 'in_transit' },
           data: { status: 'completed', completedAt: now },
@@ -224,7 +245,7 @@ export class TransfersService {
               warehouseId: transfer.toWarehouseId,
               qty:         item.qty,
               cost:        Number(srcInv.unitCost),
-              note:        `Nhan dieu chuyen [${shortId}] tu Kho ${transfer.fromWarehouseId}`,
+              note:        `Nhan dieu chuyen [${id}] tu ${transfer.fromWarehouse.name}`,
               operatorId:  user.id,
             },
           })
@@ -265,6 +286,8 @@ export class TransfersService {
       pickupMethod:      t.pickupMethod,
       createdBy:         t.createdBy,
       createdByName:     t.creator.fullName,
+      createdByRole:     t.creator.role,
+      createdByWarehouseName: t.creator.warehouse?.name ?? null,
       approvedBy:        t.approvedBy,
       approvedByName:    t.approver?.fullName ?? null,
       approvedAt:        t.approvedAt,

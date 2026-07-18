@@ -18,6 +18,7 @@ import {
   FixedSchedulePreviewDto,
   FixedAdjustmentType,
   UpdateBookingStatusDto,
+  UpdateFixedScheduleAdjustmentLimitDto,
   CheckSlotDto,
 } from './dto/booking.dto';
 import { EmailService } from '../email/email.service';
@@ -30,15 +31,18 @@ import {
   nextInvoiceCode,
   checkSlotConflict,
   getBusinessNowParts,
+  HOLD_EXPIRES_MINUTES,
 } from './booking.helpers';
-import {
-  isAutoConfirmedGateway,
-  normalizePaymentMethod,
-} from '../common/payment-methods';
+import { normalizePaymentMethod } from '../common/payment-methods';
 
-/** Thời gian giữ chỗ (ms) — 5 phút */
-const HOLD_DURATION_MS = 5 * 60 * 1000;
+/** Thời gian giữ chỗ dùng chung cho thanh toán online. */
+const HOLD_DURATION_MS = HOLD_EXPIRES_MINUTES * 60 * 1000;
 const CHECKIN_EARLY_MINUTES = 15;
+const CUSTOMER_ADJUST_REQUEST_PENDING = '[CUSTOMER_ADJUST_REQUEST_PENDING]';
+const CUSTOMER_ADJUST_REQUEST_APPROVED = '[CUSTOMER_ADJUST_REQUEST_APPROVED]';
+const CUSTOMER_ADJUST_REQUEST_REJECTED = '[CUSTOMER_ADJUST_REQUEST_REJECTED]';
+const FIXED_ADJUST_MIN_NOTICE_HOURS = 72;
+const FIXED_OCCURRENCE_QR_PREFIX = 'FIXED_OCCURRENCE:';
 
 type CancelBookingOptions = {
   reason?: string | null;
@@ -58,6 +62,47 @@ export class BookingsService implements OnModuleInit {
     private fixedScheduleService: FixedScheduleService,
   ) {}
 
+  private assertFixedOccurrenceAdjustNotice(occurrence: {
+    occurrenceDate: Date;
+    timeStart: string;
+  }) {
+    const dateToken = formatDate(occurrence.occurrenceDate);
+    const [hourRaw, minuteRaw = '0'] = occurrence.timeStart.split(':');
+    const startAt = new Date(`${dateToken}T${String(hourRaw).padStart(2, '0')}:${minuteRaw.padStart(2, '0')}:00+07:00`);
+    const diffMs = startAt.getTime() - Date.now();
+    if (diffMs < FIXED_ADJUST_MIN_NOTICE_HOURS * 60 * 60 * 1000) {
+      throw new BadRequestException(
+        'Yêu cầu đổi/hủy lịch cố định phải gửi trước ít nhất 3 ngày so với giờ bắt đầu buổi chơi.',
+      );
+    }
+  }
+
+  private buildFixedOccurrenceQrValue(occurrenceId: string) {
+    return `${FIXED_OCCURRENCE_QR_PREFIX}${occurrenceId}`;
+  }
+
+  private parseFixedOccurrenceQrValue(value: string) {
+    const raw = value.trim();
+    if (raw.startsWith(FIXED_OCCURRENCE_QR_PREFIX)) {
+      return raw.slice(FIXED_OCCURRENCE_QR_PREFIX.length);
+    }
+    if (raw.startsWith('FSO:')) {
+      return raw.slice(4);
+    }
+    return null;
+  }
+
+  private isFixedOccurrenceCheckedIn(input: {
+    occurrenceStatus?: string | null;
+    bookingStatus?: string | null;
+  }) {
+    return (
+      input.occurrenceStatus === 'completed' ||
+      input.bookingStatus === 'playing' ||
+      input.bookingStatus === 'completed'
+    );
+  }
+
   // ═══════════════════════════════════════════════════════════════
   // AUTO-RELEASE: chạy mỗi 60 giây để giải phóng chỗ hết hạn
   // ═══════════════════════════════════════════════════════════════
@@ -71,68 +116,79 @@ export class BookingsService implements OnModuleInit {
     }, 60_000)
   }
 
-  /** Giải phóng tất cả booking pending quá 5 phút chưa thanh toán */
+  /** Giải phóng booking online pending quá hạn chưa thanh toán. */
   async releaseAllExpiredBookings() {
     const cutoff = new Date(Date.now() - HOLD_DURATION_MS)
-    // Chỉ hủy các booking online payment (vnpay/momo) vì cash/bank do nhân viên xác nhận
+    // Chỉ hủy booking thanh toán online timeout; cash/bank_transfer chờ nhân viên xác nhận tại quầy.
     const expired = await this.prisma.booking.findMany({
       where: {
         status:        'pending',
-        paymentMethod: { in: ['vnpay', 'momo'] },
+        paymentMethod: { in: ['vnpay', 'momo', 'sepay'] },
         createdAt:     { lt: cutoff },
       },
-      select: { id: true },
+      select: { id: true, fixedScheduleId: true },
     })
 
     if (expired.length === 0) return
 
     const ids = expired.map(b => b.id)
-    await this.prisma.$transaction([
+    const fixedScheduleIds = [
+      ...new Set(
+        expired
+          .map((booking) => booking.fixedScheduleId)
+          .filter((id): id is string => Boolean(id)),
+      ),
+    ]
+    await this.prisma.$transaction(async (tx) => {
       // Xóa CourtSlot (giải phóng giờ)
-      this.prisma.courtSlot.deleteMany({ where: { bookingId: { in: ids } } }),
+      await tx.courtSlot.deleteMany({ where: { bookingId: { in: ids } } })
       // Hủy invoice
-      this.prisma.invoice.updateMany({ where: { bookingId: { in: ids }, status: 'unpaid' }, data: { status: 'cancelled' } }),
-      // Hủy booking
-      this.prisma.booking.updateMany({ where: { id: { in: ids } }, data: { status: 'cancelled' } }),
-    ])
-
-    this.logger.log(`🗑️  Released ${ids.length} expired pending booking(s)`)
-  }
-
-  /**
-   * Giải phóng chỗ hết hạn cho 1 sân + ngày + danh sách giờ cụ thể.
-   * Gọi trước khi tạo booking mới để tránh false conflict.
-   */
-  private async releaseExpiredForSlots(courtId: number, date: Date, hours: string[]) {
-    const cutoff = new Date(Date.now() - HOLD_DURATION_MS)
-
-    // Tìm CourtSlots thuộc các booking pending quá hạn ở cùng sân/ngày/giờ
-    const expiredSlots = await this.prisma.courtSlot.findMany({
-      where: {
-        courtId,
-        slotDate: date,
-        time:     { in: hours },
-        booking:  {
-          status:        'pending',
-          paymentMethod: { in: ['vnpay', 'momo'] },
-          createdAt:     { lt: cutoff },
+      await tx.invoice.updateMany({
+        where: {
+          status: 'unpaid',
+          OR: [
+            { bookingId: { in: ids } },
+            ...(fixedScheduleIds.length > 0
+              ? [{ fixedScheduleId: { in: fixedScheduleIds } }]
+              : []),
+          ],
         },
-      },
-      select: { bookingId: true },
+        data: { status: 'cancelled' },
+      })
+      // Hủy booking
+      await tx.booking.updateMany({
+        where: { id: { in: ids }, status: 'pending' },
+        data: { status: 'cancelled' },
+      })
+
+      if (fixedScheduleIds.length > 0) {
+        const schedulesWithActiveBookings = await tx.fixedSchedule.findMany({
+          where: {
+            id: { in: fixedScheduleIds },
+            bookings: { some: { status: { not: 'cancelled' } } },
+          },
+          select: { id: true },
+        })
+        const activeIds = new Set(
+          schedulesWithActiveBookings.map((schedule) => schedule.id),
+        )
+        const cancelledScheduleIds = fixedScheduleIds.filter(
+          (id) => !activeIds.has(id),
+        )
+
+        if (cancelledScheduleIds.length > 0) {
+          await tx.fixedSchedule.updateMany({
+            where: {
+              id: { in: cancelledScheduleIds },
+              status: 'pending',
+            },
+            data: { status: 'cancelled' },
+          })
+        }
+      }
     })
 
-    if (expiredSlots.length === 0) return
-
-    const bookingIds = [...new Set(expiredSlots.map(s => s.bookingId).filter(Boolean))] as string[]
-    if (bookingIds.length === 0) return
-
-    await this.prisma.$transaction([
-      this.prisma.courtSlot.deleteMany({ where: { bookingId: { in: bookingIds } } }),
-      this.prisma.invoice.updateMany({ where: { bookingId: { in: bookingIds }, status: 'unpaid' }, data: { status: 'cancelled' } }),
-      this.prisma.booking.updateMany({ where: { id: { in: bookingIds } }, data: { status: 'cancelled' } }),
-    ])
-
-    this.logger.log(`🗑️  Released ${bookingIds.length} expired slot(s) for court ${courtId}`)
+    this.logger.log(`🗑️  Released ${ids.length} expired pending booking(s)`)
   }
 
   private timeToMinutes(time: string) {
@@ -150,15 +206,24 @@ export class BookingsService implements OnModuleInit {
   private assertCanCheckinNow(
     booking: { bookingDate: Date; timeStart?: string | null; timeEnd?: string | null },
     current = getBusinessNowParts(new Date()),
+    options?: { allowElapsedCheckin?: boolean },
   ) {
     if (!booking.timeStart) {
       throw new BadRequestException('Booking chưa có giờ bắt đầu để check-in')
     }
 
     const bookingDate = formatDate(booking.bookingDate)
-    if (bookingDate !== current.dateToken) {
+    if (bookingDate > current.dateToken) {
       throw new BadRequestException(
         `Booking này dành cho ngày ${bookingDate}, hôm nay là ${current.dateToken}`,
+      )
+    }
+
+    if (bookingDate < current.dateToken) {
+      if (options?.allowElapsedCheckin) return
+
+      throw new BadRequestException(
+        `Booking nÃ y dÃ nh cho ngÃ y ${bookingDate}, hÃ´m nay lÃ  ${current.dateToken}`,
       )
     }
 
@@ -170,7 +235,11 @@ export class BookingsService implements OnModuleInit {
       )
     }
 
-    if (booking.timeEnd && current.minutes >= this.timeToMinutes(booking.timeEnd)) {
+    if (
+      booking.timeEnd &&
+      current.minutes >= this.timeToMinutes(booking.timeEnd) &&
+      !options?.allowElapsedCheckin
+    ) {
       throw new BadRequestException('Booking đã hết giờ, không thể check-in')
     }
   }
@@ -191,6 +260,10 @@ export class BookingsService implements OnModuleInit {
   private normalizeCancellationReason(reason?: string | null) {
     const trimmed = reason?.trim()
     return trimmed ? trimmed : null
+  }
+
+  private isStaffUser(user?: { role?: string | null } | null) {
+    return user?.role === 'admin' || user?.role === 'employee'
   }
 
   private getCancellerRoleLabel(role?: string | null) {
@@ -323,15 +396,18 @@ export class BookingsService implements OnModuleInit {
   // BOOKING THƯỜNG: CREATE
   // ═══════════════════════════════════════════════════════════════
 
-  async create(dto: CreateBookingDto) {
+  async create(dto: CreateBookingDto, user?: { role?: string | null }) {
     // FE gửi snake_case — đọc trực tiếp từ DTO
     const hours = buildHourSlots(dto.time_start, dto.time_end);
     const dateObj = normalizeDate(dto.booking_date);
     const paymentMethod = normalizePaymentMethod(dto.payment_method, 'cash');
-    const autoConfirmed = isAutoConfirmedGateway(paymentMethod);
+    const isStaffBooking = this.isStaffUser(user)
+    const bookingStatus = isStaffBooking ? 'confirmed' : 'pending'
+    const slotStatus = isStaffBooking ? 'booked' : 'hold'
+    const invoiceStatus = isStaffBooking ? 'paid' : 'unpaid'
 
-    // Giải phóng chỗ hết hạn TRƯỚC khi vào transaction để tránh conflict giả
-    await this.releaseExpiredForSlots(dto.court_id, dateObj, hours).catch(() => {})
+    // Giải phóng hold hết hạn trước khi kiểm tra conflict.
+    await this.releaseAllExpiredBookings().catch(() => {})
 
     const result = await this.prisma.$transaction(async (tx) => {
       const court = await tx.court.findUnique({
@@ -372,7 +448,7 @@ export class BookingsService implements OnModuleInit {
           customerPhone: dto.customer_phone,
           customerEmail: dto.customer_email || null,
           userId:        dto.user_id || null,
-          status: autoConfirmed ? 'confirmed' : 'pending',
+          status: bookingStatus,
         },
       });
 
@@ -382,7 +458,7 @@ export class BookingsService implements OnModuleInit {
           slotDate:  dateObj,
           dateLabel: dayLabel(dateObj),
           time,
-          status:    autoConfirmed ? 'booked' : 'hold',
+          status:    slotStatus,
           bookedBy:  dto.customer_name,
           phone:     dto.customer_phone,
           bookingId: booking.id,
@@ -399,7 +475,7 @@ export class BookingsService implements OnModuleInit {
           subtotalSnapshot: amount,
           totalSnapshot:    amount,
           paymentMethod,
-          status:           autoConfirmed ? 'paid' : 'unpaid',
+          status:           invoiceStatus,
           items: {
             create: [
               {
@@ -462,8 +538,8 @@ export class BookingsService implements OnModuleInit {
    * Confirm gói cố định: tạo FixedSchedule + Occurrences + Bookings + Invoice.
    * Delegate sang FixedScheduleService.
    */
-  confirmFixedSchedule(dto: FixedScheduleConfirmDto) {
-    return this.fixedScheduleService.confirm(dto);
+  confirmFixedSchedule(dto: FixedScheduleConfirmDto, userId: string) {
+    return this.fixedScheduleService.confirm(dto, userId);
   }
 
   /**
@@ -539,6 +615,50 @@ export class BookingsService implements OnModuleInit {
         `Không thể xác nhận booking đang ở trạng thái ${booking.status}`,
       );
     }
+
+    if (booking.fixedScheduleId) {
+      const updated = await this.prisma.$transaction(async (tx) => {
+        await tx.booking.update({
+          where: { id },
+          data: {
+            status: 'confirmed',
+            slots: { updateMany: { where: {}, data: { status: 'booked' } } },
+          },
+        });
+
+        const remainingUnconfirmed = await tx.booking.count({
+          where: {
+            fixedScheduleId: booking.fixedScheduleId!,
+            status: { in: ['pending', 'deposited'] },
+          },
+        });
+
+        if (remainingUnconfirmed === 0) {
+          await tx.fixedSchedule.update({
+            where: { id: booking.fixedScheduleId! },
+            data: { status: 'confirmed' },
+            select: { id: true },
+          });
+
+          await tx.invoice.updateMany({
+            where: { fixedScheduleId: booking.fixedScheduleId!, status: 'unpaid' },
+            data: { status: 'paid' },
+          });
+        }
+
+        return tx.booking.findUnique({
+          where: { id },
+          include: { court: { include: { branch: true } }, user: true },
+        });
+      });
+
+      if (!updated) {
+        throw new NotFoundException(`Booking #${id} không tồn tại`);
+      }
+
+      return { success: true, booking: updated };
+    }
+
     const updated = await this.prisma.booking.update({
       where: { id },
       data: {
@@ -573,7 +693,7 @@ export class BookingsService implements OnModuleInit {
     return { success: true, booking: updated };
   }
 
-  async startPlaying(id: string) {
+  async startPlaying(id: string, user?: { role?: string | null }) {
     const booking = await this.findOne(id);
     if (booking.status !== 'confirmed') {
       throw new BadRequestException(
@@ -581,13 +701,39 @@ export class BookingsService implements OnModuleInit {
       );
     }
 
-    this.assertCanCheckinNow(booking)
+    this.assertCanCheckinNow(booking, getBusinessNowParts(new Date()), {
+      allowElapsedCheckin: this.isStaffUser(user),
+    })
+
+    if (
+      this.isStaffUser(user) &&
+      this.hasBookingElapsed(booking, getBusinessNowParts(new Date()))
+    ) {
+      return this.markBookingCompleted(id);
+    }
 
     const updated = await this.prisma.booking.update({
       where: { id },
       data: { status: 'playing' },
       include: { court: { include: { branch: true } }, user: true },
     });
+    return { success: true, booking: updated };
+  }
+
+  private async markBookingCompleted(id: string) {
+    const updated = await this.prisma.booking.update({
+      where: { id },
+      data: { status: 'completed' },
+      include: { court: { include: { branch: true } }, user: true },
+    });
+
+    if (updated.fixedOccurrenceId) {
+      await this.prisma.fixedScheduleOccurrence.updateMany({
+        where: { id: updated.fixedOccurrenceId },
+        data: { status: 'completed' },
+      });
+    }
+
     return { success: true, booking: updated };
   }
 
@@ -598,12 +744,7 @@ export class BookingsService implements OnModuleInit {
         `Không thể hoàn thành booking ${booking.status}`,
       );
     }
-    const updated = await this.prisma.booking.update({
-      where: { id },
-      data: { status: 'completed' },
-      include: { court: { include: { branch: true } }, user: true },
-    });
-    return { success: true, booking: updated };
+    return this.markBookingCompleted(id);
   }
 
   async cancel(id: string, options: CancelBookingOptions = {}) {
@@ -633,6 +774,10 @@ export class BookingsService implements OnModuleInit {
         user: { select: { fullName: true, email: true, phone: true } },
       },
     });
+    await this.prisma.invoice.updateMany({
+      where: { bookingId: id, status: 'unpaid' },
+      data: { status: 'cancelled' },
+    });
     if (options.notify !== false) {
       try {
         await this.sendBookingCancellationNotifications(updated)
@@ -645,7 +790,7 @@ export class BookingsService implements OnModuleInit {
     return { success: true, booking: updated };
   }
 
-  async updateStatus(id: string, dto: UpdateBookingStatusDto) {
+  async updateStatus(id: string, dto: UpdateBookingStatusDto, user?: { role?: string | null }) {
     const booking = await this.findOne(id);
     const validTransitions: Record<string, string[]> = {
       pending: ['deposited', 'confirmed', 'cancelled'],
@@ -655,7 +800,13 @@ export class BookingsService implements OnModuleInit {
       completed: [],
       cancelled: [],
     };
-    if (!validTransitions[booking.status]?.includes(dto.status)) {
+    const staffCompletesElapsedConfirmed =
+      this.isStaffUser(user) &&
+      booking.status === 'confirmed' &&
+      dto.status === 'completed' &&
+      this.hasBookingElapsed(booking, getBusinessNowParts(new Date()));
+
+    if (!validTransitions[booking.status]?.includes(dto.status) && !staffCompletesElapsedConfirmed) {
       throw new BadRequestException(
         `Không thể chuyển từ ${booking.status} sang ${dto.status}`,
       );
@@ -672,8 +823,9 @@ export class BookingsService implements OnModuleInit {
       case 'confirmed':
         return this.confirm(id);
       case 'playing':
-        return this.startPlaying(id);
+        return this.startPlaying(id, user);
       case 'completed':
+        if (staffCompletesElapsedConfirmed) return this.markBookingCompleted(id);
         return this.complete(id);
       case 'cancelled':
         return this.cancel(id, {
@@ -777,7 +929,7 @@ export class BookingsService implements OnModuleInit {
   // ═══════════════════════════════════════════════════════════════
   // RECURRING BOOKING: tạo nhiều booking theo số tuần
   // ═══════════════════════════════════════════════════════════════
-  async createRecurring(dto: CreateRecurringDto) {
+  async createRecurring(dto: CreateRecurringDto, user?: { role?: string | null }) {
     const results: any[] = [];
     const errors: any[] = [];
     const startDate = new Date(dto.start_date);
@@ -800,7 +952,7 @@ export class BookingsService implements OnModuleInit {
           payment_method: dto.payment_method ?? 'cash',
           user_id:        dto.user_id,
           amount:         dto.amount,
-        });
+        }, user);
         results.push(booking);
       } catch (e: any) {
         errors.push({ date: dateStr, error: e.message || 'Lỗi tạo booking' });
@@ -841,6 +993,141 @@ export class BookingsService implements OnModuleInit {
     return { message: 'Đã xóa booking' };
   }
 
+  async deleteFixedScheduleTrash(scheduleId: string) {
+    const seedInvoice = await this.prisma.invoice.findFirst({
+      where: {
+        OR: [
+          { fixedScheduleId: scheduleId },
+          { booking: { fixedScheduleId: scheduleId } },
+        ],
+      },
+      select: {
+        id: true,
+        fixedScheduleId: true,
+        bookingId: true,
+        status: true,
+      },
+    });
+
+    const seedSchedule = await this.prisma.fixedSchedule.findUnique({
+      where: { id: scheduleId },
+      select: { id: true },
+    });
+
+    if (!seedSchedule && !seedInvoice) {
+      throw new NotFoundException('Khong tim thay goi lich co dinh hoac hoa don lien quan');
+    }
+
+    const scheduleIds = new Set<string>([scheduleId]);
+    if (seedInvoice?.fixedScheduleId) {
+      scheduleIds.add(seedInvoice.fixedScheduleId);
+    }
+
+    if (seedInvoice?.bookingId) {
+      const linkedBooking = await this.prisma.booking.findUnique({
+        where: { id: seedInvoice.bookingId },
+        select: { fixedScheduleId: true },
+      });
+      if (linkedBooking?.fixedScheduleId) {
+        scheduleIds.add(linkedBooking.fixedScheduleId);
+      }
+    }
+
+    const invoiceLinkedBookings = seedInvoice
+      ? await this.prisma.booking.findMany({
+          where: {
+            invoices: { some: { id: seedInvoice.id } },
+            fixedScheduleId: { not: null },
+          },
+          select: { fixedScheduleId: true },
+        })
+      : [];
+    invoiceLinkedBookings.forEach((booking) => {
+      if (booking.fixedScheduleId) scheduleIds.add(booking.fixedScheduleId);
+    });
+
+    const schedules = await this.prisma.fixedSchedule.findMany({
+      where: { id: { in: [...scheduleIds] } },
+      select: {
+        id: true,
+        status: true,
+        bookings: {
+          select: {
+            id: true,
+            status: true,
+          },
+        },
+      },
+    });
+
+    if (schedules.length === 0) {
+      throw new NotFoundException('Không tìm thấy gói lịch cố định');
+    }
+
+    const fixedScheduleIds = schedules.map((schedule) => schedule.id);
+    const bookingIds = schedules.flatMap((schedule) =>
+      schedule.bookings.map((booking) => booking.id),
+    );
+    const invoices = await this.prisma.invoice.findMany({
+      where: {
+        OR: [
+          { fixedScheduleId: { in: fixedScheduleIds } },
+          ...(bookingIds.length > 0 ? [{ bookingId: { in: bookingIds } }] : []),
+          ...(seedInvoice ? [{ id: seedInvoice.id }] : []),
+        ],
+      },
+      select: {
+        id: true,
+        status: true,
+      },
+    });
+
+    const protectedInvoice = invoices.find((invoice) =>
+      ['paid', 'deposited', 'refunded'].includes(invoice.status),
+    );
+    if (protectedInvoice) {
+      throw new BadRequestException(
+        'Không thể xóa gói/hóa đơn đã thanh toán, đặt cọc hoặc hoàn tiền',
+      );
+    }
+
+    const protectedBooking = schedules
+      .flatMap((schedule) => schedule.bookings)
+      .find((booking) =>
+        ['deposited', 'confirmed', 'playing', 'completed'].includes(booking.status),
+      );
+    if (protectedBooking) {
+      throw new BadRequestException(
+        'Không thể xóa gói đã có buổi đặt được xác nhận, đang chơi hoặc hoàn thành',
+      );
+    }
+
+    const invoiceIds = invoices.map((invoice) => invoice.id);
+
+    await this.prisma.$transaction(async (tx) => {
+      if (invoiceIds.length > 0) {
+        await tx.payment.deleteMany({ where: { invoiceId: { in: invoiceIds } } });
+        await tx.invoiceItem.deleteMany({ where: { invoiceId: { in: invoiceIds } } });
+        await tx.invoice.deleteMany({ where: { id: { in: invoiceIds } } });
+      }
+
+      if (bookingIds.length > 0) {
+        await tx.courtSlot.deleteMany({ where: { bookingId: { in: bookingIds } } });
+        await tx.booking.deleteMany({ where: { id: { in: bookingIds } } });
+      }
+
+      await tx.fixedScheduleAdjustment.deleteMany({
+        where: { fixedScheduleId: { in: fixedScheduleIds } },
+      });
+      await tx.fixedScheduleOccurrence.deleteMany({
+        where: { fixedScheduleId: { in: fixedScheduleIds } },
+      });
+      await tx.fixedSchedule.deleteMany({ where: { id: { in: fixedScheduleIds } } });
+    });
+
+    return { message: 'Đã xóa hóa đơn/gói lịch cố định rác' };
+  }
+
   async getTodayBookings(branchId?: number) {
     const today = normalizeDate(new Date());
     return this.prisma.booking.findMany({
@@ -857,17 +1144,70 @@ export class BookingsService implements OnModuleInit {
     });
   }
 
-  async checkin(bookingId: string) {
+  async checkin(bookingId: string, user?: { role?: string | null }) {
+    const allowElapsedCheckin = this.isStaffUser(user)
     let realBookingId = bookingId;
-    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(bookingId)) {
+    const fixedOccurrenceQrId = this.parseFixedOccurrenceQrValue(bookingId);
+    if (fixedOccurrenceQrId) {
+      const occurrenceBooking = await this.prisma.booking.findFirst({
+        where: { fixedOccurrenceId: fixedOccurrenceQrId },
+        select: { id: true },
+      });
+      if (!occurrenceBooking) {
+        throw new NotFoundException('Khong tim thay buoi lich co dinh theo QR nay');
+      }
+      realBookingId = occurrenceBooking.id;
+    } else if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(bookingId)) {
       const invoice = await this.prisma.invoice.findUnique({
         where: { code: bookingId },
-        select: { bookingId: true },
+        select: { bookingId: true, fixedScheduleId: true },
       });
-      if (!invoice || !invoice.bookingId) {
+      if (!invoice) {
         throw new NotFoundException('Không tìm thấy booking theo mã này');
       }
-      realBookingId = invoice.bookingId;
+
+      if (invoice.bookingId) {
+        realBookingId = invoice.bookingId;
+      } else if (invoice.fixedScheduleId) {
+        const today = normalizeDate(getBusinessNowParts(new Date()).dateToken);
+        const candidates = await this.prisma.booking.findMany({
+          where: {
+            fixedScheduleId: invoice.fixedScheduleId,
+            bookingDate: today,
+            status: { notIn: ['cancelled', 'completed'] },
+          },
+          select: {
+            id: true,
+            bookingDate: true,
+            timeStart: true,
+            timeEnd: true,
+            status: true,
+          },
+          orderBy: { timeStart: 'asc' },
+        });
+
+        if (candidates.length === 0) {
+          throw new NotFoundException(
+            'Không tìm thấy buổi lịch cố định cần check-in trong ngày hôm nay',
+          );
+        }
+
+        const availableNow =
+          candidates.find((candidate) => {
+            try {
+              this.assertCanCheckinNow(candidate as any, getBusinessNowParts(new Date()), {
+                allowElapsedCheckin,
+              });
+              return true;
+            } catch {
+              return false;
+            }
+          }) || candidates[0];
+
+        realBookingId = availableNow.id;
+      } else {
+        throw new NotFoundException('Không tìm thấy booking theo mã này');
+      }
     }
 
     const booking = await this.prisma.booking.findUnique({
@@ -888,13 +1228,25 @@ export class BookingsService implements OnModuleInit {
       throw new BadRequestException('Booking chưa được xác nhận thanh toán');
     }
 
-    this.assertCanCheckinNow(booking)
+    this.assertCanCheckinNow(booking, getBusinessNowParts(new Date()), {
+      allowElapsedCheckin,
+    })
+
+    const elapsedAdminCheckin =
+      allowElapsedCheckin && this.hasBookingElapsed(booking, getBusinessNowParts(new Date()));
 
     const updated = await this.prisma.booking.update({
       where: { id: realBookingId },
-      data: { status: 'playing', updatedAt: new Date() },
+      data: { status: elapsedAdminCheckin ? 'completed' : 'playing', updatedAt: new Date() },
       include: { court: { include: { branch: true } }, user: true },
     });
+
+    if (elapsedAdminCheckin && updated.fixedOccurrenceId) {
+      await this.prisma.fixedScheduleOccurrence.updateMany({
+        where: { id: updated.fixedOccurrenceId },
+        data: { status: 'completed' },
+      });
+    }
 
     return {
       success: true,
@@ -925,7 +1277,33 @@ export class BookingsService implements OnModuleInit {
   async findMyFixedSchedules(userId: string) {
     const schedules = await this.prisma.fixedSchedule.findMany({
       where: { userId },
-      include: {
+      select: {
+        id: true,
+        status: true,
+        cycle: true,
+        startDate: true,
+        endDate: true,
+        timeStart: true,
+        timeEnd: true,
+        customerName: true,
+        customerPhone: true,
+        customerEmail: true,
+        paymentMethod: true,
+        occurrenceCount: true,
+        adjustmentLimit: true,
+        adjustmentUsed: true,
+        pricePerHourSnapshot: true,
+        totalAmountSnapshot: true,
+        createdAt: true,
+        user: {
+          select: {
+            id: true,
+            fullName: true,
+            email: true,
+            phone: true,
+            username: true,
+          },
+        },
         court: {
           select: {
             id: true,
@@ -1002,14 +1380,36 @@ export class BookingsService implements OnModuleInit {
     }));
   }
 
-  /**
-   * GET /bookings/fixed/:scheduleId
-   * Chi tiết 1 gói đặt cố định (bao gồm toàn bộ occurrences).
-   */
-  async findFixedScheduleDetail(scheduleId: string, user: any) {
-    const schedule = await this.prisma.fixedSchedule.findUnique({
-      where: { id: scheduleId },
-      include: {
+  async findAllFixedSchedules(branchId?: number) {
+    const schedules = await this.prisma.fixedSchedule.findMany({
+      where: branchId ? { court: { branchId } } : undefined,
+      select: {
+        id: true,
+        status: true,
+        cycle: true,
+        startDate: true,
+        endDate: true,
+        timeStart: true,
+        timeEnd: true,
+        customerName: true,
+        customerPhone: true,
+        customerEmail: true,
+        paymentMethod: true,
+        occurrenceCount: true,
+        adjustmentLimit: true,
+        adjustmentUsed: true,
+        pricePerHourSnapshot: true,
+        totalAmountSnapshot: true,
+        createdAt: true,
+        user: {
+          select: {
+            id: true,
+            fullName: true,
+            email: true,
+            phone: true,
+            username: true,
+          },
+        },
         court: {
           select: {
             id: true,
@@ -1022,7 +1422,150 @@ export class BookingsService implements OnModuleInit {
         },
         occurrences: {
           orderBy: { occurrenceDate: 'asc' },
-          include: {
+          select: {
+            id: true,
+            occurrenceDate: true,
+            dayLabel: true,
+            timeStart: true,
+            timeEnd: true,
+            status: true,
+            courtId: true,
+            amountSnapshot: true,
+            booking: {
+              select: { id: true, status: true },
+            },
+          },
+        },
+        invoices: {
+          select: {
+            id: true,
+            code: true,
+            totalSnapshot: true,
+            status: true,
+            paymentMethod: true,
+          },
+        },
+        adjustments: {
+          where: { note: { startsWith: CUSTOMER_ADJUST_REQUEST_PENDING } },
+          select: { id: true },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const today = normalizeDate(getBusinessNowParts(new Date()).dateToken);
+    const todayToken = formatDate(today);
+
+    return schedules.map((s) => ({
+      id: s.id,
+      status: s.status,
+      cycle: s.cycle,
+      startDate: formatDate(s.startDate),
+      endDate: formatDate(s.endDate),
+      timeStart: s.timeStart,
+      timeEnd: s.timeEnd,
+      customerName: s.customerName,
+      customerPhone: s.customerPhone,
+      customerEmail: s.customerEmail,
+      userId: s.user?.id || null,
+      user: s.user || null,
+      occurrenceCount: s.occurrenceCount,
+      adjustmentLimit: s.adjustmentLimit,
+      adjustmentUsed: s.adjustmentUsed,
+      pricePerHourSnapshot: Number(s.pricePerHourSnapshot),
+      totalAmountSnapshot: Number(s.totalAmountSnapshot),
+      createdAt: s.createdAt,
+      court: s.court,
+      occurrenceSummary: {
+        total: s.occurrences.length,
+        scheduled: s.occurrences.filter((o) => o.status === 'scheduled').length,
+        completed: s.occurrences.filter((o) => o.status === 'completed').length,
+        skipped: s.occurrences.filter((o) => o.status === 'skipped').length,
+        cancelled: s.occurrences.filter((o) => o.status === 'cancelled').length,
+        upcoming: s.occurrences
+          .filter((o) => o.status === 'scheduled' && o.occurrenceDate >= today)
+          .slice(0, 3)
+          .map((o) => ({
+            id: o.id,
+            date: formatDate(o.occurrenceDate),
+            dayLabel: o.dayLabel,
+            timeStart: o.timeStart,
+            timeEnd: o.timeEnd,
+            status: o.status,
+            bookingId: o.booking?.id || null,
+            bookingStatus: o.booking?.status || null,
+            checkinQrValue: o.booking ? this.buildFixedOccurrenceQrValue(o.id) : null,
+            checkedIn: this.isFixedOccurrenceCheckedIn({
+              occurrenceStatus: o.status,
+              bookingStatus: o.booking?.status,
+            }),
+            canShowCheckinQr:
+              formatDate(o.occurrenceDate) === todayToken &&
+              Boolean(o.booking) &&
+              o.booking?.status !== 'cancelled',
+          })),
+      },
+      pendingAdjustmentCount: s.adjustments.length,
+      invoice: s.invoices[0] || null,
+    }));
+  }
+
+  /**
+   * GET /bookings/fixed/:scheduleId
+   * Chi tiết 1 gói đặt cố định (bao gồm toàn bộ occurrences).
+   */
+  async findFixedScheduleDetail(scheduleId: string, user: any) {
+    const schedule = await this.prisma.fixedSchedule.findUnique({
+      where: { id: scheduleId },
+      select: {
+        id: true,
+        userId: true,
+        status: true,
+        cycle: true,
+        startDate: true,
+        endDate: true,
+        timeStart: true,
+        timeEnd: true,
+        customerName: true,
+        customerPhone: true,
+        customerEmail: true,
+        paymentMethod: true,
+        occurrenceCount: true,
+        adjustmentLimit: true,
+        adjustmentUsed: true,
+        pricePerHourSnapshot: true,
+        totalAmountSnapshot: true,
+        createdAt: true,
+        user: {
+          select: {
+            id: true,
+            fullName: true,
+            email: true,
+            phone: true,
+            username: true,
+          },
+        },
+        court: {
+          select: {
+            id: true,
+            name: true,
+            type: true,
+            price: true,
+            image: true,
+            branch: { select: { id: true, name: true, address: true } },
+          },
+        },
+        occurrences: {
+          orderBy: { occurrenceDate: 'asc' },
+          select: {
+            id: true,
+            occurrenceDate: true,
+            dayLabel: true,
+            timeStart: true,
+            timeEnd: true,
+            status: true,
+            courtId: true,
+            amountSnapshot: true,
             court: { select: { id: true, name: true } },
             booking: {
               select: { id: true, status: true, amount: true },
@@ -1033,9 +1576,14 @@ export class BookingsService implements OnModuleInit {
           orderBy: { createdAt: 'desc' },
           select: {
             id: true,
+            occurrenceId: true,
             type: true,
             oldDate: true,
             newDate: true,
+            oldTimeStart: true,
+            oldTimeEnd: true,
+            newTimeStart: true,
+            newTimeEnd: true,
             oldCourtId: true,
             newCourtId: true,
             note: true,
@@ -1043,7 +1591,14 @@ export class BookingsService implements OnModuleInit {
           },
         },
         invoices: {
-          include: { items: true },
+          select: {
+            id: true,
+            code: true,
+            totalSnapshot: true,
+            status: true,
+            paymentMethod: true,
+            items: true,
+          },
         },
       },
     });
@@ -1053,6 +1608,7 @@ export class BookingsService implements OnModuleInit {
     // Validate quyền truy cập
     const isOwner = schedule.userId === user.id;
     const isStaff = user.role === 'admin' || user.role === 'employee';
+    const detailTodayToken = getBusinessNowParts(new Date()).dateToken;
     if (!isOwner && !isStaff) {
       throw new ForbiddenException('Bạn không có quyền xem gói này');
     }
@@ -1068,6 +1624,8 @@ export class BookingsService implements OnModuleInit {
       customerName: schedule.customerName,
       customerPhone: schedule.customerPhone,
       customerEmail: schedule.customerEmail,
+      userId: schedule.userId || null,
+      user: schedule.user || null,
       paymentMethod: schedule.paymentMethod,
       occurrenceCount: schedule.occurrenceCount,
       adjustmentLimit: schedule.adjustmentLimit,
@@ -1088,10 +1646,140 @@ export class BookingsService implements OnModuleInit {
         amountSnapshot: Number(o.amountSnapshot),
         bookingId: o.booking?.id || null,
         bookingStatus: o.booking?.status || null,
+        checkinQrValue: o.booking ? this.buildFixedOccurrenceQrValue(o.id) : null,
+        checkedIn: this.isFixedOccurrenceCheckedIn({
+          occurrenceStatus: o.status,
+          bookingStatus: o.booking?.status,
+        }),
+        canShowCheckinQr:
+          formatDate(o.occurrenceDate) === detailTodayToken &&
+          Boolean(o.booking) &&
+          o.booking?.status !== 'cancelled',
       })),
       adjustments: schedule.adjustments,
       invoice: schedule.invoices[0] || null,
     };
+  }
+
+  async requestFixedOccurrenceAdjustment(
+    scheduleId: string,
+    occurrenceId: string,
+    dto: FixedScheduleAdjustDto,
+    user: any,
+  ) {
+    const schedule = await this.prisma.fixedSchedule.findUnique({
+      where: { id: scheduleId },
+      select: {
+        id: true,
+        userId: true,
+        adjustmentLimit: true,
+        adjustmentUsed: true,
+        occurrences: true,
+      },
+    });
+    if (!schedule) throw new NotFoundException('Không tìm thấy gói đặt cố định');
+    if (!schedule.userId || schedule.userId !== user.id) {
+      throw new ForbiddenException('Bạn không có quyền gửi yêu cầu cho gói này');
+    }
+    if (schedule.adjustmentUsed >= schedule.adjustmentLimit) {
+      throw new BadRequestException('Bạn đã dùng hết lượt điều chỉnh của gói này');
+    }
+
+    const occurrence = schedule.occurrences.find((o) => o.id === occurrenceId);
+    if (!occurrence) throw new NotFoundException('Không tìm thấy buổi trong gói');
+    if (['cancelled', 'completed', 'skipped'].includes(occurrence.status)) {
+      throw new BadRequestException('Buổi này không còn có thể điều chỉnh');
+    }
+    this.assertFixedOccurrenceAdjustNotice(occurrence);
+
+    const existing = await this.prisma.fixedScheduleAdjustment.findFirst({
+      where: {
+        fixedScheduleId: schedule.id,
+        occurrenceId: occurrence.id,
+        note: { startsWith: CUSTOMER_ADJUST_REQUEST_PENDING },
+      },
+      select: { id: true },
+    });
+    if (existing) {
+      throw new BadRequestException('Buổi này đã có yêu cầu đang chờ nhân viên duyệt');
+    }
+
+    const request = await this.prisma.fixedScheduleAdjustment.create({
+      data: {
+        fixedScheduleId: schedule.id,
+        occurrenceId: occurrence.id,
+        type: dto.type,
+        oldCourtId: occurrence.courtId,
+        oldDate: occurrence.occurrenceDate,
+        oldTimeStart: occurrence.timeStart,
+        oldTimeEnd: occurrence.timeEnd,
+        newCourtId: dto.newCourtId || null,
+        newDate: dto.newDate ? normalizeDate(dto.newDate) : null,
+        newTimeStart: dto.newTimeStart || null,
+        newTimeEnd: dto.newTimeEnd || null,
+        note: `${CUSTOMER_ADJUST_REQUEST_PENDING} ${dto.reason || ''}`.trim(),
+      },
+    });
+
+    return {
+      success: true,
+      message: 'Đã gửi yêu cầu điều chỉnh. Nhân viên sẽ kiểm tra và xác nhận.',
+      requestId: request.id,
+    };
+  }
+
+  async reviewFixedAdjustmentRequest(adjustmentId: string, body: { approve: boolean; reason?: string }, user: any) {
+    if (!(user.role === 'admin' || user.role === 'employee')) {
+      throw new ForbiddenException('Chỉ nhân viên mới được duyệt yêu cầu');
+    }
+
+    const request = await this.prisma.fixedScheduleAdjustment.findUnique({
+      where: { id: adjustmentId },
+      select: {
+        id: true,
+        fixedScheduleId: true,
+        occurrenceId: true,
+        type: true,
+        newCourtId: true,
+        newDate: true,
+        newTimeStart: true,
+        newTimeEnd: true,
+        note: true,
+      },
+    });
+    if (!request || !request.note?.startsWith(CUSTOMER_ADJUST_REQUEST_PENDING)) {
+      throw new NotFoundException('Không tìm thấy yêu cầu đang chờ duyệt');
+    }
+
+    if (!body.approve) {
+      const rejectReason = body.reason?.trim();
+      if (!rejectReason) {
+        throw new BadRequestException('Vui lòng nhập lý do từ chối yêu cầu đổi lịch');
+      }
+      await this.prisma.fixedScheduleAdjustment.update({
+        where: { id: adjustmentId },
+        data: {
+          note: `${CUSTOMER_ADJUST_REQUEST_REJECTED} ${rejectReason}`.trim(),
+        },
+      });
+      return { success: true, message: 'Đã từ chối yêu cầu điều chỉnh' };
+    }
+
+    const dto: FixedScheduleAdjustDto = {
+      type: request.type as FixedAdjustmentType,
+      newCourtId: request.newCourtId || undefined,
+      newDate: request.newDate ? formatDate(request.newDate) : undefined,
+      newTimeStart: request.newTimeStart || undefined,
+      newTimeEnd: request.newTimeEnd || undefined,
+      reason: request.note.replace(CUSTOMER_ADJUST_REQUEST_PENDING, '').trim() || undefined,
+    };
+
+    await this.adjustFixedOccurrence(request.fixedScheduleId, request.occurrenceId!, dto, user);
+    await this.prisma.fixedScheduleAdjustment.update({
+      where: { id: adjustmentId },
+      data: { note: `${CUSTOMER_ADJUST_REQUEST_APPROVED} ${dto.reason || ''}`.trim() },
+    });
+    return { success: true, message: 'Đã duyệt và áp dụng yêu cầu điều chỉnh' };
   }
 
   // ═══════════════════════════════════════════════════════════════
@@ -1105,6 +1793,99 @@ export class BookingsService implements OnModuleInit {
    * trong roadmap - linh hoạt gói tháng). Hiện giữ logic cũ + chỉ
    * cập nhật để dùng helpers shared.
    */
+  async updateFixedScheduleAdjustmentLimit(
+    scheduleId: string,
+    dto: UpdateFixedScheduleAdjustmentLimitDto,
+    user: any,
+  ) {
+    if (!(user.role === 'admin' || user.role === 'employee')) {
+      throw new ForbiddenException('Chỉ nhân viên mới được cập nhật số lượt đổi lịch');
+    }
+
+    const schedule = await this.prisma.fixedSchedule.findUnique({
+      where: { id: scheduleId },
+      select: {
+        id: true,
+        adjustmentUsed: true,
+        adjustmentLimit: true,
+      },
+    });
+
+    if (!schedule) throw new NotFoundException('Không tìm thấy gói đặt lịch cố định');
+    if (dto.adjustmentLimit < schedule.adjustmentUsed) {
+      throw new BadRequestException(
+        `Số lượt đổi không được nhỏ hơn số lượt đã dùng (${schedule.adjustmentUsed}).`,
+      );
+    }
+
+    return this.prisma.fixedSchedule.update({
+      where: { id: scheduleId },
+      data: { adjustmentLimit: dto.adjustmentLimit },
+      select: {
+        id: true,
+        status: true,
+        adjustmentLimit: true,
+        adjustmentUsed: true,
+      },
+    });
+  }
+
+  async confirmFixedSchedulePayment(scheduleId: string, paymentMethod?: string) {
+    const schedule = await this.prisma.fixedSchedule.findUnique({
+      where: { id: scheduleId },
+      select: {
+        id: true,
+        status: true,
+        paymentMethod: true,
+        invoices: {
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+          select: { id: true, status: true },
+        },
+      },
+    });
+
+    if (!schedule) {
+      throw new NotFoundException('Không tìm thấy gói đặt lịch cố định');
+    }
+
+    const invoice = schedule.invoices[0];
+    if (!invoice) {
+      throw new NotFoundException('Không tìm thấy hóa đơn của gói lịch cố định');
+    }
+
+    if (invoice.status === 'paid') {
+      return { success: true, message: 'Gói lịch cố định đã được thanh toán' };
+    }
+
+    const method = paymentMethod || schedule.paymentMethod || 'cash';
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.invoice.update({
+        where: { id: invoice.id },
+        data: { status: 'paid', paymentMethod: method },
+      });
+
+      await tx.fixedSchedule.update({
+        where: { id: schedule.id },
+        data: { status: 'confirmed', paymentMethod: method },
+        select: { id: true },
+      });
+
+      await tx.booking.updateMany({
+        where: { fixedScheduleId: schedule.id },
+        data: { status: 'confirmed', paymentMethod: method },
+      });
+
+      await tx.courtSlot.updateMany({
+        where: { booking: { fixedScheduleId: schedule.id } },
+        data: { status: 'booked' },
+      });
+    });
+
+    return { success: true, message: 'Xác nhận thanh toán lịch cố định thành công' };
+  }
+
   async adjustFixedOccurrence(
     scheduleId: string,
     occurrenceId: string,
@@ -1114,17 +1895,17 @@ export class BookingsService implements OnModuleInit {
     return this.prisma.$transaction(async (tx) => {
       const schedule = await tx.fixedSchedule.findUnique({
         where: { id: scheduleId },
-        include: { occurrences: true },
+        select: {
+          id: true,
+          userId: true,
+          adjustmentLimit: true,
+          adjustmentUsed: true,
+          occurrences: true,
+        },
       });
       if (!schedule) throw new NotFoundException('Không tìm thấy gói đặt cố định');
-      if (
-        !(
-          user.role === 'admin' ||
-          user.role === 'employee' ||
-          (schedule.userId && schedule.userId === user.id)
-        )
-      ) {
-        throw new ForbiddenException('Bạn không có quyền điều chỉnh gói này');
+      if (!(user.role === 'admin' || user.role === 'employee')) {
+        throw new ForbiddenException('Chỉ nhân viên mới được áp dụng điều chỉnh trực tiếp');
       }
       if (schedule.adjustmentUsed >= schedule.adjustmentLimit) {
         throw new BadRequestException(
@@ -1136,6 +1917,9 @@ export class BookingsService implements OnModuleInit {
       if (!occurrence) throw new NotFoundException('Không tìm thấy buổi trong gói');
       if (['cancelled', 'completed', 'skipped'].includes(occurrence.status)) {
         throw new BadRequestException('Buổi này không còn có thể điều chỉnh');
+      }
+      if (!(user.role === 'admin' || user.role === 'employee')) {
+        this.assertFixedOccurrenceAdjustNotice(occurrence);
       }
 
       const booking = await tx.booking.findUnique({
@@ -1251,7 +2035,7 @@ export class BookingsService implements OnModuleInit {
       const updatedSchedule = await tx.fixedSchedule.update({
         where: { id: schedule.id },
         data: { adjustmentUsed: { increment: 1 } },
-        include: { occurrences: true, adjustments: true },
+        select: { id: true, status: true, adjustmentLimit: true, adjustmentUsed: true },
       });
       return { success: true, fixedSchedule: updatedSchedule };
     });

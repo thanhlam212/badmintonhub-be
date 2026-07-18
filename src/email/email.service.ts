@@ -18,6 +18,19 @@ export class EmailService {
         pass: process.env.MAIL_PASS,
       },
     })
+    this.logger.log(
+      `Email transport configured: host=${process.env.MAIL_HOST || 'smtp.gmail.com'} user=${process.env.MAIL_USER || 'not-set'}`,
+    )
+  }
+
+  private logMailResult(context: string, recipient: string | string[], info: any) {
+    const to = Array.isArray(recipient) ? recipient.join(',') : recipient
+    const accepted = Array.isArray(info?.accepted) ? info.accepted.join(',') : ''
+    const rejected = Array.isArray(info?.rejected) ? info.rejected.join(',') : ''
+
+    this.logger.log(
+      `${context} mail result: to=${to} messageId=${info?.messageId || 'n/a'} accepted=${accepted || 'none'} rejected=${rejected || 'none'}`,
+    )
   }
 
   // ─── Gửi email xác nhận đặt sân (kèm QR check-in) ────────────
@@ -267,12 +280,13 @@ export class EmailService {
 </html>`
 
     try {
-      await this.transporter.sendMail({
+      const info = await this.transporter.sendMail({
         from: `"BadmintonHub" <${process.env.MAIL_USER}>`,
         to: booking.customerEmail,
         subject: `❌ [BadmintonHub] Booking ${booking.courtName} ngày ${dateStr} đã bị hủy`,
         html,
       })
+      this.logMailResult(`Booking ${booking.id}`, booking.customerEmail, info)
       this.logger.log(`✅ Cancellation email sent to ${booking.customerEmail} for booking ${booking.id}`)
     } catch (err) {
       this.logger.error(`❌ Failed to send cancellation email for booking ${booking.id}:`, err)
@@ -349,12 +363,13 @@ export class EmailService {
 </html>`
 
     try {
-      await this.transporter.sendMail({
+      const info = await this.transporter.sendMail({
         from: `"BadmintonHub" <${process.env.MAIL_USER}>`,
         to: params.recipients.join(','),
         subject: `⚠️ [BadmintonHub] Booking ${params.id.slice(0, 8)} đã bị hủy`,
         html,
       })
+      this.logMailResult(`Admin cancellation booking ${params.id}`, params.recipients, info)
       this.logger.log(`✅ Admin cancellation email sent for booking ${params.id}`)
     } catch (err) {
       this.logger.error(`❌ Failed to send admin cancellation email for booking ${params.id}:`, err)
@@ -508,12 +523,13 @@ export class EmailService {
 </html>`
 
     try {
-      await this.transporter.sendMail({
+      const info = await this.transporter.sendMail({
         from:    `"BadmintonHub" <${process.env.MAIL_USER}>`,
         to:      params.to,
         subject: `🔐 [BadmintonHub] Mã OTP đặt lại mật khẩu: ${params.otp}`,
         html,
       })
+      this.logMailResult('OTP', params.to, info)
       this.logger.log(`✅ OTP email sent to ${params.to}`)
     } catch (err) {
       this.logger.error(`❌ Failed to send OTP email to ${params.to}:`, err)

@@ -1,4 +1,15 @@
-import { IsInt, IsString, IsOptional, IsNotEmpty, IsNumber, Min } from 'class-validator'
+import {
+  ArrayMinSize,
+  IsArray,
+  IsIn,
+  IsInt,
+  IsNumber,
+  IsOptional,
+  IsString,
+  IsNotEmpty,
+  Min,
+  ValidateNested,
+} from 'class-validator'
 import { Type } from 'class-transformer'
 
 // FE gửi: { sku, warehouseId (camelCase), qty, cost?, note? }
@@ -54,4 +65,58 @@ export class ExportStockDto {
   @IsString()
   @IsOptional()
   note?: string
+}
+
+export class AdminSlipItemDto {
+  @IsString()
+  @IsNotEmpty({ message: 'sku khong duoc de trong' })
+  sku: string
+
+  @IsString()
+  @IsOptional()
+  name?: string
+
+  @Type(() => Number)
+  @IsInt({ message: 'qty phai la so nguyen' })
+  @Min(1, { message: 'qty phai >= 1' })
+  qty: number
+
+  @Type(() => Number)
+  @IsNumber({}, { message: 'unitCost phai la so' })
+  @Min(0, { message: 'unitCost phai >= 0' })
+  unitCost: number
+}
+
+export class CreateAdminSlipDto {
+  @IsIn(['import', 'export'], { message: 'type chi chap nhan import hoac export' })
+  type: 'import' | 'export'
+
+  @IsString()
+  @IsOptional()
+  poId?: string
+
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @IsOptional()
+  supplierId?: number
+
+  @Type(() => Number)
+  @IsInt({ message: 'warehouseId phai la so nguyen' })
+  @Min(1)
+  warehouseId: number
+
+  @IsString()
+  @IsOptional()
+  note?: string
+
+  @IsString()
+  @IsOptional()
+  assignedTo?: string
+
+  @IsArray()
+  @ArrayMinSize(1, { message: 'Phai co it nhat 1 san pham' })
+  @ValidateNested({ each: true })
+  @Type(() => AdminSlipItemDto)
+  items: AdminSlipItemDto[]
 }
