@@ -26,10 +26,9 @@ import {
   dayLabel,
   buildHourSlots,
   resolveFixedSchedulePlan,
-  invoiceCode,
+  nextInvoiceCode,
   checkSlotConflict,
   PreviewOccurrence,
-  SlotOccurrence,
 } from './booking.helpers';
 
 // ═══════════════════════════════════════════════════════════════
@@ -140,7 +139,7 @@ export class FixedScheduleService {
   // ───────────────────────────────────────────────────────────
 
   /**
-   * Kiểm tra availability của TẤT CẢ sân cùng chi nhánh + cùng type
+   * Kiểm tra availability của tất cả sân đang mở trong cùng chi nhánh.
    * theo ngày + khung giờ mới mà user muốn đổi.
    *
    * FE gọi khi:
@@ -170,7 +169,6 @@ export class FixedScheduleService {
     const allCourts = await this.prisma.court.findMany({
       where: {
         branchId: originalCourt.branchId,
-        type: originalCourt.type,
         available: true,
       },
       select: { id: true, name: true, type: true, price: true },
@@ -542,13 +540,6 @@ export class FixedScheduleService {
       throw new BadRequestException('Sân thay thế hiện đang đóng cửa');
     }
 
-    if (
-      decision.action !== OccurrenceAction.KEEP &&
-      targetCourt.type !== originalCourt.type
-    ) {
-      throw new BadRequestException('Sân thay thế phải cùng loại với sân gốc');
-    }
-
     const conflicts = await checkSlotConflict(
       tx,
       targetCourtId,
@@ -723,14 +714,19 @@ export class FixedScheduleService {
       where: {
         branchId,
         available: true,
-        type: courtType,
         id: { not: excludeCourtId },
       },
       select: { id: true, name: true, type: true, price: true },
       orderBy: { id: 'asc' },
     });
 
-    for (const court of candidates) {
+    const prioritizedCandidates = candidates.sort((a, b) => {
+      const aSameType = a.type === courtType ? 0 : 1;
+      const bSameType = b.type === courtType ? 0 : 1;
+      return aSameType - bSameType || a.id - b.id;
+    });
+
+    for (const court of prioritizedCandidates) {
       const conflicts = await checkSlotConflict(
         this.prisma,
         court.id,

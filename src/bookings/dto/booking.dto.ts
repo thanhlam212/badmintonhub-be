@@ -313,30 +313,6 @@ export class FixedSchedulePreviewDto {
   timeEnd?: string;
 }
 
-/**
- * Bước 1: Khách chọn sân, ngày bắt đầu, số tuần và các buổi trong tuần.
- * KHÔNG cần thông tin khách ở bước này → chỉ check conflict + tính giá.
- */
-export class FixedSchedulePreviewDto {
-  @IsInt({ message: 'ID sân phải là số nguyên' })
-  @Min(1, { message: 'ID sân không hợp lệ' })
-  courtId: number;
-
-  @IsDateString({}, { message: 'Ngày bắt đầu phải đúng định dạng YYYY-MM-DD' })
-  startDate: string;
-
-  @IsInt({ message: 'Số tuần phải là số nguyên' })
-  @Min(4, { message: 'Tối thiểu 4 tuần' })
-  @Max(52, { message: 'Tối đa 52 tuần' })
-  numberOfWeeks: number;
-
-  @IsArray({ message: 'weeklySlots phải là mảng' })
-  @ArrayMinSize(1, { message: 'Phải chọn ít nhất 1 buổi trong tuần' })
-  @ValidateNested({ each: true })
-  @Type(() => WeeklySlotDto)
-  weeklySlots: WeeklySlotDto[];
-}
-
 // ═══════════════════════════════════════════════════════════════
 // SECTION 4: FIXED SCHEDULE - CONFIRM
 // ═══════════════════════════════════════════════════════════════
