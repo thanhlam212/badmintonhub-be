@@ -8,11 +8,37 @@ import {
 } from './dto/sales-order.dto'
 import * as bcrypt from 'bcrypt'
 
+function buildDocumentCode(prefix: string, id: string, createdAt?: Date | string | null) {
+  const date = createdAt ? new Date(createdAt) : new Date()
+  const safeDate = Number.isNaN(date.getTime()) ? new Date() : date
+  const yyyy = String(safeDate.getFullYear())
+  const mm = String(safeDate.getMonth() + 1).padStart(2, '0')
+  const dd = String(safeDate.getDate()).padStart(2, '0')
+  const normalized = String(id || prefix).replace(/[^a-zA-Z0-9]/g, '').toUpperCase()
+  let seq = 0
+  for (const ch of normalized) {
+    seq = (seq * 31 + ch.charCodeAt(0)) % 10000
+  }
+  return `${prefix}-${yyyy}${mm}${dd}-${String(Math.abs(seq)).padStart(4, '0')}`
+}
+
 // ─── Map helpers ────────────────────────────────────────────────
 
 function mapSalesOrder(o: any) {
+  const salesCode = o.salesCode || o.sales_code || buildDocumentCode('SO', o.id, o.createdAt)
+  const invoiceCode = o.invoiceCode || o.invoice_code || buildDocumentCode('SO', o.id, o.createdAt)
+  const warrantyCode = o.warrantyCode || o.warranty_code || `BH-${invoiceCode}`
   return {
     id:             o.id,
+    orderCode:      invoiceCode,
+    order_code:     invoiceCode,
+    invoiceCode,
+    invoice_code:   invoiceCode,
+    sales_code:     salesCode,
+    warrantyCode,
+    warranty_code:  warrantyCode,
+    exportSlipId:   o.exportSlipId ?? null,
+    export_slip_id: o.exportSlipId ?? null,
     branch_id:      o.branchId ?? null,
     branch_name:    o.branch?.name ?? null,
     customer_name:  o.customerName,
@@ -314,9 +340,12 @@ export class SalesOrdersService {
   async complete(id: string, user?: any) {
     const order = await this.prisma.salesOrder.findUnique({
       where: { id },
-      include: { items: { include: { product: true } } }
+      include: { ...INCLUDE_FULL, items: { include: { product: true } } }
     })
     if (!order) throw new NotFoundException('Không tìm thấy đơn hàng')
+    if (order.status === 'exported') {
+      return { success: true, data: mapSalesOrder(order) }
+    }
     if (order.status !== 'approved') {
       throw new BadRequestException('Chỉ có thể hoàn thành đơn hàng đã được duyệt')
     }
@@ -343,6 +372,19 @@ export class SalesOrdersService {
     }
 
     const updated = await this.prisma.$transaction(async (tx) => {
+      const claimed = await tx.salesOrder.updateMany({
+        where: { id, status: 'approved' as any },
+        data: { status: 'exported' as any },
+      })
+      if (claimed.count === 0) {
+        const current = await tx.salesOrder.findUnique({
+          where: { id },
+          include: INCLUDE_FULL,
+        })
+        if (current?.status === 'exported') return current
+        throw new BadRequestException('Don hang da duoc xu ly boi thao tac khac')
+      }
+
       // Check stock
       for (const item of order.items) {
         const sku = item.product.sku
@@ -387,9 +429,8 @@ export class SalesOrdersService {
         await this.prisma.syncProductInStock(tx, sku)
       }
 
-      return tx.salesOrder.update({
+      return tx.salesOrder.findUnique({
         where: { id },
-        data: { status: 'exported' as any },
         include: INCLUDE_FULL,
       })
     })

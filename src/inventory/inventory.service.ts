@@ -1,6 +1,6 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common'
 import { PrismaService } from '../prisma/prisma.service'
-import { ImportStockDto, ExportStockDto } from './dto/inventory.dto'
+import { CreateAdminSlipDto, ImportStockDto, ExportStockDto } from './dto/inventory.dto'
 
 @Injectable()
 export class InventoryService {
@@ -22,9 +22,14 @@ export class InventoryService {
 
     const items = await this.prisma.inventory.findMany({
       where: { warehouseId },
+      include: { product: { select: { price: true } } },
       orderBy: [{ category: 'asc' }, { name: 'asc' }],
     })
-    return items.map(i => ({ ...i, unitCost: Number(i.unitCost) }))
+    return items.map((i: any) => ({
+      ...i,
+      unitCost: Number(i.unitCost),
+      price: i.product?.price != null ? Number(i.product.price) : null,
+    }))
   }
 
   // ─── GET /inventory ────────────────────────────────────────
@@ -49,13 +54,17 @@ export class InventoryService {
 
     const items = await this.prisma.inventory.findMany({
       where,
-      include: { warehouse: { select: { id: true, name: true } } },
+      include: {
+        warehouse: { select: { id: true, name: true } },
+        product: { select: { price: true } },
+      },
       orderBy: [{ category: 'asc' }, { name: 'asc' }],
     })
 
     const mapped = items.map((i: any) => ({
       ...i,
       unitCost:      Number(i.unitCost),
+      price:         i.product?.price != null ? Number(i.product.price) : null,
       warehouseName: i.warehouse.name,
     }))
 
@@ -104,6 +113,147 @@ export class InventoryService {
       cost:          Number(t.cost),
       warehouseName: t.warehouse.name,
     }))
+  }
+
+  async getAdminSlips(user: any, filters?: {
+    status?: string; type?: string; warehouseId?: number
+  }) {
+    await this.backfillMissingShippingPoImportSlips(user, filters?.warehouseId)
+
+    const where: any = {}
+
+    if (filters?.status && filters.status !== 'all') where.status = filters.status
+    if (filters?.type && filters.type !== 'all') where.type = filters.type
+
+    if (user.role === 'employee' && user.warehouseId) {
+      where.warehouseId = user.warehouseId
+    } else if (filters?.warehouseId) {
+      where.warehouseId = filters.warehouseId
+    }
+
+    const slips = await this.prisma.adminWarehouseSlip.findMany({
+      where,
+      include: {
+        warehouse: { select: { id: true, name: true } },
+        supplier: { select: { id: true, name: true } },
+        creator: { select: { fullName: true } },
+        assignee: { select: { fullName: true } },
+        processor: { select: { fullName: true } },
+        purchaseOrder: { select: { id: true, status: true, createdAt: true } },
+        items: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    })
+
+    return slips.map(this.mapAdminSlip)
+  }
+
+  private async backfillMissingShippingPoImportSlips(user: any, requestedWarehouseId?: number) {
+    const warehouseId = user.role === 'employee' && user.warehouseId
+      ? user.warehouseId
+      : requestedWarehouseId
+
+    const where: any = { status: 'shipping' }
+    if (warehouseId) where.warehouseId = warehouseId
+
+    const shippingPOs = await this.prisma.purchaseOrder.findMany({
+      where,
+      include: {
+        items: true,
+        slips: { where: { type: 'import' }, select: { id: true } },
+      },
+      orderBy: { createdAt: 'asc' },
+    })
+
+    for (const po of shippingPOs) {
+      if (po.slips.length > 0) continue
+
+      const assignedTo = await this.resolveSlipAssignee(po.warehouseId, undefined, po.createdBy)
+      await this.prisma.adminWarehouseSlip.create({
+        data: {
+          type: 'import',
+          poId: po.id,
+          supplierId: po.supplierId,
+          warehouseId: po.warehouseId,
+          note: `Nhap kho theo PO ${po.id} (tu dong tao bo sung)`,
+          status: 'pending',
+          createdBy: po.createdBy,
+          assignedTo,
+          items: {
+            create: po.items.map(item => ({
+              sku: item.sku,
+              name: item.name,
+              qty: item.qty,
+              unitCost: item.unitCost,
+            })),
+          },
+        },
+      })
+    }
+  }
+
+  async createAdminSlip(dto: CreateAdminSlipDto, user: any) {
+    const warehouse = await this.prisma.warehouse.findUnique({ where: { id: dto.warehouseId } })
+    if (!warehouse) throw new NotFoundException(`Kho ID ${dto.warehouseId} khong ton tai`)
+
+    if (dto.supplierId) {
+      const supplier = await this.prisma.supplier.findUnique({ where: { id: dto.supplierId } })
+      if (!supplier) throw new NotFoundException(`Nha cung cap ID ${dto.supplierId} khong ton tai`)
+    }
+
+    const assignedTo = await this.resolveSlipAssignee(dto.warehouseId, dto.assignedTo, user.id)
+    const poId = dto.poId && /^[0-9a-fA-F-]{36}$/.test(dto.poId) ? dto.poId : undefined
+
+    const slip = await this.prisma.adminWarehouseSlip.create({
+      data: {
+        type: dto.type,
+        poId,
+        supplierId: dto.supplierId ?? null,
+        warehouseId: dto.warehouseId,
+        note: dto.note ?? null,
+        status: 'pending',
+        createdBy: user.id,
+        assignedTo,
+        items: {
+          create: dto.items.map(item => ({
+            sku: item.sku,
+            name: item.name || item.sku,
+            qty: item.qty,
+            unitCost: item.unitCost,
+          })),
+        },
+      },
+      include: {
+        warehouse: { select: { id: true, name: true } },
+        supplier: { select: { id: true, name: true } },
+        creator: { select: { fullName: true } },
+        assignee: { select: { fullName: true } },
+        processor: { select: { fullName: true } },
+        purchaseOrder: { select: { id: true, status: true, createdAt: true } },
+        items: true,
+      },
+    })
+
+    return this.mapAdminSlip(slip)
+  }
+
+  async processAdminSlip(id: string, user: any) {
+    const slip = await this.prisma.adminWarehouseSlip.findUnique({
+      where: { id },
+      select: { id: true, status: true, warehouseId: true },
+    })
+    if (!slip) throw new NotFoundException('Khong tim thay phieu kho')
+    if (user.role === 'employee' && user.warehouseId && slip.warehouseId !== user.warehouseId) {
+      throw new NotFoundException('Khong tim thay phieu kho')
+    }
+    if (slip.status === 'processed') return { success: true, message: 'Phieu da duoc xu ly' }
+
+    await this.prisma.adminWarehouseSlip.update({
+      where: { id },
+      data: { status: 'processed', processedAt: new Date(), processedBy: user.id },
+    })
+
+    return { success: true, message: 'Da cap nhat trang thai phieu kho' }
   }
 
   // ─── POST /inventory/import ────────────────────────────────
@@ -204,5 +354,51 @@ export class InventoryService {
     })
 
     return { success: true, message: 'Xuất kho thành công' }
+  }
+  private async resolveSlipAssignee(warehouseId: number, requestedUserId?: string, fallbackUserId?: string) {
+    if (requestedUserId) {
+      const user = await this.prisma.user.findUnique({
+        where: { id: requestedUserId },
+        select: { id: true },
+      })
+      if (user) return user.id
+    }
+
+    const warehouseUser = await this.prisma.user.findFirst({
+      where: { role: 'employee', warehouseId },
+      select: { id: true },
+      orderBy: { createdAt: 'asc' },
+    })
+
+    return warehouseUser?.id || fallbackUserId!
+  }
+
+  private mapAdminSlip(slip: any) {
+    return {
+      id: slip.id,
+      type: slip.type,
+      source: 'admin',
+      poId: slip.poId ?? undefined,
+      poRawId: slip.poId ?? undefined,
+      poCreatedAt: slip.purchaseOrder?.createdAt ?? undefined,
+      supplierId: slip.supplierId ?? undefined,
+      supplier: slip.supplier?.name,
+      date: slip.createdAt ? new Date(slip.createdAt).toISOString().split('T')[0] : '',
+      warehouseId: slip.warehouseId,
+      warehouse: slip.warehouse?.name || '',
+      items: (slip.items || []).map((item: any) => ({
+        sku: item.sku,
+        name: item.name,
+        qty: item.qty,
+        unitCost: Number(item.unitCost ?? 0),
+      })),
+      note: slip.note || '',
+      status: slip.status,
+      createdBy: slip.creator?.fullName || slip.createdBy,
+      assignedTo: slip.assignee?.fullName || slip.assignedTo,
+      processedAt: slip.processedAt,
+      processedBy: slip.processor?.fullName || slip.processedBy,
+      purchaseOrderStatus: slip.purchaseOrder?.status,
+    }
   }
 }

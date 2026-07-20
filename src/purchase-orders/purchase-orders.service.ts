@@ -186,6 +186,50 @@ export class PurchaseOrdersService {
     }
 
     // ── Các trạng thái khác ────────────────────────────────────
+    if (dto.status === 'shipping') {
+      await this.prisma.$transaction(async (tx) => {
+        await tx.purchaseOrder.update({
+          where: { id },
+          data: { status: 'shipping' },
+        })
+
+        const existingSlip = await tx.adminWarehouseSlip.findFirst({
+          where: { poId: id, type: 'import' },
+          select: { id: true },
+        })
+        if (existingSlip) return
+
+        const assignee = await tx.user.findFirst({
+          where: { role: 'employee', warehouseId: po.warehouseId },
+          select: { id: true },
+          orderBy: { createdAt: 'asc' },
+        })
+
+        await tx.adminWarehouseSlip.create({
+          data: {
+            type: 'import',
+            poId: id,
+            supplierId: po.supplierId,
+            warehouseId: po.warehouseId,
+            note: `Nhap kho theo PO ${id}`,
+            status: 'pending',
+            createdBy: user.id,
+            assignedTo: assignee?.id || user.id,
+            items: {
+              create: po.items.map(item => ({
+                sku: item.sku,
+                name: item.name,
+                qty: item.qty,
+                unitCost: item.unitCost,
+              })),
+            },
+          },
+        })
+      })
+
+      return { success: true, message: 'Da chuyen PO sang van chuyen va tao phieu nhap kho' }
+    }
+
     await this.prisma.purchaseOrder.update({
       where: { id },
       data:  { status: dto.status as any },

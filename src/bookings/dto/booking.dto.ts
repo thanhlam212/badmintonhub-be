@@ -12,6 +12,8 @@ import {
   ValidateNested,
   IsArray,
   ArrayMinSize,
+  Allow,
+  IsBoolean,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -22,6 +24,7 @@ import { Type } from 'class-transformer';
 export enum FixedScheduleCycle {
   WEEKLY = 'weekly',
   MONTHLY = 'monthly',
+  DAILY = 'daily',
 }
 
 export enum FixedScheduleBookingMode {
@@ -32,6 +35,7 @@ export enum FixedScheduleBookingMode {
 export enum PaymentMethod {
   CASH = 'cash',
   BANK_TRANSFER = 'bank_transfer',
+  SEPAY = 'sepay',
   MOMO = 'momo',
   VNPAY = 'vnpay',
 }
@@ -262,6 +266,24 @@ export class FixedScheduleRuleDto {
     message: 'Giờ kết thúc phải là giờ tròn, định dạng HH:00',
   })
   timeEnd: string;
+  @IsBoolean()
+  @IsOptional()
+  repeat?: boolean;
+
+  @IsDateString()
+  @IsOptional()
+  specificDate?: string;
+
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(52)
+  @IsOptional()
+  repeatWeeks?: number;
+
+  @IsString()
+  @IsOptional()
+  repeatUntil?: string;
 }
 
 export class FixedSchedulePreviewDto {
@@ -270,7 +292,7 @@ export class FixedSchedulePreviewDto {
   courtId: number;
 
   @IsEnum(FixedScheduleCycle, {
-    message: 'Chu kỳ phải là "weekly" hoặc "monthly"',
+    message: 'Chu kỳ phải là "weekly", "monthly" hoặc "daily"',
   })
   cycle: FixedScheduleCycle;
 
@@ -286,8 +308,8 @@ export class FixedSchedulePreviewDto {
   endDate?: string;
 
   @IsInt()
-  @Min(2)
-  @Max(52)
+  @Min(1)
+  @Max(1000)
   @IsOptional()
   occurrenceCount?: number;
 
@@ -331,6 +353,20 @@ export class OccurrenceDecisionDto {
   @IsDateString({}, { message: 'Ngày phải đúng định dạng YYYY-MM-DD' })
   date: string;
 
+  @IsString()
+  @Matches(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, {
+    message: 'Giờ bắt đầu phải đúng định dạng HH:mm',
+  })
+  @IsOptional()
+  timeStart?: string;
+
+  @IsString()
+  @Matches(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, {
+    message: 'Giờ kết thúc phải đúng định dạng HH:mm',
+  })
+  @IsOptional()
+  timeEnd?: string;
+
   @IsEnum(OccurrenceAction, {
     message: 'Action phải là "keep", "replace", "custom" hoặc "skip"',
   })
@@ -345,6 +381,15 @@ export class OccurrenceDecisionDto {
   @Min(1)
   @IsOptional()
   replaceWithCourtId?: number;
+
+  /**
+   * Ngày mới khi action='custom'.
+   * Nếu không truyền → BE dùng ngày gốc của buổi trong gói.
+   */
+  @Allow()
+  @IsDateString({}, { message: 'Ngày đổi mới phải đúng định dạng YYYY-MM-DD' })
+  @IsOptional()
+  customDate?: string;
 
   /**
    * Giờ mới khi action='custom'.
@@ -398,8 +443,8 @@ export class FixedScheduleConfirmDto {
   endDate?: string;
 
   @IsInt()
-  @Min(2)
-  @Max(52)
+  @Min(1)
+  @Max(1000)
   @IsOptional()
   occurrenceCount?: number;
 
@@ -437,10 +482,6 @@ export class FixedScheduleConfirmDto {
 
   @IsEnum(PaymentMethod)
   paymentMethod: PaymentMethod;
-
-  @IsString()
-  @IsOptional()
-  userId?: string;
 
   // ─── Decisions cho từng occurrence ───
   @IsArray()
@@ -504,6 +545,13 @@ export class FixedScheduleAdjustDto {
  * Khi user nhập giờ mới + chọn sân, FE gọi API này để kiểm tra
  * slot đó có available không trước khi confirm.
  */
+export class UpdateFixedScheduleAdjustmentLimitDto {
+  @IsInt()
+  @Min(0)
+  @Max(20)
+  adjustmentLimit: number;
+}
+
 export class CheckSlotDto {
   @IsInt()
   @Min(1)

@@ -1,6 +1,7 @@
 import {
   Injectable,
   NotFoundException,
+  BadRequestException,
   ConflictException,
   Patch,
   Param,
@@ -56,10 +57,10 @@ export class CourtsService {
   // ─────────────────────────────────────────────
   // GET /courts — Danh sách sân (filter theo branch, type)
   // ─────────────────────────────────────────────
-  async findAll(filters: { branchId?: number; type?: string; indoor?: boolean }) {
+  async findAll(filters: { branchId?: number; type?: string; indoor?: boolean; includeUnavailable?: boolean }) {
     const courts = await this.prisma.court.findMany({
       where: {
-        available: true,
+        ...(filters.includeUnavailable ? {} : { available: true }),
         ...(filters.branchId && { branchId: filters.branchId }),
         ...(filters.type && { type: filters.type as any }),
         ...(filters.indoor !== undefined && { indoor: filters.indoor }),
@@ -111,9 +112,10 @@ export class CourtsService {
 
     const court = await this.prisma.court.findUnique({
       where: { id: courtId },
-      select: { price: true, hours: true },
+      select: { price: true, hours: true, available: true },
     });
     if (!court) throw new NotFoundException(`Sân #${courtId} không tồn tại`);
+    if (!court.available) throw new BadRequestException('Sân hiện đang đóng cửa');
 
     // Tạo tất cả slot từ 06:00 → 21:00
     const allSlots = Array.from({ length: 16 }, (_, i) => {
@@ -146,15 +148,20 @@ export class CourtsService {
   // ─────────────────────────────────────────────
   async create(dto: CreateCourtDto) {
     const { amenities, ...courtData } = dto;
-    return this.prisma.court.create({
+    const court = await this.prisma.court.create({
       data: {
         ...courtData,
         amenities: amenities?.length
           ? { create: amenities.map((a) => ({ amenity: a })) }
           : undefined,
       },
-      include: { amenities: true, branch: true },
+      include: {
+        branch: { select: { id: true, name: true, address: true, lat: true, lng: true } },
+        amenities: true,
+        _count: { select: { reviews: true } },
+      },
     });
+    return this.mapCourt(court);
   }
 
   // ─────────────────────────────────────────────
@@ -164,7 +171,7 @@ export class CourtsService {
     await this.findOne(id);
     const { amenities, ...courtData } = dto;
 
-    return this.prisma.court.update({
+    const court = await this.prisma.court.update({
       where: { id },
       data: {
         ...courtData,
@@ -175,8 +182,13 @@ export class CourtsService {
           },
         }),
       },
-      include: { amenities: true },
+      include: {
+        branch: { select: { id: true, name: true, address: true, lat: true, lng: true } },
+        amenities: true,
+        _count: { select: { reviews: true } },
+      },
     });
+    return this.mapCourt(court);
   }
 
   // ─────────────────────────────────────────────
@@ -184,10 +196,16 @@ export class CourtsService {
   // ─────────────────────────────────────────────
   async toggle(id: number) {
     const court = await this.findOne(id);
-    return this.prisma.court.update({
+    const updated = await this.prisma.court.update({
       where: { id },
       data: { available: !court.available },
+      include: {
+        branch: { select: { id: true, name: true, address: true, lat: true, lng: true } },
+        amenities: true,
+        _count: { select: { reviews: true } },
+      },
     });
+    return this.mapCourt(updated);
   }
 
   // ─────────────────────────────────────────────

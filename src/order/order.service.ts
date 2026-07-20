@@ -2,7 +2,7 @@ import { Injectable, NotFoundException, BadRequestException, ForbiddenException 
 import { PrismaService } from '../prisma/prisma.service'
 import { CreateOrderDto } from './dto/order.dto'
 import { DOCUMENT_CODE_PATTERN, HOLD_EXPIRES_MINUTES, fallbackDocumentCode, nextInvoiceCode } from '../bookings/booking.helpers'
-import { isAutoConfirmedGateway, normalizePaymentMethod } from '../common/payment-methods'
+import { normalizePaymentMethod } from '../common/payment-methods'
 
 // Các chuyển trạng thái hợp lệ cho Order
 const ORDER_TRANSITIONS: Record<string, string[]> = {
@@ -145,7 +145,6 @@ export class OrderService {
     }
 
     const paymentMethod = normalizePaymentMethod(dto.payment_method, 'cod')
-    const autoConfirmed = isAutoConfirmedGateway(paymentMethod)
     const productIds = dto.items.map(i => i.product_id)
     const products = await this.prisma.product.findMany({
       where: { id: { in: productIds } },
@@ -205,7 +204,7 @@ export class OrderService {
           note:            dto.note || null,
           subtotal,
           total,
-          status: autoConfirmed ? 'confirmed' : 'pending',
+          status: 'pending',
           deliveryMethod,
           pickupBranchId:  dto.pickup_branch_id || null,
           fulfillingWarehouseId: selectedWarehouse.id,
@@ -235,7 +234,7 @@ export class OrderService {
           subtotalSnapshot: subtotal,
           totalSnapshot:    total,
           paymentMethod,
-          status:           autoConfirmed ? 'paid' : 'unpaid',
+          status:           'unpaid',
           items: {
             create: itemsWithPrice.map(i => ({
               description:       i.productName,
@@ -338,6 +337,10 @@ export class OrderService {
       include: { invoices: true, items: { include: { product: true } } },
     })
     if (!order) throw new NotFoundException('Không tìm thấy đơn hàng')
+
+    if (order.status === newStatus) {
+      return this.transform((await this.attachWarehouseNames([order]))[0])
+    }
 
     const allowedNext = ORDER_TRANSITIONS[order.status] ?? []
     if (!allowedNext.includes(newStatus)) {

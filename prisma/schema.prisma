@@ -988,6 +988,7 @@ enum BookingStatus {
 enum FixedScheduleCycle {
   weekly
   monthly
+  daily
 }
 
 enum FixedScheduleStatus {

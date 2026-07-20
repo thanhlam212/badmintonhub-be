@@ -24,11 +24,35 @@ export class PaymentService {
 
     const invoice = await this.prisma.invoice.findUnique({
       where:   { id: dto.invoiceId },
-      include: { booking: true, order: true, fixedSchedule: true },
+      include: {
+        booking: true,
+        order: true,
+        fixedSchedule: { select: { id: true, userId: true, status: true } },
+      },
     })
     if (!invoice) throw new NotFoundException('Không tìm thấy hóa đơn')
     if (invoice.status === 'paid') throw new BadRequestException('Hóa đơn đã được thanh toán')
-    if (invoice.status === 'cancelled') throw new BadRequestException('Hóa đơn đã bị hủy')
+    if (invoice.status === 'cancelled') {
+      const bookingCanStillPay =
+        invoice.bookingId &&
+        invoice.booking?.status === 'pending'
+      const fixedScheduleCanStillPay =
+        invoice.fixedScheduleId &&
+        invoice.fixedSchedule?.status === 'pending'
+      const orderCanStillPay =
+        invoice.orderId &&
+        invoice.order?.status === 'pending'
+
+      if (!bookingCanStillPay && !fixedScheduleCanStillPay && !orderCanStillPay) {
+        throw new BadRequestException('Phiên giữ chỗ đã hết hạn hoặc đã bị hủy. Vui lòng chọn lại lịch.')
+      }
+
+      await this.prisma.invoice.update({
+        where: { id: dto.invoiceId },
+        data: { status: 'unpaid' },
+      })
+      invoice.status = 'unpaid'
+    }
 
     // Kiểm tra nếu đã có payment đang pending
     await this.cancelExpiredPendingOrder(invoice)
@@ -39,7 +63,31 @@ export class PaymentService {
       data:  { status: 'failed' },
     })
 
-    // Tạo Payment record mới với transactionRef mới
+    // Đồng bộ method trên invoice/nguồn trước khi tạo payment mới.
+    await this.prisma.invoice.update({
+      where: { id: dto.invoiceId },
+      data: { paymentMethod: dto.method },
+    })
+    if (invoice.bookingId) {
+      await this.prisma.booking.update({
+        where: { id: invoice.bookingId },
+        data: { paymentMethod: dto.method },
+      })
+    }
+    if (invoice.orderId) {
+      await this.prisma.order.update({
+        where: { id: invoice.orderId },
+        data: { paymentMethod: dto.method },
+      })
+    }
+    if (invoice.fixedScheduleId) {
+      await this.prisma.fixedSchedule.update({
+        where: { id: invoice.fixedScheduleId },
+        data: { paymentMethod: dto.method },
+        select: { id: true },
+      })
+    }
+
     const payment = await this.prisma.payment.create({
       data: {
         invoiceId:      dto.invoiceId,
@@ -121,6 +169,7 @@ export class PaymentService {
             invoice.order?.userId ||
             invoice.fixedSchedule?.userId ||
             null,
+          cancelPath: invoice.fixedScheduleId ? '/payment/sepay/cancel' : undefined,
         })
         result.checkoutUrl = checkout.checkoutUrl
         result.formFields = checkout.fields
@@ -235,7 +284,11 @@ export class PaymentService {
       where:   { id: paymentId },
       include: {
         invoice: {
-          include: { order: true, booking: true, fixedSchedule: true },
+          include: {
+            order: true,
+            booking: true,
+            fixedSchedule: { select: { id: true, userId: true, status: true } },
+          },
         },
       },
     })
@@ -269,7 +322,15 @@ export class PaymentService {
   private async confirmPayment(paymentId: string, success: boolean, rawResponse: any) {
     const payment = await this.prisma.payment.findUnique({
       where:   { id: paymentId },
-      include: { invoice: { include: { order: true, booking: true, fixedSchedule: true } } },
+      include: {
+        invoice: {
+          include: {
+            order: true,
+            booking: true,
+            fixedSchedule: { select: { id: true, userId: true, status: true } },
+          },
+        },
+      },
     })
     if (!payment) return
 
@@ -316,6 +377,7 @@ export class PaymentService {
         await tx.fixedSchedule.update({
           where: { id: invoice.fixedScheduleId },
           data:  { status: 'confirmed' },
+          select: { id: true },
         })
         await tx.booking.updateMany({
           where: { fixedScheduleId: invoice.fixedScheduleId },
@@ -388,6 +450,6 @@ export class PaymentService {
     })
 
     invoice.status = 'cancelled'
-    throw new BadRequestException('Đơn hàng quá 10 phút chưa thanh toán nên đã bị hủy')
+    throw new BadRequestException(`Đơn hàng quá ${HOLD_EXPIRES_MINUTES} phút chưa thanh toán nên đã bị hủy`)
   }
 }

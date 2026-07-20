@@ -49,6 +49,10 @@ export interface FixedScheduleRuleInput {
   dayOfMonth?: number;
   timeStart: string;
   timeEnd: string;
+  repeat?: boolean;
+  specificDate?: string;
+  repeatWeeks?: number;
+  repeatUntil?: string;
 }
 
 export interface GeneratedFixedOccurrence {
@@ -245,13 +249,43 @@ function normalizeFixedScheduleRules(input: {
     }
 
     buildHourSlots(rule.timeStart, rule.timeEnd);
+    const isOneTimeRule = rule.repeat === false || Boolean(rule.specificDate);
 
     const normalizedRule: FixedScheduleRuleInput = {
       timeStart: rule.timeStart,
       timeEnd: rule.timeEnd,
+      repeat: !isOneTimeRule,
     };
 
-    if (input.cycle === FixedScheduleCycle.WEEKLY) {
+    if (input.cycle === FixedScheduleCycle.WEEKLY || isOneTimeRule) {
+      const defaultWeeks = isOneTimeRule ? 1 : 4;
+      const minWeeks = isOneTimeRule ? 1 : 4;
+      const repeatWeeks =
+        rule.repeatWeeks === undefined ? defaultWeeks : Number(rule.repeatWeeks);
+      if (
+        !Number.isInteger(repeatWeeks) ||
+        repeatWeeks < minWeeks ||
+        repeatWeeks > 52
+      ) {
+        throw new BadRequestException(
+          `Rule #${index + 1} có số tuần lặp không hợp lệ.`,
+        );
+      }
+      normalizedRule.repeatWeeks = repeatWeeks;
+      normalizedRule.repeatUntil = rule.repeatUntil;
+    }
+
+    if (isOneTimeRule) {
+      if (!rule.specificDate) {
+        throw new BadRequestException(
+          `Rule #${index + 1} thiếu ngày cụ thể cho lịch 1 lần.`,
+        );
+      }
+      const specificDate = normalizeDate(rule.specificDate);
+      normalizedRule.specificDate = formatDate(specificDate);
+      normalizedRule.dayOfWeek = specificDate.getUTCDay();
+      normalizedRule.dayOfMonth = specificDate.getUTCDate();
+    } else if (input.cycle === FixedScheduleCycle.WEEKLY) {
       const dayOfWeek =
         rule.dayOfWeek !== undefined
           ? Number(rule.dayOfWeek)
@@ -262,7 +296,7 @@ function normalizeFixedScheduleRules(input: {
         );
       }
       normalizedRule.dayOfWeek = dayOfWeek;
-    } else {
+    } else if (input.cycle === FixedScheduleCycle.MONTHLY) {
       const dayOfMonth =
         rule.dayOfMonth !== undefined
           ? Number(rule.dayOfMonth)
@@ -276,9 +310,13 @@ function normalizeFixedScheduleRules(input: {
     }
 
     const identity =
-      input.cycle === FixedScheduleCycle.WEEKLY
+      isOneTimeRule
+        ? `o:${normalizedRule.specificDate}:${normalizedRule.timeStart}:${normalizedRule.timeEnd}`
+        : input.cycle === FixedScheduleCycle.WEEKLY
         ? `w:${normalizedRule.dayOfWeek}:${normalizedRule.timeStart}:${normalizedRule.timeEnd}`
-        : `m:${normalizedRule.dayOfMonth}:${normalizedRule.timeStart}:${normalizedRule.timeEnd}`;
+        : input.cycle === FixedScheduleCycle.MONTHLY
+          ? `m:${normalizedRule.dayOfMonth}:${normalizedRule.timeStart}:${normalizedRule.timeEnd}`
+          : `d:${normalizedRule.timeStart}:${normalizedRule.timeEnd}`;
 
     if (seen.has(identity)) {
       throw new BadRequestException(
@@ -289,6 +327,35 @@ function normalizeFixedScheduleRules(input: {
 
     return normalizedRule;
   });
+}
+
+function generateDailyOccurrences(
+  start: Date,
+  end: Date,
+  rules: FixedScheduleRuleInput[],
+): GeneratedFixedOccurrence[] {
+  const occurrences: GeneratedFixedOccurrence[] = [];
+
+  for (
+    let cursor = new Date(start);
+    cursor <= end;
+    cursor = addDays(cursor, 1)
+  ) {
+    rules.forEach((rule, ruleIndex) => {
+      const date = new Date(cursor);
+      occurrences.push({
+        date,
+        dateKey: formatDate(date),
+        dayLabel: dayLabel(date),
+        timeStart: rule.timeStart,
+        timeEnd: rule.timeEnd,
+        hours: buildHourSlots(rule.timeStart, rule.timeEnd),
+        ruleIndex,
+      });
+    });
+  }
+
+  return occurrences;
 }
 
 function generateWeeklyOccurrences(
@@ -357,6 +424,44 @@ function generateMonthlyOccurrences(
   return occurrences;
 }
 
+function generateOneTimeOccurrences(
+  start: Date,
+  end: Date,
+  rules: FixedScheduleRuleInput[],
+): GeneratedFixedOccurrence[] {
+  const occurrences: GeneratedFixedOccurrence[] = [];
+
+  rules.forEach((rule, ruleIndex) => {
+    if (!rule.specificDate) return;
+    const firstDate = normalizeDate(rule.specificDate);
+    if (firstDate < start) {
+      throw new BadRequestException(
+        `Rule #${ruleIndex + 1} có ngày cụ thể trước ngày bắt đầu.`,
+      );
+    }
+    const repeatWeeks = rule.repeatWeeks ?? 1;
+
+    for (
+      let cursor = new Date(firstDate), seen = 0;
+      cursor <= end && seen < repeatWeeks;
+      cursor = addDays(cursor, 7)
+    ) {
+      occurrences.push({
+        date: new Date(cursor),
+        dateKey: formatDate(cursor),
+        dayLabel: dayLabel(cursor),
+        timeStart: rule.timeStart,
+        timeEnd: rule.timeEnd,
+        hours: buildHourSlots(rule.timeStart, rule.timeEnd),
+        ruleIndex,
+      });
+      seen += 1;
+    }
+  });
+
+  return occurrences;
+}
+
 export function resolveFixedSchedulePlan(input: {
   startDate: string;
   endDate?: string;
@@ -375,6 +480,8 @@ export function resolveFixedSchedulePlan(input: {
   }
 
   const rules = normalizeFixedScheduleRules(input);
+  const repeatingRules = rules.filter((rule) => rule.repeat !== false);
+  const oneTimeRules = rules.filter((rule) => rule.repeat === false);
   const bookingMode: FixedScheduleBookingModeValue =
     input.bookingMode ??
     (input.occurrenceCount ? 'occurrence_count' : 'date_range');
@@ -386,16 +493,18 @@ export function resolveFixedSchedulePlan(input: {
     requestedOccurrenceCount = Number(input.occurrenceCount);
     if (
       !Number.isInteger(requestedOccurrenceCount) ||
-      requestedOccurrenceCount < 2 ||
-      requestedOccurrenceCount > 52
+      requestedOccurrenceCount < 1 ||
+      requestedOccurrenceCount > 1000
     ) {
-      throw new BadRequestException('Số buổi phải nằm trong khoảng 2 - 52.');
+      throw new BadRequestException('Số buổi phải nằm trong khoảng 1 - 1000.');
     }
 
     end =
       input.cycle === FixedScheduleCycle.WEEKLY
         ? addDays(start, 7 * 104)
-        : addMonthsClamped(start, 60);
+        : input.cycle === FixedScheduleCycle.MONTHLY
+          ? addMonthsClamped(start, 60)
+          : addDays(start, 104);
   } else {
     if (!input.endDate) {
       throw new BadRequestException('Vui lòng chọn ngày kết thúc.');
@@ -406,10 +515,45 @@ export function resolveFixedSchedulePlan(input: {
     }
   }
 
-  let occurrences =
+  let repeatingOccurrences =
     input.cycle === FixedScheduleCycle.WEEKLY
-      ? generateWeeklyOccurrences(start, end, rules)
-      : generateMonthlyOccurrences(start, end, rules);
+      ? generateWeeklyOccurrences(start, end, repeatingRules)
+      : input.cycle === FixedScheduleCycle.MONTHLY
+        ? generateMonthlyOccurrences(start, end, repeatingRules)
+        : generateDailyOccurrences(start, end, repeatingRules);
+
+  const oneTimeOccurrences = generateOneTimeOccurrences(
+    start,
+    end,
+    oneTimeRules,
+  );
+
+  if (bookingMode === 'occurrence_count') {
+    if (input.cycle === FixedScheduleCycle.WEEKLY) {
+      const seenByRule = new Map<number, number>();
+      repeatingOccurrences = repeatingOccurrences.filter((occurrence) => {
+        const rule = repeatingRules[occurrence.ruleIndex];
+        const limit = rule?.repeatWeeks ?? requestedOccurrenceCount ?? 52;
+        const seen = seenByRule.get(occurrence.ruleIndex) ?? 0;
+        if (seen >= limit) return false;
+        seenByRule.set(occurrence.ruleIndex, seen + 1);
+        return true;
+      });
+    } else {
+      const repeatingTarget = Math.max(
+        (requestedOccurrenceCount ?? 0) - oneTimeOccurrences.length,
+        0,
+      );
+      if (repeatingOccurrences.length < repeatingTarget) {
+        throw new BadRequestException(
+          `KhÃ´ng thá»ƒ sinh Ä‘á»§ ${requestedOccurrenceCount} buá»•i tá»« cáº¥u hÃ¬nh Ä‘Ã£ chá»n.`,
+        );
+      }
+      repeatingOccurrences = repeatingOccurrences.slice(0, repeatingTarget);
+    }
+  }
+
+  let occurrences = [...repeatingOccurrences, ...oneTimeOccurrences];
 
   occurrences.sort(
     (a, b) =>
@@ -417,13 +561,20 @@ export function resolveFixedSchedulePlan(input: {
       a.timeStart.localeCompare(b.timeStart),
   );
 
-  const seenOccurrences = new Set<string>();
-  occurrences = occurrences.filter((occurrence) => {
-    const key = `${occurrence.dateKey}:${occurrence.timeStart}:${occurrence.timeEnd}`;
-    if (seenOccurrences.has(key)) return false;
-    seenOccurrences.add(key);
-    return true;
-  });
+  const occurrencesByDate = new Map<string, GeneratedFixedOccurrence[]>();
+  for (const occurrence of occurrences) {
+    const sameDateOccurrences = occurrencesByDate.get(occurrence.dateKey) ?? [];
+    const duplicated = sameDateOccurrences.find((item) =>
+      item.hours.some((hour) => occurrence.hours.includes(hour)),
+    );
+    if (duplicated) {
+      throw new BadRequestException(
+        `Buổi ${occurrence.dateKey} ${occurrence.timeStart}-${occurrence.timeEnd} bị trùng với ${duplicated.timeStart}-${duplicated.timeEnd}.`,
+      );
+    }
+    sameDateOccurrences.push(occurrence);
+    occurrencesByDate.set(occurrence.dateKey, sameDateOccurrences);
+  }
 
   if (bookingMode === 'occurrence_count') {
     if (occurrences.length < requestedOccurrenceCount!) {
@@ -431,27 +582,23 @@ export function resolveFixedSchedulePlan(input: {
         `Không thể sinh đủ ${requestedOccurrenceCount} buổi từ cấu hình đã chọn.`,
       );
     }
-    occurrences = occurrences.slice(0, requestedOccurrenceCount);
     end = occurrences[occurrences.length - 1].date;
   }
 
-  const minimum = input.cycle === FixedScheduleCycle.WEEKLY ? 4 : 2;
+  const minimum = repeatingRules.length > 0 && oneTimeRules.length === 0
+    ? input.cycle === FixedScheduleCycle.WEEKLY
+      ? 4
+      : 2
+    : 1;
   if (occurrences.length < minimum) {
     throw new BadRequestException(
       `Gói ${
-        input.cycle === FixedScheduleCycle.WEEKLY ? 'theo tuần' : 'theo tháng'
+        input.cycle === FixedScheduleCycle.WEEKLY
+          ? 'theo tuần'
+          : input.cycle === FixedScheduleCycle.MONTHLY
+            ? 'theo tháng'
+            : 'theo ngày'
       } tối thiểu ${minimum} buổi. Hiện tại chỉ có ${occurrences.length} buổi.`,
-    );
-  }
-
-  const duplicateDate = occurrences.find(
-    (occurrence, index) =>
-      occurrences.findIndex((item) => item.dateKey === occurrence.dateKey) !==
-      index,
-  );
-  if (duplicateDate) {
-    throw new BadRequestException(
-      'Hiện tại mỗi ngày chỉ hỗ trợ một buổi trong gói cố định. Vui lòng tách các buổi cùng ngày thành gói riêng.',
     );
   }
 
@@ -553,12 +700,17 @@ export async function checkSlotConflict(
       courtId,
       slotDate: date,
       time: { in: hours },
+      status: { in: ['booked', 'hold'] },
+      OR: [
+        { bookingId: null },
+        { booking: { is: { status: { not: 'cancelled' } } } },
+      ],
     },
     select: { time: true, status: true, bookedBy: true },
   });
 }
 
-export const HOLD_EXPIRES_MINUTES = 10;
+export const HOLD_EXPIRES_MINUTES = 5;
 
 export async function expireStaleBookingHolds(
   client: DbClient,
