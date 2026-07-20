@@ -1655,6 +1655,16 @@ export class BookingsService implements OnModuleInit {
           formatDate(o.occurrenceDate) === detailTodayToken &&
           Boolean(o.booking) &&
           o.booking?.status !== 'cancelled',
+        latestAdjustment: (() => {
+          const adjustment = schedule.adjustments.find((item) => item.occurrenceId === o.id);
+          return adjustment
+            ? {
+                ...adjustment,
+                oldDate: adjustment.oldDate ? formatDate(adjustment.oldDate) : null,
+                newDate: adjustment.newDate ? formatDate(adjustment.newDate) : null,
+              }
+            : null;
+        })(),
       })),
       adjustments: schedule.adjustments,
       invoice: schedule.invoices[0] || null,

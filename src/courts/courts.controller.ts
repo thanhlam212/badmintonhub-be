@@ -2,6 +2,7 @@ import {
   Controller, Get, Post, Put, Patch,
   Body, Param, Query, ParseIntPipe,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { CourtsService } from './courts.service';
 import { CreateCourtDto, UpdateCourtDto, CreateReviewDto } from './dto/court.dto';
 import { Public, Roles, CurrentUser } from '../auth/decorators/index';
@@ -36,6 +37,7 @@ export class CourtsController {
 
   // GET /api/courts/:id/slots?date=2025-03-10  (Public)
   @Public()
+  @Throttle({ default: { ttl: 1000, limit: 50 } })
   @Get(':id/slots')
   getSlots(
     @Param('id', ParseIntPipe) id: number,

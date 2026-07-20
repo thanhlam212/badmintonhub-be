@@ -22,9 +22,14 @@ export class InventoryService {
 
     const items = await this.prisma.inventory.findMany({
       where: { warehouseId },
+      include: { product: { select: { price: true } } },
       orderBy: [{ category: 'asc' }, { name: 'asc' }],
     })
-    return items.map(i => ({ ...i, unitCost: Number(i.unitCost) }))
+    return items.map((i: any) => ({
+      ...i,
+      unitCost: Number(i.unitCost),
+      price: i.product?.price != null ? Number(i.product.price) : null,
+    }))
   }
 
   // ─── GET /inventory ────────────────────────────────────────
@@ -49,13 +54,17 @@ export class InventoryService {
 
     const items = await this.prisma.inventory.findMany({
       where,
-      include: { warehouse: { select: { id: true, name: true } } },
+      include: {
+        warehouse: { select: { id: true, name: true } },
+        product: { select: { price: true } },
+      },
       orderBy: [{ category: 'asc' }, { name: 'asc' }],
     })
 
     const mapped = items.map((i: any) => ({
       ...i,
       unitCost:      Number(i.unitCost),
+      price:         i.product?.price != null ? Number(i.product.price) : null,
       warehouseName: i.warehouse.name,
     }))
 
