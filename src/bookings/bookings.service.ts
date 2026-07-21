@@ -30,6 +30,7 @@ import {
   buildHourSlots,
   nextInvoiceCode,
   checkSlotConflict,
+  assertSlotNotPast,
   getBusinessNowParts,
   HOLD_EXPIRES_MINUTES,
 } from './booking.helpers';
@@ -400,6 +401,7 @@ export class BookingsService implements OnModuleInit {
     // FE gửi snake_case — đọc trực tiếp từ DTO
     const hours = buildHourSlots(dto.time_start, dto.time_end);
     const dateObj = normalizeDate(dto.booking_date);
+    assertSlotNotPast(dateObj, dto.time_start);
     const paymentMethod = normalizePaymentMethod(dto.payment_method, 'cash');
     const isStaffBooking = this.isStaffUser(user)
     const bookingStatus = isStaffBooking ? 'confirmed' : 'pending'

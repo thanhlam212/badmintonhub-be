@@ -11,7 +11,11 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateCourtDto, UpdateCourtDto, CreateReviewDto } from './dto/court.dto';
 import { Roles } from 'src/auth/decorators';
 import { UpdateBookingStatusDto } from 'src/bookings/dto/booking.dto';
-import { expireStaleBookingHolds, normalizeDate } from '../bookings/booking.helpers';
+import {
+  expireStaleBookingHolds,
+  isSlotStartInPast,
+  normalizeDate,
+} from '../bookings/booking.helpers';
 
 @Injectable()
 export class CourtsService {
@@ -134,11 +138,12 @@ export class CourtsService {
     });
 
     const bookedMap = new Map(bookedSlots.map((s) => [s.time, s.status]));
+    const slotDate = normalizeDate(date);
 
     return allSlots.map((time) => ({
       time,
-      available: !bookedMap.has(time),
-      status: bookedMap.get(time) || 'available',
+      available: !bookedMap.has(time) && !isSlotStartInPast(slotDate, time),
+      status: bookedMap.get(time) || (isSlotStartInPast(slotDate, time) ? 'past' : 'available'),
       price: Number(court.price),
     }));
   }
