@@ -7,6 +7,29 @@ import { QueryProductDto, CreateProductDto, UpdateProductDto } from './dto/produ
 export class ProductsService {
   constructor(private prisma: PrismaService) {}
 
+  private isServiceOnlyCategory(category?: string | null) {
+    const normalized = String(category || '')
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+
+    return normalized.includes('nuoc') || normalized.includes('drink') || normalized.includes('beverage')
+  }
+
+  private storeWhere(where: any = {}) {
+    const currentNot = Array.isArray(where.NOT) ? where.NOT : where.NOT ? [where.NOT] : []
+    return {
+      ...where,
+      NOT: [
+        ...currentNot,
+        { category: { contains: 'nuoc', mode: 'insensitive' } },
+        { category: { contains: 'nước', mode: 'insensitive' } },
+        { category: { contains: 'drink', mode: 'insensitive' } },
+        { category: { contains: 'beverage', mode: 'insensitive' } },
+      ],
+    }
+  }
+
   async findAll(query: QueryProductDto) {
     const {
       category, brand, search, gender,
@@ -15,7 +38,7 @@ export class ProductsService {
       minPrice, maxPrice,
     } = query
 
-    const where: any = { inStock: true }
+    const where: any = this.storeWhere({ inStock: true })
 
     if (category) where.category = category
     if (brand)    where.brand    = { contains: brand, mode: 'insensitive' }
@@ -61,7 +84,7 @@ export class ProductsService {
     }
   }
 
-  async findOne(id: number) {
+  async findOne(id: number, options?: { includeServiceOnly?: boolean }) {
     const product = await this.prisma.product.findUnique({
       where: { id },
       include: {
@@ -70,12 +93,15 @@ export class ProductsService {
       },
     })
     if (!product) throw new NotFoundException('Không tìm thấy sản phẩm')
+    if (!options?.includeServiceOnly && this.isServiceOnlyCategory(product.category)) {
+      throw new NotFoundException('Khong tim thay san pham')
+    }
     return this.transform(product)
   }
 
   async getCategories() {
     const cats = await this.prisma.product.findMany({
-      where:    { inStock: true },
+      where:    this.storeWhere({ inStock: true }),
       select:   { category: true },
       distinct: ['category'],
     })
@@ -84,7 +110,7 @@ export class ProductsService {
 
   async getBrands() {
     const brands = await this.prisma.product.findMany({
-      where:    { inStock: true },
+      where:    this.storeWhere({ inStock: true }),
       select:   { brand: true },
       distinct: ['brand'],
     })
@@ -146,7 +172,7 @@ export class ProductsService {
   }
 
   async update(id: number, dto: UpdateProductDto) {
-    await this.findOne(id)
+    await this.findOne(id, { includeServiceOnly: true })
     const product = await this.prisma.product.update({
       where: { id },
       data: {
@@ -182,7 +208,7 @@ export class ProductsService {
   }
 
   async remove(id: number) {
-    await this.findOne(id)
+    await this.findOne(id, { includeServiceOnly: true })
     await this.prisma.product.delete({ where: { id } })
     return { message: 'Đã xóa sản phẩm' }
   }

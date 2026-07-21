@@ -138,6 +138,15 @@ export class OrderService {
     /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
   private readonly orderCodePattern = DOCUMENT_CODE_PATTERN
 
+  private isServiceOnlyProduct(product: { category?: string | null; name?: string | null }) {
+    const normalized = `${product.category || ''} ${product.name || ''}`
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+
+    return normalized.includes('nuoc') || normalized.includes('drink') || normalized.includes('beverage')
+  }
+
   // ─── Tạo đơn hàng mới ─────────────────────────────────────
   async create(dto: CreateOrderDto, userId?: string) {
     if (!dto.items || dto.items.length === 0) {
@@ -152,6 +161,10 @@ export class OrderService {
 
     if (products.length !== productIds.length) {
       throw new BadRequestException('Một số sản phẩm không tồn tại')
+    }
+
+    if (products.some(product => this.isServiceOnlyProduct(product))) {
+      throw new BadRequestException('Nuoc uong chi ban tai trang dich vu san')
     }
 
     return this.prisma.$transaction(async (tx) => {
